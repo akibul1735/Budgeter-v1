@@ -113,6 +113,7 @@ import com.example.data.model.WishlistTargetType
 import com.example.ui.dialogs.AddEditWishlistDialog
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabFilterPreferences
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -147,13 +148,20 @@ fun WishlistScreen(
     onOpenDrawer: () -> Unit
 ) {
     val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var selectedTab by remember { mutableStateOf(WishlistFilterTab.ACTIVE) }
-    var selectedSort by remember { mutableStateOf(WishlistSort.PRIORITY) }
-    var searchQuery by remember { mutableStateOf("") }
-    var isSearchActive by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(tabFilterPrefs.wishlistTab) }
+    var selectedSort by remember { mutableStateOf(tabFilterPrefs.wishlistSort) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.wishlistSearchQuery) }
+    var isSearchActive by remember { mutableStateOf(tabFilterPrefs.wishlistSearchQuery.isNotBlank()) }
+
+    LaunchedEffect(selectedTab, selectedSort, searchQuery) {
+        tabFilterPrefs.wishlistTab = selectedTab
+        tabFilterPrefs.wishlistSort = selectedSort
+        tabFilterPrefs.wishlistSearchQuery = searchQuery
+    }
 
     var showAddEditDialog by remember { mutableStateOf(false) }
     var itemToEdit by remember { mutableStateOf<WishlistItem?>(null) }

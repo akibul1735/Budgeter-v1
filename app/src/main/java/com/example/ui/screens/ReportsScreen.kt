@@ -107,7 +107,9 @@ import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.NetEarningsExportGroup
 import com.example.util.NetEarningsExportItem
+import androidx.compose.runtime.LaunchedEffect
 import com.example.util.TabExportHelper
+import com.example.util.TabFilterPreferences
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -116,13 +118,13 @@ private val CrimsonPink = Color(0xFFE91E63)
 private val BrandBlueLight = Color(0xFF0284C7)
 private val SlateText = Color(0xFF64748B)
 
-private enum class NetEarningsHierarchyView {
+enum class NetEarningsHierarchyView {
     GROUPED,
     ONLY_GROUPS,
     ONLY_ITEMS
 }
 
-private enum class NetEarningsSort {
+enum class NetEarningsSort {
     AMOUNT_HIGH_TO_LOW,
     AMOUNT_LOW_TO_HIGH,
     PERCENTAGE_HIGH_TO_LOW,
@@ -171,19 +173,28 @@ fun ReportsScreen(
     onAccountClick: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
 
     // Default to THIS MONTH
     val currentCal = remember { Calendar.getInstance() }
     var selectedYear by remember { mutableIntStateOf(currentCal.get(Calendar.YEAR)) }
     var selectedMonth by remember { mutableIntStateOf(currentCal.get(Calendar.MONTH) + 1) } // 1-12
 
-    var activeTabMode by remember { mutableStateOf("EXPENSE") } // "EXPENSE" or "INCOME"
-    var hierarchyView by remember { mutableStateOf(NetEarningsHierarchyView.GROUPED) }
-    var sortOption by remember { mutableStateOf(NetEarningsSort.AMOUNT_HIGH_TO_LOW) }
-    var searchQuery by remember { mutableStateOf("") }
+    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.reportsTabMode) } // "EXPENSE" or "INCOME"
+    var hierarchyView by remember { mutableStateOf(tabFilterPrefs.reportsHierarchyView) }
+    var sortOption by remember { mutableStateOf(tabFilterPrefs.reportsSortOption) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.reportsSearchQuery) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
-    var filterState by remember { mutableStateOf(NetEarningsFilterState(datePreset = BudgetDateRangePreset.THIS_MONTH)) }
+    var filterState by remember { mutableStateOf(NetEarningsFilterState(datePreset = tabFilterPrefs.reportsDatePreset)) }
+
+    LaunchedEffect(activeTabMode, hierarchyView, sortOption, searchQuery, filterState) {
+        tabFilterPrefs.reportsTabMode = activeTabMode
+        tabFilterPrefs.reportsHierarchyView = hierarchyView
+        tabFilterPrefs.reportsSortOption = sortOption
+        tabFilterPrefs.reportsSearchQuery = searchQuery
+        tabFilterPrefs.reportsDatePreset = filterState.datePreset
+    }
 
     var selectedCategoryItemForDetail by remember { mutableStateOf<CategoryEarningsTrackingItem?>(null) }
     var showNetSummaryDialog by remember { mutableStateOf(false) }

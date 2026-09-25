@@ -86,8 +86,10 @@ import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import androidx.compose.ui.platform.LocalContext
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabFilterPreferences
 
 private val SlateText = Color(0xFF64748B)
 
@@ -129,15 +131,26 @@ fun CategoriesScreen(
     onUpdateCategories: ((List<Category>) -> Unit)? = null,
     onDeleteCategories: ((List<Category>) -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
     var isEditMode by remember { mutableStateOf(false) }
     var selectedTypeFilter by remember {
         mutableStateOf<CategoryType?>(
-            if (initialTab == 1) CategoryType.INCOME else CategoryType.EXPENSE
+            if (initialTab == 1) CategoryType.INCOME
+            else if (initialTab == 0) (tabFilterPrefs.categoriesTypeFilter ?: CategoryType.EXPENSE)
+            else tabFilterPrefs.categoriesTypeFilter
         )
     }
-    var hierarchyFilter by remember { mutableStateOf(CategoryViewHierarchyFilter.ALL) }
-    var sortFilter by remember { mutableStateOf(CategorySortFilter.DEFAULT) }
+    var hierarchyFilter by remember { mutableStateOf(tabFilterPrefs.categoriesHierarchyFilter) }
+    var sortFilter by remember { mutableStateOf(tabFilterPrefs.categoriesSortFilter) }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
+
+    LaunchedEffect(selectedTypeFilter, hierarchyFilter, sortFilter) {
+        tabFilterPrefs.categoriesTypeFilter = selectedTypeFilter
+        tabFilterPrefs.categoriesHierarchyFilter = hierarchyFilter
+        tabFilterPrefs.categoriesSortFilter = sortFilter
+    }
 
     LaunchedEffect(initialTab) {
         selectedTypeFilter = if (initialTab == 1) CategoryType.INCOME else CategoryType.EXPENSE
@@ -226,7 +239,11 @@ fun CategoriesScreen(
     }
 
     // Search state
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.categoriesSearchQuery) }
+
+    LaunchedEffect(searchQuery) {
+        tabFilterPrefs.categoriesSearchQuery = searchQuery
+    }
 
     fun matchesCategorySearch(cat: Category, query: String): Boolean {
         if (query.isBlank()) return true

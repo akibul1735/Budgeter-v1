@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,8 +66,10 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.viewmodel.BudgetViewModel
+import androidx.compose.ui.platform.LocalContext
 import com.example.util.DateUtils
 import com.example.util.LanguageHelper
+import com.example.util.TabFilterPreferences
 import com.example.util.TrashItemType
 import com.example.util.TrashedItem
 
@@ -79,9 +82,15 @@ fun TrashScreen(
 ) {
     val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
-    var selectedFilter by remember { mutableStateOf<TrashItemType?>(null) }
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    var selectedFilter by remember { mutableStateOf(tabFilterPrefs.trashFilter) }
     var showEmptyTrashDialog by remember { mutableStateOf(false) }
     var itemToDeletePermanently by remember { mutableStateOf<TrashedItem?>(null) }
+
+    LaunchedEffect(selectedFilter) {
+        tabFilterPrefs.trashFilter = selectedFilter
+    }
 
     val filteredItems = remember(trashedItems, selectedFilter) {
         if (selectedFilter == null) trashedItems

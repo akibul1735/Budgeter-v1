@@ -98,9 +98,11 @@ import com.example.ui.dialogs.AccountCalculationDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import androidx.compose.ui.platform.LocalContext
 import com.example.util.AccountCalcConfig
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabFilterPreferences
 
 private val SlateText = Color(0xFF64748B)
 
@@ -160,12 +162,26 @@ fun AccountsScreen(
     BackHandler(enabled = isEditMode) {
         isEditMode = false
     }
-    var selectedTypeFilter by remember { mutableStateOf<AccountType?>(null) }
-    var hierarchyFilter by remember(initialHierarchyFilter) { mutableStateOf(initialHierarchyFilter) }
-    var sortFilter by remember { mutableStateOf(AccountSortFilter.DEFAULT) }
-    var statusFilter by remember { mutableStateOf(AccountActiveStatusFilter.ALL) }
-    var excludeZeroBalance by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
+    var selectedTypeFilter by remember { mutableStateOf(tabFilterPrefs.accountsTypeFilter) }
+    var hierarchyFilter by remember(initialHierarchyFilter) {
+        mutableStateOf(if (initialHierarchyFilter != AccountViewHierarchyFilter.ALL) initialHierarchyFilter else tabFilterPrefs.accountsHierarchyFilter)
+    }
+    var sortFilter by remember { mutableStateOf(tabFilterPrefs.accountsSortFilter) }
+    var statusFilter by remember { mutableStateOf(tabFilterPrefs.accountsStatusFilter) }
+    var excludeZeroBalance by remember { mutableStateOf(tabFilterPrefs.accountsExcludeZeroBalance) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.accountsSearchQuery) }
+
+    LaunchedEffect(selectedTypeFilter, hierarchyFilter, sortFilter, statusFilter, excludeZeroBalance, searchQuery) {
+        tabFilterPrefs.accountsTypeFilter = selectedTypeFilter
+        tabFilterPrefs.accountsHierarchyFilter = hierarchyFilter
+        tabFilterPrefs.accountsSortFilter = sortFilter
+        tabFilterPrefs.accountsStatusFilter = statusFilter
+        tabFilterPrefs.accountsExcludeZeroBalance = excludeZeroBalance
+        tabFilterPrefs.accountsSearchQuery = searchQuery
+    }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
     // State for Adjust Calculation Dialog

@@ -93,7 +93,9 @@ import com.example.util.CashFlowPeriodPreset
 import com.example.util.CashFlowSummary
 import com.example.util.DateUtils
 import com.example.util.IconHelper
+import androidx.compose.runtime.LaunchedEffect
 import com.example.util.LanguageHelper
+import com.example.util.TabFilterPreferences
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -123,15 +125,22 @@ fun CashFlowScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
 
-    var selectedPreset by remember { mutableStateOf(CashFlowPeriodPreset.THIS_MONTH) }
+    var selectedPreset by remember { mutableStateOf(tabFilterPrefs.cashFlowPreset) }
     var customStartMs by remember { mutableStateOf(0L) }
     var customEndMs by remember { mutableStateOf(0L) }
-    var selectedSection by remember { mutableStateOf(CashFlowTabSection.OVERVIEW) }
-    var searchQuery by remember { mutableStateOf("") }
+    var selectedSection by remember { mutableStateOf(tabFilterPrefs.cashFlowSection) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.cashFlowSearchQuery) }
     var selectedTxFilter by remember { mutableStateOf<TransactionType?>(null) }
     var selectedAccountIds by remember { mutableStateOf<Set<Long>?>(null) }
     var showAccountFilterDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedPreset, selectedSection, searchQuery) {
+        tabFilterPrefs.cashFlowPreset = selectedPreset
+        tabFilterPrefs.cashFlowSection = selectedSection
+        tabFilterPrefs.cashFlowSearchQuery = searchQuery
+    }
 
     // Date range resolution
     val dateRange = remember(selectedPreset, customStartMs, customEndMs) {

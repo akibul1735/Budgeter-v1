@@ -93,7 +93,9 @@ import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import androidx.compose.runtime.LaunchedEffect
 import com.example.util.TabExportHelper
+import com.example.util.TabFilterPreferences
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -132,9 +134,25 @@ fun ItemsScreen(
     onAddTransactionClick: ((TransactionType) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    var searchQuery by remember { mutableStateOf("") }
-    var activeTabMode by remember { mutableStateOf("EXPENSE") }
-    var filterState by remember { mutableStateOf(AggregatedFilterState()) }
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.itemsSearchQuery) }
+    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.itemsTabMode) }
+    var filterState by remember {
+        mutableStateOf(
+            AggregatedFilterState(
+                datePreset = tabFilterPrefs.itemsDatePreset,
+                sortOrder = tabFilterPrefs.itemsSortOrder
+            )
+        )
+    }
+
+    LaunchedEffect(searchQuery, activeTabMode, filterState) {
+        tabFilterPrefs.itemsSearchQuery = searchQuery
+        tabFilterPrefs.itemsTabMode = activeTabMode
+        tabFilterPrefs.itemsDatePreset = filterState.datePreset
+        tabFilterPrefs.itemsSortOrder = filterState.sortOrder
+    }
 
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTimelineScreen by remember { mutableStateOf(false) }

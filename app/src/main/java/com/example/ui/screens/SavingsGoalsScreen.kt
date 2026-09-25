@@ -40,8 +40,10 @@ import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.AddEditSavingsGoalDialog
 import com.example.ui.dialogs.QuickAllocateGoalDialog
+import androidx.compose.ui.platform.LocalContext
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabFilterPreferences
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -66,12 +68,20 @@ fun SavingsGoalsScreen(
     onUpdateAllocation: (Long, Long, Double) -> Unit,
     onOpenDrawer: () -> Unit
 ) {
-    var selectedFilter by remember { mutableStateOf(GoalFilterType.ALL) }
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
+    var selectedFilter by remember { mutableStateOf(tabFilterPrefs.savingsGoalsFilter) }
     var goalToEdit by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var goalToAllocate by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var goalToDelete by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var showAddGoalDialog by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.savingsGoalsSearchQuery) }
+
+    LaunchedEffect(selectedFilter, searchQuery) {
+        tabFilterPrefs.savingsGoalsFilter = selectedFilter
+        tabFilterPrefs.savingsGoalsSearchQuery = searchQuery
+    }
 
     val filteredGoals = remember(goalsWithDetails, selectedFilter, searchQuery) {
         val byFilter = when (selectedFilter) {

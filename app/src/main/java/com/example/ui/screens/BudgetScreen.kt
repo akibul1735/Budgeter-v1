@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
@@ -164,6 +165,7 @@ import com.example.util.AccountCalcConfig
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabFilterPreferences
 import com.example.util.TabPosition
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -379,9 +381,16 @@ fun BudgetScreen(
     var showHelpDialog by remember { mutableStateOf(false) }
     var showQuickActionSheet by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
     // Search and Filter State
-    var isSearchActive by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery.isNotBlank()) }
-    var searchQuery by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
+    var isSearchActive by remember(initialSearchQuery) {
+        mutableStateOf(initialSearchQuery.isNotBlank() || tabFilterPrefs.budgetSearchQuery.isNotBlank())
+    }
+    var searchQuery by remember(initialSearchQuery) {
+        mutableStateOf(if (initialSearchQuery.isNotBlank()) initialSearchQuery else tabFilterPrefs.budgetSearchQuery)
+    }
     val searchFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -408,10 +417,18 @@ fun BudgetScreen(
     var assetSelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
     var liabilitySelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
 
-    var expenseSelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
-    var incomeSelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
-    var assetSelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
-    var liabilitySelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
+    var expenseSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetExpenseSort) }
+    var incomeSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetIncomeSort) }
+    var assetSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetAssetSort) }
+    var liabilitySelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetLiabilitySort) }
+
+    LaunchedEffect(searchQuery, expenseSelectedSort, incomeSelectedSort, assetSelectedSort, liabilitySelectedSort) {
+        tabFilterPrefs.budgetSearchQuery = searchQuery
+        tabFilterPrefs.budgetExpenseSort = expenseSelectedSort
+        tabFilterPrefs.budgetIncomeSort = incomeSelectedSort
+        tabFilterPrefs.budgetAssetSort = assetSelectedSort
+        tabFilterPrefs.budgetLiabilitySort = liabilitySelectedSort
+    }
 
     val currentTabFilter = when (selectedTab) {
         1 -> expenseFilter

@@ -91,6 +91,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -128,6 +129,9 @@ import com.example.ui.components.UnifiedFilterHeader
 import com.example.ui.components.UnifiedFilterSection
 import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.dialogs.TransactionDetailViewDialog
+import com.example.ui.dialogs.TransactionDisplaySettings
+import com.example.ui.dialogs.TransactionFilterDialog
+import com.example.ui.dialogs.TransactionFilterState
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidExpenseContainer
 import com.example.ui.theme.SolidIncome
@@ -142,6 +146,7 @@ import com.example.util.LanguageHelper
 import com.example.util.NotesDisplayMode
 import com.example.util.SecurityConfig
 import com.example.util.TabExportHelper
+import com.example.util.TabFilterPreferences
 import com.example.util.TransactionPreferences
 import com.example.util.UnnamedPayeeMode
 import androidx.compose.ui.platform.LocalContext
@@ -209,22 +214,56 @@ fun LedgerScreen(
     onDeleteTransaction: (Transaction) -> Unit = {}
 ) {
     val context = LocalContext.current
-    // Search & Filter state - long search bar auto open by default
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
+    // Search & Filter state - remembered and restored from TabFilterPreferences
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.ledgerSearchQuery) }
+    var selectedTypeFilter by remember { mutableStateOf(tabFilterPrefs.ledgerTypeFilter) }
     var showSearchField by remember { mutableStateOf(true) }
-    var selectedDatePreset by remember { mutableStateOf(LedgerDatePreset.LAST_12_MONTHS) }
-    var minAmountFilter by remember { mutableDoubleStateOf(0.0) }
-    var maxAmountFilter by remember { mutableDoubleStateOf(Double.MAX_VALUE) }
-    var customStartDateMs by remember { mutableLongStateOf(0L) }
-    var customEndDateMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var selectedDatePreset by remember { mutableStateOf(tabFilterPrefs.ledgerDatePreset) }
+    var minAmountFilter by remember { mutableDoubleStateOf(tabFilterPrefs.ledgerMinAmount) }
+    var maxAmountFilter by remember { mutableDoubleStateOf(tabFilterPrefs.ledgerMaxAmount) }
+    var customStartDateMs by remember { mutableLongStateOf(tabFilterPrefs.ledgerCustomStartDateMs) }
+    var customEndDateMs by remember { mutableLongStateOf(tabFilterPrefs.ledgerCustomEndDateMs) }
 
-    var selectedCategoryIdFilter by remember { mutableStateOf<Long?>(null) }
-    var selectedAccountIdFilter by remember { mutableStateOf<Long?>(null) }
-    var selectedLabelFilter by remember { mutableStateOf<String?>(null) }
-    var selectedStatusFilter by remember { mutableStateOf<TransactionStatus?>(null) }
+    var selectedCategoryIdFilter by remember { mutableStateOf(tabFilterPrefs.ledgerCategoryId) }
+    var selectedAccountIdFilter by remember { mutableStateOf(tabFilterPrefs.ledgerAccountId) }
+    var selectedLabelFilter by remember { mutableStateOf(tabFilterPrefs.ledgerLabel) }
+    var selectedStatusFilter by remember { mutableStateOf(tabFilterPrefs.ledgerStatus) }
 
-    var rowStyle by remember { mutableStateOf(LedgerRowStyle.STANDARD) }
+    var rowStyle by remember { mutableStateOf(tabFilterPrefs.ledgerRowStyle) }
+    var displaySettings by remember { mutableStateOf(tabFilterPrefs.ledgerDisplaySettings) }
+
+    // Sync state changes to TabFilterPreferences
+    LaunchedEffect(
+        searchQuery,
+        selectedTypeFilter,
+        selectedDatePreset,
+        customStartDateMs,
+        customEndDateMs,
+        minAmountFilter,
+        maxAmountFilter,
+        selectedCategoryIdFilter,
+        selectedAccountIdFilter,
+        selectedLabelFilter,
+        selectedStatusFilter,
+        rowStyle,
+        displaySettings
+    ) {
+        tabFilterPrefs.ledgerSearchQuery = searchQuery
+        tabFilterPrefs.ledgerTypeFilter = selectedTypeFilter
+        tabFilterPrefs.ledgerDatePreset = selectedDatePreset
+        tabFilterPrefs.ledgerCustomStartDateMs = customStartDateMs
+        tabFilterPrefs.ledgerCustomEndDateMs = customEndDateMs
+        tabFilterPrefs.ledgerMinAmount = minAmountFilter
+        tabFilterPrefs.ledgerMaxAmount = maxAmountFilter
+        tabFilterPrefs.ledgerCategoryId = selectedCategoryIdFilter
+        tabFilterPrefs.ledgerAccountId = selectedAccountIdFilter
+        tabFilterPrefs.ledgerLabel = selectedLabelFilter
+        tabFilterPrefs.ledgerStatus = selectedStatusFilter
+        tabFilterPrefs.ledgerRowStyle = rowStyle
+        tabFilterPrefs.ledgerDisplaySettings = displaySettings
+    }
 
     // Multi-Selection State
     var selectedTransactionIds by remember { mutableStateOf(setOf<Long>()) }
@@ -439,9 +478,9 @@ fun LedgerScreen(
         }
     }
 
-    // Group transactions by calendar day (descending order) with precalculated aggregates
-    val groupedByDay = remember(filteredTransactions) {
-        filteredTransactions.groupBy { DateUtils.getStartOfDay(it.transaction.dateEpochMs) }
+    // Group transactions by calendar day with precalculated aggregates
+    val groupedByDay = remember(filteredTransactions, displaySettings.showOldestDateFirst) {
+        val grouped = filteredTransactions.groupBy { DateUtils.getStartOfDay(it.transaction.dateEpochMs) }
             .map { (dayEpochMs, dayTxList) ->
                 var inc = 0.0
                 var exp = 0.0
@@ -452,15 +491,24 @@ fun LedgerScreen(
                         else -> {}
                     }
                 }
+                val sortedTxList = if (displaySettings.showOldestDateFirst) {
+                    dayTxList.sortedBy { it.transaction.dateEpochMs }
+                } else {
+                    dayTxList.sortedByDescending { it.transaction.dateEpochMs }
+                }
                 DayGroupedTransactions(
                     dayEpochMs = dayEpochMs,
-                    transactions = dayTxList,
+                    transactions = sortedTxList,
                     dayIncome = inc,
                     dayExpense = exp,
                     dayNet = inc - exp
                 )
             }
-            .sortedByDescending { it.dayEpochMs }
+        if (displaySettings.showOldestDateFirst) {
+            grouped.sortedBy { it.dayEpochMs }
+        } else {
+            grouped.sortedByDescending { it.dayEpochMs }
+        }
     }
 
     // Calculate selected items metrics
@@ -474,7 +522,7 @@ fun LedgerScreen(
         inc - exp
     }
 
-    val filteredTotals = remember(filteredTransactions, selectedTypeFilter, languageMode) {
+    val filteredTotals = remember(filteredTransactions, selectedTypeFilter, displaySettings.showTransfersInTotal, languageMode) {
         var totalInc = 0.0
         var totalExp = 0.0
         var totalTrans = 0.0
@@ -492,7 +540,11 @@ fun LedgerScreen(
             }
         }
 
-        val net = totalInc - totalExp
+        val net = if (displaySettings.showTransfersInTotal) {
+            totalInc - totalExp + totalTrans
+        } else {
+            totalInc - totalExp
+        }
 
         when (selectedTypeFilter) {
             TransactionType.EXPENSE -> {
@@ -1022,32 +1074,34 @@ fun LedgerScreen(
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    if (displaySettings.showTotalAmount) {
+                                        Spacer(modifier = Modifier.width(6.dp))
 
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = filteredTotals.bgColor,
-                                        border = BorderStroke(1.dp, filteredTotals.borderColor),
-                                        modifier = Modifier.testTag("filtered_total_amount_pill")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = filteredTotals.bgColor,
+                                            border = BorderStroke(1.dp, filteredTotals.borderColor),
+                                            modifier = Modifier.testTag("filtered_total_amount_pill")
                                         ) {
-                                            Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) "মোট: " else "Total: ",
-                                                fontSize = 10.5.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = filteredTotals.textColor.copy(alpha = 0.85f)
-                                            )
-                                            Text(
-                                                text = filteredTotals.formattedTotal,
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = filteredTotals.textColor,
-                                                modifier = Modifier.testTag("filtered_total_amount_text")
-                                            )
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "মোট: " else "Total: ",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = filteredTotals.textColor.copy(alpha = 0.85f)
+                                                )
+                                                Text(
+                                                    text = filteredTotals.formattedTotal,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = filteredTotals.textColor,
+                                                    modifier = Modifier.testTag("filtered_total_amount_text")
+                                                )
+                                            }
                                         }
                                     }
 
@@ -1165,7 +1219,9 @@ fun LedgerScreen(
 
                                     if (showSourceLeg) {
                                         val srcAccountName = item.creditAccount?.localizedName(languageMode) ?: "Source"
-                                        val srcBalance = tx.creditAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
+                                        val srcBalance = if (displaySettings.showAccountBalance) {
+                                            tx.creditAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
+                                        } else null
                                         val srcIsIncrease = tx.amount < 0
                                         val srcSign = if (srcIsIncrease) "+" else "−"
                                         val srcColor = if (srcIsIncrease) SolidIncome else SolidExpense
@@ -1207,7 +1263,9 @@ fun LedgerScreen(
 
                                     if (showDestLeg) {
                                         val destAccountName = item.debitAccount?.localizedName(languageMode) ?: "Dest"
-                                        val destBalance = tx.debitAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
+                                        val destBalance = if (displaySettings.showAccountBalance) {
+                                            tx.debitAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
+                                        } else null
                                         val destIsIncrease = tx.amount >= 0
                                         val destSign = if (destIsIncrease) "+" else "−"
                                         val destColor = if (destIsIncrease) SolidIncome else SolidExpense
@@ -1244,11 +1302,13 @@ fun LedgerScreen(
                                         TransactionType.INCOME -> item.debitAccount?.localizedName(languageMode) ?: ""
                                         else -> ""
                                     }
-                                    val accBalance = when (tx.type) {
-                                        TransactionType.EXPENSE -> tx.creditAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
-                                        TransactionType.INCOME -> tx.debitAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
-                                        else -> null
-                                    }
+                                    val accBalance = if (displaySettings.showAccountBalance) {
+                                        when (tx.type) {
+                                            TransactionType.EXPENSE -> tx.creditAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
+                                            TransactionType.INCOME -> tx.debitAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
+                                            else -> null
+                                        }
+                                    } else null
                                     val targetAcc = when (tx.type) {
                                         TransactionType.EXPENSE -> item.creditAccount
                                         TransactionType.INCOME -> item.debitAccount
@@ -1325,37 +1385,61 @@ fun LedgerScreen(
         )
     }
 
-    // Advanced Filtering Dialog (Matching Screenshot 2 - Bluecoins style)
+    // Transaction Filter Popup Dialog
     if (showFilterDialog) {
-        AdvancedTransactionsFilterDialog(
-            currentPreset = selectedDatePreset,
-            currentType = selectedTypeFilter,
-            currentMinAmount = minAmountFilter,
-            currentMaxAmount = if (maxAmountFilter == Double.MAX_VALUE) 0.0 else maxAmountFilter,
-            currentCategoryId = selectedCategoryIdFilter,
-            currentAccountId = selectedAccountIdFilter,
-            currentLabel = selectedLabelFilter,
-            currentStatus = selectedStatusFilter,
-            currentRowStyle = rowStyle,
+        val currentFilterState = remember(
+            searchQuery,
+            selectedTypeFilter,
+            selectedDatePreset,
+            customStartDateMs,
+            customEndDateMs,
+            minAmountFilter,
+            maxAmountFilter,
+            selectedCategoryIdFilter,
+            selectedAccountIdFilter,
+            selectedLabelFilter,
+            selectedStatusFilter,
+            rowStyle,
+            displaySettings
+        ) {
+            TransactionFilterState(
+                searchQuery = searchQuery,
+                minAmount = if (minAmountFilter > 0) minAmountFilter else null,
+                maxAmount = if (maxAmountFilter < Double.MAX_VALUE) maxAmountFilter else null,
+                datePreset = selectedDatePreset,
+                startDateMs = customStartDateMs,
+                endDateMs = customEndDateMs,
+                transactionType = selectedTypeFilter,
+                categoryId = selectedCategoryIdFilter,
+                accountId = selectedAccountIdFilter,
+                label = selectedLabelFilter,
+                status = selectedStatusFilter,
+                rowStyle = rowStyle,
+                displaySettings = displaySettings
+            )
+        }
+
+        TransactionFilterDialog(
+            initialState = currentFilterState,
             allCategories = allCategories,
             allAccounts = allAccounts,
             allTransactions = transactions,
             languageMode = languageMode,
-            onApply = { newPreset, newType, newMin, newMax, newCat, newAcc, newLbl, newStat, newStyle ->
-                selectedDatePreset = newPreset
-                selectedTypeFilter = newType
-                minAmountFilter = newMin
-                maxAmountFilter = if (newMax > 0) newMax else Double.MAX_VALUE
-                selectedCategoryIdFilter = newCat
-                selectedAccountIdFilter = newAcc
-                selectedLabelFilter = newLbl
-                selectedStatusFilter = newStat
-                rowStyle = newStyle
+            onApply = { newFilter ->
+                searchQuery = newFilter.searchQuery
+                selectedTypeFilter = newFilter.transactionType
+                selectedDatePreset = newFilter.datePreset
+                customStartDateMs = newFilter.startDateMs
+                customEndDateMs = newFilter.endDateMs
+                minAmountFilter = newFilter.minAmount ?: 0.0
+                maxAmountFilter = newFilter.maxAmount ?: Double.MAX_VALUE
+                selectedCategoryIdFilter = newFilter.categoryId
+                selectedAccountIdFilter = newFilter.accountId
+                selectedLabelFilter = newFilter.label
+                selectedStatusFilter = newFilter.status
+                rowStyle = newFilter.rowStyle
+                displaySettings = newFilter.displaySettings
                 showFilterDialog = false
-            },
-            onSelectCustomDates = {
-                showFilterDialog = false
-                showCustomStartPicker = true
             },
             onDismiss = { showFilterDialog = false }
         )
@@ -1527,474 +1611,6 @@ fun LedgerScreen(
             },
             onDismiss = { showBatchDeleteConfirmDialog = false }
         )
-    }
-}
-
-/**
- * Advanced Filtering Dialog matching Bluecoins Screenshot 2
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AdvancedTransactionsFilterDialog(
-    currentPreset: LedgerDatePreset,
-    currentType: TransactionType?,
-    currentMinAmount: Double,
-    currentMaxAmount: Double,
-    currentCategoryId: Long?,
-    currentAccountId: Long?,
-    currentLabel: String?,
-    currentStatus: TransactionStatus?,
-    currentRowStyle: LedgerRowStyle,
-    allCategories: List<Category>,
-    allAccounts: List<Account>,
-    allTransactions: List<TransactionWithDetails>,
-    languageMode: LanguageMode,
-    onApply: (LedgerDatePreset, TransactionType?, Double, Double, Long?, Long?, String?, TransactionStatus?, LedgerRowStyle) -> Unit,
-    onSelectCustomDates: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var tempPreset by remember { mutableStateOf(currentPreset) }
-    var tempType by remember { mutableStateOf(currentType) }
-    var tempMinStr by remember { mutableStateOf(if (currentMinAmount > 0) currentMinAmount.toInt().toString() else "") }
-    var tempMaxStr by remember { mutableStateOf(if (currentMaxAmount > 0) currentMaxAmount.toInt().toString() else "") }
-    var tempCategoryId by remember { mutableStateOf(currentCategoryId) }
-    var tempAccountId by remember { mutableStateOf(currentAccountId) }
-    var tempLabel by remember { mutableStateOf(currentLabel) }
-    var tempStatus by remember { mutableStateOf(currentStatus) }
-    var tempRowStyle by remember { mutableStateOf(currentRowStyle) }
-
-    var showFromCalc by remember { mutableStateOf(false) }
-    var showToCalc by remember { mutableStateOf(false) }
-    var showCatPicker by remember { mutableStateOf(false) }
-    var showAccPicker by remember { mutableStateOf(false) }
-    var showLabelPicker by remember { mutableStateOf(false) }
-
-    val activeCount = remember(tempPreset, tempType, tempMinStr, tempMaxStr, tempCategoryId, tempAccountId, tempLabel, tempStatus) {
-        var count = 0
-        if (tempPreset != LedgerDatePreset.LAST_12_MONTHS) count++
-        if (tempType != null) count++
-        if (tempMinStr.isNotBlank() || tempMaxStr.isNotBlank()) count++
-        if (tempCategoryId != null) count++
-        if (tempAccountId != null) count++
-        if (tempLabel != null) count++
-        if (tempStatus != null) count++
-        count
-    }
-
-    UnifiedFilterDialogContainer(
-        onDismissRequest = onDismiss,
-        testTag = "transactions_filter_dialog"
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            UnifiedFilterHeader(
-                title = if (languageMode == LanguageMode.BANGLA) "ফিল্টার লেনদেন" else "Filter Transactions",
-                activeCount = activeCount,
-                languageMode = languageMode,
-                onReset = {
-                    tempPreset = LedgerDatePreset.LAST_12_MONTHS
-                    tempType = null
-                    tempMinStr = ""
-                    tempMaxStr = ""
-                    tempCategoryId = null
-                    tempAccountId = null
-                    tempLabel = null
-                    tempStatus = null
-                },
-                onDismiss = onDismiss
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Date Range Section
-                UnifiedFilterSection(
-                    title = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Period"
-                ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = tempPreset == LedgerDatePreset.LAST_12_MONTHS,
-                    onClick = { tempPreset = LedgerDatePreset.LAST_12_MONTHS },
-                    label = { Text("Last 12 Mo", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempPreset == LedgerDatePreset.THIS_MONTH,
-                    onClick = { tempPreset = LedgerDatePreset.THIS_MONTH },
-                    label = { Text("This Month", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempPreset == LedgerDatePreset.LAST_MONTH,
-                    onClick = { tempPreset = LedgerDatePreset.LAST_MONTH },
-                    label = { Text("Last Month", fontSize = 11.sp) }
-                )
-            }
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = tempPreset == LedgerDatePreset.TODAY,
-                    onClick = { tempPreset = LedgerDatePreset.TODAY },
-                    label = { Text("Today", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempPreset == LedgerDatePreset.ALL_TIME,
-                    onClick = { tempPreset = LedgerDatePreset.ALL_TIME },
-                    label = { Text("All Time", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempPreset == LedgerDatePreset.CUSTOM,
-                    onClick = {
-                        tempPreset = LedgerDatePreset.CUSTOM
-                        onSelectCustomDates()
-                    },
-                    label = { Text("Custom 📅", fontSize = 11.sp) }
-                )
-            }
-        }
-
-        // Transaction Type
-        UnifiedFilterSection(
-            title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন" else "Transaction Flow"
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = tempType == null,
-                    onClick = { tempType = null },
-                    label = { Text("All", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempType == TransactionType.EXPENSE,
-                    onClick = { tempType = TransactionType.EXPENSE },
-                    label = { Text("Expense", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempType == TransactionType.INCOME,
-                    onClick = { tempType = TransactionType.INCOME },
-                    label = { Text("Income", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempType == TransactionType.TRANSFER,
-                    onClick = { tempType = TransactionType.TRANSFER },
-                    label = { Text("Transfer", fontSize = 11.sp) }
-                )
-            }
-        }
-
-        // Amount Range
-        UnifiedFilterSection(
-            title = if (languageMode == LanguageMode.BANGLA) "পরিমাণের সীমা" else "Amount Range"
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = tempMinStr,
-                    onValueChange = { tempMinStr = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Min (৳)", fontSize = 11.sp) },
-                    trailingIcon = {
-                        IconButton(onClick = { showFromCalc = true }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                )
-
-                OutlinedTextField(
-                    value = tempMaxStr,
-                    onValueChange = { tempMaxStr = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Max (৳)", fontSize = 11.sp) },
-                    trailingIcon = {
-                        IconButton(onClick = { showToCalc = true }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        // Category Selector Row
-        UnifiedFilterSection(
-            title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category"
-        ) {
-            FilterSelectorRow(
-                label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
-                selectedValue = if (tempCategoryId == null) "(All Categories)" else allCategories.firstOrNull { it.id == tempCategoryId }?.nameEn ?: "Category",
-                isFiltered = tempCategoryId != null,
-                onOpenPicker = { showCatPicker = true },
-                onClear = { tempCategoryId = null }
-            )
-        }
-
-        // Account Selector Row
-        UnifiedFilterSection(
-            title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account"
-        ) {
-            FilterSelectorRow(
-                label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
-                selectedValue = if (tempAccountId == null) "(All Accounts)" else allAccounts.firstOrNull { it.id == tempAccountId }?.nameEn ?: "Account",
-                isFiltered = tempAccountId != null,
-                onOpenPicker = { showAccPicker = true },
-                onClear = { tempAccountId = null }
-            )
-        }
-
-        // Labels Selector Row
-        UnifiedFilterSection(
-            title = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels"
-        ) {
-            FilterSelectorRow(
-                label = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
-                selectedValue = tempLabel ?: "(No Filter)",
-                isFiltered = tempLabel != null,
-                onOpenPicker = { showLabelPicker = true },
-                onClear = { tempLabel = null }
-            )
-        }
-
-        // Status Selector Row
-        UnifiedFilterSection(
-            title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status"
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(
-                    selected = tempStatus == null,
-                    onClick = { tempStatus = null },
-                    label = { Text("All", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempStatus == TransactionStatus.CLEARED,
-                    onClick = { tempStatus = TransactionStatus.CLEARED },
-                    label = { Text("Cleared", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempStatus == TransactionStatus.RECONCILED,
-                    onClick = { tempStatus = TransactionStatus.RECONCILED },
-                    label = { Text("Reconciled", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = tempStatus == TransactionStatus.VOID,
-                    onClick = { tempStatus = TransactionStatus.VOID },
-                    label = { Text("Void", fontSize = 11.sp) }
-                )
-            }
-        }
-
-        // Layout / Row Style
-        UnifiedFilterSection(
-            title = if (languageMode == LanguageMode.BANGLA) "ভিউ অপশন" else "View Style"
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "সারি প্রদর্শন ভিউ" else "Row Layout Style",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                AssistChip(
-                    onClick = {
-                        tempRowStyle = when (tempRowStyle) {
-                            LedgerRowStyle.STANDARD -> LedgerRowStyle.COMPACT
-                            LedgerRowStyle.COMPACT -> LedgerRowStyle.DETAILED
-                            LedgerRowStyle.DETAILED -> LedgerRowStyle.STANDARD
-                        }
-                    },
-                    label = { Text(tempRowStyle.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 11.sp) },
-                    leadingIcon = {
-                        Icon(
-                            when (tempRowStyle) {
-                                LedgerRowStyle.STANDARD -> Icons.Default.ViewAgenda
-                                LedgerRowStyle.COMPACT -> Icons.Default.TableRows
-                                LedgerRowStyle.DETAILED -> Icons.Default.GridView
-                            },
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                )
-            }
-        }
-    }
-
-    UnifiedFilterFooter(
-        activeCount = activeCount,
-        languageMode = languageMode,
-        onReset = {
-            tempPreset = LedgerDatePreset.LAST_12_MONTHS
-            tempType = null
-            tempMinStr = ""
-            tempMaxStr = ""
-            tempCategoryId = null
-            tempAccountId = null
-            tempLabel = null
-            tempStatus = null
-        },
-        onDismiss = onDismiss,
-        onApply = {
-            val minAmt = tempMinStr.toDoubleOrNull() ?: 0.0
-            val maxAmt = tempMaxStr.toDoubleOrNull() ?: 0.0
-            onApply(tempPreset, tempType, minAmt, maxAmt, tempCategoryId, tempAccountId, tempLabel, tempStatus, tempRowStyle)
-        }
-    )
-}
-}
-
-    // Calculators
-    if (showFromCalc) {
-        PopupCalculatorDialog(
-            initialValue = tempMinStr.toDoubleOrNull() ?: 0.0,
-            languageMode = languageMode,
-            onDismiss = { showFromCalc = false },
-            onValueConfirmed = { value ->
-                tempMinStr = if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
-                showFromCalc = false
-            }
-        )
-    }
-
-    if (showToCalc) {
-        PopupCalculatorDialog(
-            initialValue = tempMaxStr.toDoubleOrNull() ?: 0.0,
-            languageMode = languageMode,
-            onDismiss = { showToCalc = false },
-            onValueConfirmed = { value ->
-                tempMaxStr = if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
-                showToCalc = false
-            }
-        )
-    }
-
-    // Category Picker for Filter
-    if (showCatPicker) {
-        BatchSelectCategoryDialog(
-            categories = allCategories,
-            languageMode = languageMode,
-            onDismiss = { showCatPicker = false },
-            onSelect = { cat, subCat ->
-                tempCategoryId = subCat?.id ?: cat.id
-                showCatPicker = false
-            }
-        )
-    }
-
-    // Account Picker for Filter
-    if (showAccPicker) {
-        BatchSelectAccountDialog(
-            accounts = allAccounts,
-            languageMode = languageMode,
-            onDismiss = { showAccPicker = false },
-            onSelect = { acc ->
-                tempAccountId = acc.id
-                showAccPicker = false
-            }
-        )
-    }
-
-    // Label Picker for Filter
-    if (showLabelPicker) {
-        val uniqueLabels = remember(allTransactions) {
-            allTransactions.mapNotNull { it.transaction.referenceNo.takeIf { s -> s.isNotBlank() } }.distinct()
-        }
-        AlertDialog(
-            onDismissRequest = { showLabelPicker = false },
-            title = { Text("Select Label", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (uniqueLabels.isEmpty()) {
-                        Text("No labels found in records.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                    } else {
-                        uniqueLabels.forEach { lbl ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (tempLabel == lbl) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        tempLabel = lbl
-                                        showLabelPicker = false
-                                    }
-                            ) {
-                                Text(
-                                    text = "#$lbl",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLabelPicker = false }) { Text("Cancel") }
-            }
-        )
-    }
-}
-
-@Composable
-private fun FilterSelectorRow(
-    label: String,
-    selectedValue: String,
-    isFiltered: Boolean,
-    onOpenPicker: () -> Unit,
-    onClear: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(4.dp))
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = selectedValue,
-                    fontSize = 13.sp,
-                    fontWeight = if (isFiltered) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isFiltered) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = onOpenPicker)
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isFiltered) {
-                        IconButton(onClick = onClear, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-                    IconButton(onClick = onOpenPicker, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.FilterList, contentDescription = "Pick", tint = SolidPrimary, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-        }
     }
 }
 
