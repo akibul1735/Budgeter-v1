@@ -792,8 +792,8 @@ private fun AccountsPaymentSourceTabContent(
                             onClick = onOpenSourceSelector,
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White.copy(alpha = 0.22f),
-                                contentColor = Color.White
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             modifier = Modifier
                                 .weight(1f)
@@ -804,13 +804,14 @@ private fun AccountsPaymentSourceTabContent(
                                 imageVector = Icons.Default.Tune,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
-                                tint = Color.White
+                                tint = MaterialTheme.colorScheme.onPrimary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "সোর্স নির্বাচন" else "Select Sources",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -821,8 +822,8 @@ private fun AccountsPaymentSourceTabContent(
                             onClick = onOpenSuggestedTransfers,
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (suggestionsCount > 0) Color.White else Color.White.copy(alpha = 0.22f),
-                                contentColor = if (suggestionsCount > 0) SolidPrimary else Color.White
+                                containerColor = if (suggestionsCount > 0) SolidIncome else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (suggestionsCount > 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             modifier = Modifier
                                 .weight(1f)
@@ -832,13 +833,15 @@ private fun AccountsPaymentSourceTabContent(
                             Icon(
                                 imageVector = Icons.Default.SyncAlt,
                                 contentDescription = null,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(14.dp),
+                                tint = if (suggestionsCount > 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "ফান্ড ট্রান্সফার" else "Fund Transfers",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
+                                color = if (suggestionsCount > 0) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1979,7 +1982,622 @@ private fun CategoryAllocationCard(
 }
 
 // -----------------------------------------------------------------------------
-// DIALOG: OTHER ACCOUNT MULTI-SOURCE SPLIT & ASSIGNMENT
+// DIALOG: CATEGORY MULTI-ACCOUNT SPLIT & SINGLE-SOURCE ASSIGNMENT
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun CategoryAccountSplitDialog(
+    categoryAllocation: CategoryAllocationAnalysis,
+    paymentSourceAccounts: List<Account>,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSave: (Map<Long, Double>) -> Unit
+) {
+    val totalBudget = categoryAllocation.totalBudgeted
+    val isExpense = categoryAllocation.isExpense
+
+    // Mode: 0 = Single Source (100%), 1 = Multi-Source Split
+    var assignmentMode by remember {
+        mutableStateOf(if (categoryAllocation.isMultiAccount || categoryAllocation.accountSplits.size > 1) 1 else 0)
+    }
+
+    // Single source selection state
+    var selectedSingleAccountId by remember {
+        mutableStateOf(
+            categoryAllocation.accountSplits.firstOrNull()?.account?.id
+                ?: paymentSourceAccounts.firstOrNull()?.id
+                ?: 0L
+        )
+    }
+
+    // Editable budget amount
+    var budgetInputText by remember {
+        mutableStateOf(if (totalBudget > 0.0) String.format("%.2f", totalBudget) else "")
+    }
+
+    // Multi-split state
+    var isPercentageMode by remember { mutableStateOf(false) }
+
+    val allocMap = remember {
+        val map = mutableStateMapOf<Long, String>()
+        categoryAllocation.accountSplits.forEach { split ->
+            map[split.account.id] = if (split.allocatedAmount > 0) String.format("%.2f", split.allocatedAmount) else "0.00"
+        }
+        if (map.isEmpty() && paymentSourceAccounts.isNotEmpty()) {
+            map[paymentSourceAccounts.first().id] = if (totalBudget > 0) String.format("%.2f", totalBudget) else "0.00"
+        }
+        map
+    }
+
+    val pctMap = remember {
+        val map = mutableStateMapOf<Long, String>()
+        allocMap.forEach { (accId, amtStr) ->
+            val amt = amtStr.toDoubleOrNull() ?: 0.0
+            val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
+            map[accId] = if (pct > 0) String.format("%.1f", pct) else "0.0"
+        }
+        map
+    }
+
+    fun getEffectiveBudget(): Double {
+        return budgetInputText.toDoubleOrNull() ?: totalBudget
+    }
+
+    fun recalculateAmountsFromPercentages() {
+        val currBudget = getEffectiveBudget()
+        pctMap.forEach { (accId, pctStr) ->
+            val pct = pctStr.toDoubleOrNull() ?: 0.0
+            val amt = (pct / 100.0) * currBudget
+            allocMap[accId] = if (amt > 0) String.format("%.2f", amt) else "0.00"
+        }
+    }
+
+    fun recalculatePercentagesFromAmounts() {
+        val currBudget = getEffectiveBudget()
+        allocMap.forEach { (accId, amtStr) ->
+            val amt = amtStr.toDoubleOrNull() ?: 0.0
+            val pct = if (currBudget > 0) (amt / currBudget) * 100.0 else 0.0
+            pctMap[accId] = if (pct > 0) String.format("%.1f", pct) else "0.0"
+        }
+    }
+
+    fun splitEqually() {
+        val count = allocMap.size
+        val currBudget = getEffectiveBudget()
+        if (count > 0) {
+            val shareAmt = if (currBudget > 0) currBudget / count else 0.0
+            val sharePct = 100.0 / count
+            allocMap.keys.toList().forEach { accId ->
+                allocMap[accId] = if (shareAmt > 0) String.format("%.2f", shareAmt) else "0.00"
+                pctMap[accId] = String.format("%.1f", sharePct)
+            }
+        }
+    }
+
+    val catColor = remember(categoryAllocation.category.colorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(categoryAllocation.category.colorHex))
+        } catch (e: Exception) {
+            if (isExpense) SolidExpense else SolidIncome
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.88f)
+                .padding(8.dp)
+                .testTag("dialog_category_split"),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Header: Category Icon, Name, and Close button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(catColor.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = IconHelper.getIconByName(categoryAllocation.category.iconName),
+                                contentDescription = null,
+                                tint = catColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = categoryAllocation.category.localizedName(languageMode),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = if (isExpense) (if (languageMode == LanguageMode.BANGLA) "ব্যয় ক্যাটাগরি" else "Expense Category")
+                                else (if (languageMode == LanguageMode.BANGLA) "আয় ক্যাটাগরি" else "Income Category"),
+                                fontSize = 11.sp,
+                                color = if (isExpense) SolidExpense else SolidIncome,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Optional Budget Input Field
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মাসিক বাজেট / পরিমাণ (৳):" else "Monthly Budget / Target (৳):",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        OutlinedTextField(
+                            value = budgetInputText,
+                            onValueChange = { input ->
+                                budgetInputText = input
+                                if (assignmentMode == 1) {
+                                    if (isPercentageMode) recalculateAmountsFromPercentages()
+                                    else recalculatePercentagesFromAmounts()
+                                }
+                            },
+                            placeholder = { Text("0.00", fontSize = 12.sp) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = TextStyle(fontSize = 12.sp, textAlign = TextAlign.End, fontWeight = FontWeight.Bold),
+                            modifier = Modifier.width(110.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Mode Tabs: Single Source vs Multi-Source Split
+                TabRow(
+                    selectedTabIndex = assignmentMode,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[assignmentMode]),
+                            color = SolidPrimary
+                        )
+                    },
+                    divider = {}
+                ) {
+                    Tab(
+                        selected = assignmentMode == 0,
+                        onClick = {
+                            assignmentMode = 0
+                            if (selectedSingleAccountId == 0L && paymentSourceAccounts.isNotEmpty()) {
+                                selectedSingleAccountId = paymentSourceAccounts.first().id
+                            }
+                        },
+                        text = {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "একটি সোর্স (১০০%)" else "Single Source (100%)",
+                                fontSize = 11.sp,
+                                fontWeight = if (assignmentMode == 0) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    )
+                    Tab(
+                        selected = assignmentMode == 1,
+                        onClick = {
+                            assignmentMode = 1
+                            if (allocMap.isEmpty() && selectedSingleAccountId > 0) {
+                                val currBudget = getEffectiveBudget()
+                                allocMap[selectedSingleAccountId] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+                                pctMap[selectedSingleAccountId] = "100.0"
+                            }
+                        },
+                        text = {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "একাধিক সোর্সে বিভক্ত" else "Split Across Sources",
+                                fontSize = 11.sp,
+                                fontWeight = if (assignmentMode == 1) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Tab Content
+                if (assignmentMode == 0) {
+                    // MODE 0: Single Source (100%) selection
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "এই ক্যাটাগরির জন্য মূল পেমেন্ট সোর্স নির্বাচন করুন:" else "Select the primary payment source for this category:",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(paymentSourceAccounts, key = { it.id }) { acc ->
+                            val isSelected = acc.id == selectedSingleAccountId
+                            val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
+
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { selectedSingleAccountId = acc.id },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            IconHelper.AppIcon(
+                                                iconName = acc.iconName,
+                                                contentDescription = null,
+                                                tint = SolidPrimary,
+                                                modifier = Modifier.size(if (isImg) 32.dp else 18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = acc.localizedName(languageMode),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            if (acc.accountNumber.isNotBlank()) {
+                                                Text(
+                                                    text = acc.accountNumber,
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (isSelected) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = SolidPrimary,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // MODE 1: Multi-Source Split
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Row(modifier = Modifier.padding(2.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (!isPercentageMode) SolidPrimary else Color.Transparent)
+                                        .clickable {
+                                            if (isPercentageMode) {
+                                                isPercentageMode = false
+                                                recalculatePercentagesFromAmounts()
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "৳ পরিমাণ" else "৳ Amount",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (!isPercentageMode) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (!isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isPercentageMode) SolidPrimary else Color.Transparent)
+                                        .clickable {
+                                            if (!isPercentageMode) {
+                                                isPercentageMode = true
+                                                recalculatePercentagesFromAmounts()
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "% শতাংশ" else "% Percent",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isPercentageMode) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { splitEqually() },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সমান ভাগ" else "Split Equally",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(paymentSourceAccounts, key = { it.id }) { acc ->
+                            val isIncluded = allocMap.containsKey(acc.id)
+                            val currentAmtStr = allocMap[acc.id] ?: ""
+                            val currentPctStr = pctMap[acc.id] ?: ""
+                            val currBudget = getEffectiveBudget()
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isIncluded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Checkbox(
+                                            checked = isIncluded,
+                                            onCheckedChange = { checked ->
+                                                if (checked) {
+                                                    val existingCount = allocMap.size + 1
+                                                    val share = if (currBudget > 0) (currBudget / existingCount) else 0.0
+                                                    val sharePct = 100.0 / existingCount
+                                                    allocMap[acc.id] = if (share > 0) String.format("%.2f", share) else "0.00"
+                                                    pctMap[acc.id] = String.format("%.1f", sharePct)
+                                                } else {
+                                                    allocMap.remove(acc.id)
+                                                    pctMap.remove(acc.id)
+                                                }
+                                            }
+                                        )
+                                        val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            IconHelper.AppIcon(
+                                                iconName = acc.iconName,
+                                                contentDescription = null,
+                                                tint = SolidPrimary,
+                                                modifier = Modifier.size(if (isImg) 28.dp else 16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = acc.localizedName(languageMode),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    if (isIncluded) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            if (isPercentageMode) {
+                                                OutlinedTextField(
+                                                    value = currentPctStr,
+                                                    onValueChange = { input ->
+                                                        pctMap[acc.id] = input
+                                                        val pct = input.toDoubleOrNull() ?: 0.0
+                                                        val amt = (pct / 100.0) * currBudget
+                                                        allocMap[acc.id] = if (amt > 0) String.format("%.2f", amt) else "0.00"
+                                                    },
+                                                    modifier = Modifier.width(72.dp),
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    singleLine = true,
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    trailingIcon = { Text("%", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline) },
+                                                    textStyle = TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
+                                                )
+                                            } else {
+                                                OutlinedTextField(
+                                                    value = currentAmtStr,
+                                                    onValueChange = { input ->
+                                                        allocMap[acc.id] = input
+                                                        val amt = input.toDoubleOrNull() ?: 0.0
+                                                        val pct = if (currBudget > 0) (amt / currBudget) * 100.0 else 0.0
+                                                        pctMap[acc.id] = if (pct > 0) String.format("%.1f", pct) else "0.0"
+                                                    },
+                                                    modifier = Modifier.width(88.dp),
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    singleLine = true,
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    textStyle = TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val totalAllocated = allocMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+                    val currBudget = getEffectiveBudget()
+                    val totalPct = if (currBudget > 0) (totalAllocated / currBudget) * 100.0 else 0.0
+                    val isBalanced = currBudget <= 0 || kotlin.math.abs(totalAllocated - currBudget) < 0.01
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.25f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "মোট বরাদ্দ" else "Total Allocated",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${LanguageHelper.formatCurrency(totalAllocated, languageMode)} (${String.format("%.0f", totalPct)}%)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isBalanced) SolidIncome else SolidExpense
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Bottom Action Buttons (Cancel & Save)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel", fontSize = 12.sp)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val currBudget = getEffectiveBudget()
+                            if (assignmentMode == 0) {
+                                // Single Source mode: 100% to selected account
+                                val targetAccId = selectedSingleAccountId
+                                if (targetAccId > 0) {
+                                    val amount = if (currBudget > 0.0) currBudget else 0.001
+                                    onSave(mapOf(targetAccId to amount))
+                                }
+                            } else {
+                                // Multi-split mode
+                                val resultMap = mutableMapOf<Long, Double>()
+                                allocMap.forEach { (accId, amtStr) ->
+                                    val amt = amtStr.toDoubleOrNull() ?: 0.0
+                                    resultMap[accId] = if (amt > 0.0) amt else 0.001
+                                }
+                                onSave(resultMap)
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
+                    ) {
+                        Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দ সংরক্ষণ" else "Assign & Save", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// DIALOG: OTHER ACCOUNT MULTI-SOURCE SPLIT & SINGLE-SOURCE ASSIGNMENT
 // -----------------------------------------------------------------------------
 
 @Composable
@@ -1991,6 +2609,24 @@ private fun OtherAccountSplitDialog(
     onSave: (Map<Long, Double>) -> Unit
 ) {
     val totalBudget = otherAccountAllocation.totalBudgeted
+    val isExpense = otherAccountAllocation.isExpense
+
+    var assignmentMode by remember {
+        mutableStateOf(if (otherAccountAllocation.isMultiAccount || otherAccountAllocation.accountSplits.size > 1) 1 else 0)
+    }
+
+    var selectedSingleAccountId by remember {
+        mutableStateOf(
+            otherAccountAllocation.accountSplits.firstOrNull()?.account?.id
+                ?: paymentSourceAccounts.firstOrNull()?.id
+                ?: 0L
+        )
+    }
+
+    var budgetInputText by remember {
+        mutableStateOf(if (totalBudget > 0.0) String.format("%.2f", totalBudget) else "")
+    }
+
     var isPercentageMode by remember { mutableStateOf(false) }
 
     val allocMap = remember {
@@ -2014,26 +2650,33 @@ private fun OtherAccountSplitDialog(
         map
     }
 
+    fun getEffectiveBudget(): Double {
+        return budgetInputText.toDoubleOrNull() ?: totalBudget
+    }
+
     fun recalculateAmountsFromPercentages() {
+        val currBudget = getEffectiveBudget()
         pctMap.forEach { (accId, pctStr) ->
             val pct = pctStr.toDoubleOrNull() ?: 0.0
-            val amt = (pct / 100.0) * totalBudget
+            val amt = (pct / 100.0) * currBudget
             allocMap[accId] = if (amt > 0) String.format("%.2f", amt) else "0.00"
         }
     }
 
     fun recalculatePercentagesFromAmounts() {
+        val currBudget = getEffectiveBudget()
         allocMap.forEach { (accId, amtStr) ->
             val amt = amtStr.toDoubleOrNull() ?: 0.0
-            val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
+            val pct = if (currBudget > 0) (amt / currBudget) * 100.0 else 0.0
             pctMap[accId] = if (pct > 0) String.format("%.1f", pct) else "0.0"
         }
     }
 
     fun splitEqually() {
         val count = allocMap.size
+        val currBudget = getEffectiveBudget()
         if (count > 0) {
-            val shareAmt = if (totalBudget > 0) totalBudget / count else 0.0
+            val shareAmt = if (currBudget > 0) currBudget / count else 0.0
             val sharePct = 100.0 / count
             allocMap.keys.toList().forEach { accId ->
                 allocMap[accId] = if (shareAmt > 0) String.format("%.2f", shareAmt) else "0.00"
@@ -2042,16 +2685,14 @@ private fun OtherAccountSplitDialog(
         }
     }
 
-    val isExpense = otherAccountAllocation.isExpense
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f)
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.88f)
                 .padding(8.dp)
                 .testTag("dialog_other_account_split"),
             shape = RoundedCornerShape(18.dp),
@@ -2062,6 +2703,7 @@ private fun OtherAccountSplitDialog(
                     .fillMaxSize()
                     .padding(16.dp)
             ) {
+                // Header Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2088,241 +2730,368 @@ private fun OtherAccountSplitDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Mode toggle and Split Equally Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Mode Tabs: Single Source vs Multi-Source Split
+                TabRow(
+                    selectedTabIndex = assignmentMode,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[assignmentMode]),
+                            color = SolidPrimary
+                        )
+                    },
+                    divider = {}
                 ) {
-                    // Segmented pill for Amount / Percentage
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    ) {
-                        Row(modifier = Modifier.padding(2.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (!isPercentageMode) SolidPrimary else Color.Transparent)
-                                    .clickable {
-                                        if (isPercentageMode) {
-                                            isPercentageMode = false
-                                            recalculatePercentagesFromAmounts()
-                                        }
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "৳ পরিমাণ" else "৳ Amount",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (!isPercentageMode) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (!isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                    Tab(
+                        selected = assignmentMode == 0,
+                        onClick = {
+                            assignmentMode = 0
+                            if (selectedSingleAccountId == 0L && paymentSourceAccounts.isNotEmpty()) {
+                                selectedSingleAccountId = paymentSourceAccounts.first().id
                             }
+                        },
+                        text = {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "একটি সোর্স (১০০%)" else "Single Source (100%)",
+                                fontSize = 11.sp,
+                                fontWeight = if (assignmentMode == 0) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    )
+                    Tab(
+                        selected = assignmentMode == 1,
+                        onClick = {
+                            assignmentMode = 1
+                            if (allocMap.isEmpty() && selectedSingleAccountId > 0) {
+                                val currBudget = getEffectiveBudget()
+                                allocMap[selectedSingleAccountId] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+                                pctMap[selectedSingleAccountId] = "100.0"
+                            }
+                        },
+                        text = {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "একাধিক সোর্সে বিভক্ত" else "Split Across Sources",
+                                fontSize = 11.sp,
+                                fontWeight = if (assignmentMode == 1) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    )
+                }
 
-                            Box(
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (assignmentMode == 0) {
+                    // MODE 0: Single Source (100%)
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "এই একাউন্টের জন্য মূল পেমেন্ট সোর্স নির্বাচন করুন:" else "Select the primary payment source for this account:",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(paymentSourceAccounts, key = { it.id }) { acc ->
+                            val isSelected = acc.id == selectedSingleAccountId
+                            val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
+
+                            Surface(
                                 modifier = Modifier
+                                    .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isPercentageMode) SolidPrimary else Color.Transparent)
-                                    .clickable {
-                                        if (!isPercentageMode) {
-                                            isPercentageMode = true
-                                            recalculatePercentagesFromAmounts()
+                                    .clickable { selectedSingleAccountId = acc.id },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            IconHelper.AppIcon(
+                                                iconName = acc.iconName,
+                                                contentDescription = null,
+                                                tint = SolidPrimary,
+                                                modifier = Modifier.size(if (isImg) 32.dp else 18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = acc.localizedName(languageMode),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            if (acc.accountNumber.isNotBlank()) {
+                                                Text(
+                                                    text = acc.accountNumber,
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                )
+                                            }
                                         }
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                contentAlignment = Alignment.Center
+
+                                    if (isSelected) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = SolidPrimary,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // MODE 1: Multi-Split
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Row(modifier = Modifier.padding(2.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (!isPercentageMode) SolidPrimary else Color.Transparent)
+                                        .clickable {
+                                            if (isPercentageMode) {
+                                                isPercentageMode = false
+                                                recalculatePercentagesFromAmounts()
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "৳ পরিমাণ" else "৳ Amount",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (!isPercentageMode) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (!isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isPercentageMode) SolidPrimary else Color.Transparent)
+                                        .clickable {
+                                            if (!isPercentageMode) {
+                                                isPercentageMode = true
+                                                recalculatePercentagesFromAmounts()
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "% শতাংশ" else "% Percent",
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isPercentageMode) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { splitEqually() },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সমান ভাগ" else "Split Equally",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(paymentSourceAccounts, key = { it.id }) { acc ->
+                            val isIncluded = allocMap.containsKey(acc.id)
+                            val currentAmtStr = allocMap[acc.id] ?: ""
+                            val currentPctStr = pctMap[acc.id] ?: ""
+                            val currBudget = getEffectiveBudget()
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isIncluded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
                             ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "% শতাংশ" else "% Percent",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isPercentageMode) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Checkbox(
+                                            checked = isIncluded,
+                                            onCheckedChange = { checked ->
+                                                if (checked) {
+                                                    val existingCount = allocMap.size + 1
+                                                    val share = if (currBudget > 0) (currBudget / existingCount) else 0.0
+                                                    val sharePct = 100.0 / existingCount
+                                                    allocMap[acc.id] = if (share > 0) String.format("%.2f", share) else "0.00"
+                                                    pctMap[acc.id] = String.format("%.1f", sharePct)
+                                                } else {
+                                                    allocMap.remove(acc.id)
+                                                    pctMap.remove(acc.id)
+                                                }
+                                            }
+                                        )
+                                        val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            IconHelper.AppIcon(
+                                                iconName = acc.iconName,
+                                                contentDescription = null,
+                                                tint = SolidPrimary,
+                                                modifier = Modifier.size(if (isImg) 28.dp else 16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = acc.localizedName(languageMode),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    if (isIncluded) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            if (isPercentageMode) {
+                                                OutlinedTextField(
+                                                    value = currentPctStr,
+                                                    onValueChange = { input ->
+                                                        pctMap[acc.id] = input
+                                                        val pct = input.toDoubleOrNull() ?: 0.0
+                                                        val amt = (pct / 100.0) * currBudget
+                                                        allocMap[acc.id] = if (amt > 0) String.format("%.2f", amt) else "0.00"
+                                                    },
+                                                    modifier = Modifier.width(72.dp),
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    singleLine = true,
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    trailingIcon = { Text("%", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline) },
+                                                    textStyle = TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
+                                                )
+                                            } else {
+                                                OutlinedTextField(
+                                                    value = currentAmtStr,
+                                                    onValueChange = { input ->
+                                                        allocMap[acc.id] = input
+                                                        val amt = input.toDoubleOrNull() ?: 0.0
+                                                        val pct = if (currBudget > 0) (amt / currBudget) * 100.0 else 0.0
+                                                        pctMap[acc.id] = if (pct > 0) String.format("%.1f", pct) else "0.0"
+                                                    },
+                                                    modifier = Modifier.width(88.dp),
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    singleLine = true,
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    textStyle = TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = { splitEqually() },
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val totalAllocated = allocMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+                    val currBudget = getEffectiveBudget()
+                    val totalPct = if (currBudget > 0) (totalAllocated / currBudget) * 100.0 else 0.0
+                    val isBalanced = currBudget <= 0 || kotlin.math.abs(totalAllocated - currBudget) < 0.01
+
+                    Surface(
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)
+                        color = (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.25f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "সমান ভাগ" else "Split Equally",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "মোট বরাদ্দ" else "Total Allocated",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${LanguageHelper.formatCurrency(totalAllocated, languageMode)} (${String.format("%.0f", totalPct)}%)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isBalanced) SolidIncome else SolidExpense
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(paymentSourceAccounts, key = { it.id }) { acc ->
-                        val isIncluded = allocMap.containsKey(acc.id)
-                        val currentAmtStr = allocMap[acc.id] ?: ""
-                        val currentPctStr = pctMap[acc.id] ?: ""
-
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isIncluded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Checkbox(
-                                        checked = isIncluded,
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                val existingCount = allocMap.size + 1
-                                                val share = if (totalBudget > 0) (totalBudget / existingCount) else 0.0
-                                                val sharePct = 100.0 / existingCount
-                                                allocMap[acc.id] = if (share > 0) String.format("%.2f", share) else "0.00"
-                                                pctMap[acc.id] = String.format("%.1f", sharePct)
-                                            } else {
-                                                allocMap.remove(acc.id)
-                                                pctMap.remove(acc.id)
-                                            }
-                                        }
-                                    )
-                                    val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        IconHelper.AppIcon(
-                                            iconName = acc.iconName,
-                                            contentDescription = null,
-                                            tint = SolidPrimary,
-                                            modifier = Modifier.size(if (isImg) 28.dp else 16.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = acc.localizedName(languageMode),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                if (isIncluded) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        if (isPercentageMode) {
-                                            OutlinedTextField(
-                                                value = currentPctStr,
-                                                onValueChange = { input ->
-                                                    pctMap[acc.id] = input
-                                                    val pct = input.toDoubleOrNull() ?: 0.0
-                                                    val amt = (pct / 100.0) * totalBudget
-                                                    allocMap[acc.id] = if (amt > 0) String.format("%.2f", amt) else "0.00"
-                                                },
-                                                modifier = Modifier.width(72.dp),
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                singleLine = true,
-                                                shape = RoundedCornerShape(6.dp),
-                                                trailingIcon = { Text("%", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline) },
-                                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
-                                            )
-                                            val computedAmt = allocMap[acc.id]?.toDoubleOrNull() ?: 0.0
-                                            Text(
-                                                text = "(${LanguageHelper.formatCurrency(computedAmt, languageMode)})",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                maxLines = 1
-                                            )
-                                        } else {
-                                            OutlinedTextField(
-                                                value = currentAmtStr,
-                                                onValueChange = { input ->
-                                                    allocMap[acc.id] = input
-                                                    val amt = input.toDoubleOrNull() ?: 0.0
-                                                    val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
-                                                    pctMap[acc.id] = if (pct > 0) String.format("%.1f", pct) else "0.0"
-                                                },
-                                                modifier = Modifier.width(88.dp),
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                singleLine = true,
-                                                shape = RoundedCornerShape(6.dp),
-                                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
-                                            )
-                                            val computedPct = pctMap[acc.id]?.toDoubleOrNull() ?: 0.0
-                                            Text(
-                                                text = "(${String.format("%.0f", computedPct)}%)",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Total allocated footer - Row 1: Total Allocated
-                val totalAllocated = allocMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
-                val totalPct = if (totalBudget > 0) (totalAllocated / totalBudget) * 100.0 else 0.0
-                val isBalanced = totalBudget <= 0 || kotlin.math.abs(totalAllocated - totalBudget) < 0.01
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "মোট বরাদ্দ" else "Total Allocated",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "${LanguageHelper.formatCurrency(totalAllocated, languageMode)} (${String.format("%.0f", totalPct)}%)",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isBalanced) SolidIncome else SolidExpense
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Row 2: Cancel and Save buttons side by side on the right
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -2338,18 +3107,27 @@ private fun OtherAccountSplitDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            val resultMap = mutableMapOf<Long, Double>()
-                            allocMap.forEach { (accId, amtStr) ->
-                                val amt = amtStr.toDoubleOrNull() ?: 0.0
-                                if (amt > 0) resultMap[accId] = amt
+                            val currBudget = getEffectiveBudget()
+                            if (assignmentMode == 0) {
+                                val targetAccId = selectedSingleAccountId
+                                if (targetAccId > 0) {
+                                    val amount = if (currBudget > 0.0) currBudget else 0.001
+                                    onSave(mapOf(targetAccId to amount))
+                                }
+                            } else {
+                                val resultMap = mutableMapOf<Long, Double>()
+                                allocMap.forEach { (accId, amtStr) ->
+                                    val amt = amtStr.toDoubleOrNull() ?: 0.0
+                                    resultMap[accId] = if (amt > 0.0) amt else 0.001
+                                }
+                                onSave(resultMap)
                             }
-                            onSave(resultMap)
                         },
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
                     ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save", fontSize = 12.sp)
+                        Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দ সংরক্ষণ" else "Assign & Save", fontSize = 12.sp)
                     }
                 }
             }
@@ -2358,386 +3136,13 @@ private fun OtherAccountSplitDialog(
 }
 
 // -----------------------------------------------------------------------------
-// DIALOG: CATEGORY MULTI-ACCOUNT SPLIT
+// DIALOG: PAYMENT SOURCE SELECTOR (MULTI-SELECT GROUPED BY PARENT GROUP)
 // -----------------------------------------------------------------------------
 
-@Composable
-private fun CategoryAccountSplitDialog(
-    categoryAllocation: CategoryAllocationAnalysis,
-    paymentSourceAccounts: List<Account>,
-    languageMode: LanguageMode,
-    onDismiss: () -> Unit,
-    onSave: (Map<Long, Double>) -> Unit
-) {
-    val totalBudget = categoryAllocation.totalBudgeted
-    var isPercentageMode by remember { mutableStateOf(false) }
-
-    val allocMap = remember {
-        val map = mutableStateMapOf<Long, String>()
-        categoryAllocation.accountSplits.forEach { split ->
-            map[split.account.id] = if (split.allocatedAmount > 0) String.format("%.2f", split.allocatedAmount) else "0.00"
-        }
-        if (map.isEmpty() && paymentSourceAccounts.isNotEmpty()) {
-            map[paymentSourceAccounts.first().id] = if (totalBudget > 0) String.format("%.2f", totalBudget) else "0.00"
-        }
-        map
-    }
-
-    val pctMap = remember {
-        val map = mutableStateMapOf<Long, String>()
-        allocMap.forEach { (accId, amtStr) ->
-            val amt = amtStr.toDoubleOrNull() ?: 0.0
-            val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
-            map[accId] = if (pct > 0) String.format("%.1f", pct) else "0.0"
-        }
-        map
-    }
-
-    fun recalculateAmountsFromPercentages() {
-        pctMap.forEach { (accId, pctStr) ->
-            val pct = pctStr.toDoubleOrNull() ?: 0.0
-            val amt = (pct / 100.0) * totalBudget
-            allocMap[accId] = if (amt > 0) String.format("%.2f", amt) else "0.00"
-        }
-    }
-
-    fun recalculatePercentagesFromAmounts() {
-        allocMap.forEach { (accId, amtStr) ->
-            val amt = amtStr.toDoubleOrNull() ?: 0.0
-            val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
-            pctMap[accId] = if (pct > 0) String.format("%.1f", pct) else "0.0"
-        }
-    }
-
-    fun splitEqually() {
-        val count = allocMap.size
-        if (count > 0) {
-            val shareAmt = if (totalBudget > 0) totalBudget / count else 0.0
-            val sharePct = 100.0 / count
-            allocMap.keys.toList().forEach { accId ->
-                allocMap[accId] = if (shareAmt > 0) String.format("%.2f", shareAmt) else "0.00"
-                pctMap[accId] = String.format("%.1f", sharePct)
-            }
-        }
-    }
-
-    val isExpense = categoryAllocation.isExpense
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f)
-                .padding(8.dp)
-                .testTag("dialog_category_split"),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "${if (languageMode == LanguageMode.BANGLA) "সোর্স নির্ধারণ:" else "Assign:"} ${categoryAllocation.category.localizedName(languageMode)}",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${if (isExpense) "Budget Amount" else "Expected Amount"}: ${LanguageHelper.formatCurrency(totalBudget, languageMode)}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Mode toggle and Split Equally Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    ) {
-                        Row(modifier = Modifier.padding(2.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (!isPercentageMode) SolidPrimary else Color.Transparent)
-                                    .clickable {
-                                        if (isPercentageMode) {
-                                            isPercentageMode = false
-                                            recalculatePercentagesFromAmounts()
-                                        }
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "৳ পরিমাণ" else "৳ Amount",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (!isPercentageMode) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (!isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isPercentageMode) SolidPrimary else Color.Transparent)
-                                    .clickable {
-                                        if (!isPercentageMode) {
-                                            isPercentageMode = true
-                                            recalculatePercentagesFromAmounts()
-                                        }
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "% শতাংশ" else "% Percent",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isPercentageMode) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isPercentageMode) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = { splitEqually() },
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "সমান ভাগ" else "Split Equally",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(paymentSourceAccounts, key = { it.id }) { acc ->
-                        val isIncluded = allocMap.containsKey(acc.id)
-                        val currentAmtStr = allocMap[acc.id] ?: ""
-                        val currentPctStr = pctMap[acc.id] ?: ""
-
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isIncluded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Checkbox(
-                                        checked = isIncluded,
-                                        onCheckedChange = { checked ->
-                                            if (checked) {
-                                                val existingCount = allocMap.size + 1
-                                                val share = if (totalBudget > 0) (totalBudget / existingCount) else 0.0
-                                                val sharePct = 100.0 / existingCount
-                                                allocMap[acc.id] = if (share > 0) String.format("%.2f", share) else "0.00"
-                                                pctMap[acc.id] = String.format("%.1f", sharePct)
-                                            } else {
-                                                allocMap.remove(acc.id)
-                                                pctMap.remove(acc.id)
-                                            }
-                                        }
-                                    )
-                                    val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        IconHelper.AppIcon(
-                                            iconName = acc.iconName,
-                                            contentDescription = null,
-                                            tint = SolidPrimary,
-                                            modifier = Modifier.size(if (isImg) 28.dp else 16.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = acc.localizedName(languageMode),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                if (isIncluded) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        if (isPercentageMode) {
-                                            OutlinedTextField(
-                                                value = currentPctStr,
-                                                onValueChange = { input ->
-                                                    pctMap[acc.id] = input
-                                                    val pct = input.toDoubleOrNull() ?: 0.0
-                                                    val amt = (pct / 100.0) * totalBudget
-                                                    allocMap[acc.id] = if (amt > 0) String.format("%.2f", amt) else "0.00"
-                                                },
-                                                modifier = Modifier.width(72.dp),
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                singleLine = true,
-                                                shape = RoundedCornerShape(6.dp),
-                                                trailingIcon = { Text("%", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline) },
-                                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
-                                            )
-                                            val computedAmt = allocMap[acc.id]?.toDoubleOrNull() ?: 0.0
-                                            Text(
-                                                text = "(${LanguageHelper.formatCurrency(computedAmt, languageMode)})",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                maxLines = 1
-                                            )
-                                        } else {
-                                            OutlinedTextField(
-                                                value = currentAmtStr,
-                                                onValueChange = { input ->
-                                                    allocMap[acc.id] = input
-                                                    val amt = input.toDoubleOrNull() ?: 0.0
-                                                    val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
-                                                    pctMap[acc.id] = if (pct > 0) String.format("%.1f", pct) else "0.0"
-                                                },
-                                                modifier = Modifier.width(88.dp),
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                singleLine = true,
-                                                shape = RoundedCornerShape(6.dp),
-                                                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, textAlign = TextAlign.End)
-                                            )
-                                            val computedPct = pctMap[acc.id]?.toDoubleOrNull() ?: 0.0
-                                            Text(
-                                                text = "(${String.format("%.0f", computedPct)}%)",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Total allocated footer - Row 1: Total Allocated
-                val totalAllocated = allocMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
-                val totalPct = if (totalBudget > 0) (totalAllocated / totalBudget) * 100.0 else 0.0
-                val isBalanced = totalBudget <= 0 || kotlin.math.abs(totalAllocated - totalBudget) < 0.01
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.08f),
-                    border = BorderStroke(1.dp, (if (isBalanced) SolidIncome else SolidExpense).copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "মোট বরাদ্দ" else "Total Allocated",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "${LanguageHelper.formatCurrency(totalAllocated, languageMode)} (${String.format("%.0f", totalPct)}%)",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isBalanced) SolidIncome else SolidExpense
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Row 2: Cancel and Save buttons side by side on the right
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel", fontSize = 12.sp)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val resultMap = mutableMapOf<Long, Double>()
-                            allocMap.forEach { (accId, amtStr) ->
-                                val amt = amtStr.toDoubleOrNull() ?: 0.0
-                                if (amt > 0) resultMap[accId] = amt
-                            }
-                            onSave(resultMap)
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
-                    ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// DIALOG: PAYMENT SOURCE SELECTOR (MULTI-SELECT)
-// -----------------------------------------------------------------------------
+private data class AccountGroupWithChildren(
+    val group: Account?,
+    val accounts: List<Account>
+)
 
 @Composable
 private fun PaymentSourceSelectorDialog(
@@ -2755,12 +3160,51 @@ private fun PaymentSourceSelectorDialog(
         accountsWithBalances.associate { it.account.id to it.currentBalance }
     }
 
-    val filteredAccounts = remember(allAccounts, searchQuery) {
-        if (searchQuery.isBlank()) allAccounts
-        else {
-            val q = searchQuery.trim().lowercase()
-            allAccounts.filter { it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q) }
+    // 1. Group structure
+    val childAccountsByParent = remember(allAccounts) {
+        allAccounts.filter { it.parentId != null }.groupBy { it.parentId!! }
+    }
+    val parentGroups = remember(allAccounts) {
+        allAccounts.filter { it.parentId == null }
+    }
+
+    // Selectable accounts are sub-accounts, or parent accounts that have NO sub-accounts
+    val allSelectableAccounts = remember(allAccounts, childAccountsByParent) {
+        allAccounts.filter { it.parentId != null || !childAccountsByParent.containsKey(it.id) }
+    }
+
+    val q = searchQuery.trim().lowercase()
+
+    // Filter groups and their child accounts
+    val displayedGroups = remember(allAccounts, childAccountsByParent, parentGroups, q) {
+        val list = mutableListOf<AccountGroupWithChildren>()
+        for (parent in parentGroups) {
+            val children = childAccountsByParent[parent.id] ?: emptyList()
+            if (children.isNotEmpty()) {
+                val matchingChildren = if (q.isBlank()) children else children.filter {
+                    it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q) || it.accountNumber.lowercase().contains(q)
+                }
+                if (matchingChildren.isNotEmpty()) {
+                    list.add(AccountGroupWithChildren(parent, matchingChildren))
+                }
+            } else {
+                // Standalone parent account with no children - selectable on its own
+                if (q.isBlank() || parent.nameEn.lowercase().contains(q) || parent.nameBn.lowercase().contains(q)) {
+                    list.add(AccountGroupWithChildren(null, listOf(parent)))
+                }
+            }
         }
+        // Handle orphaned sub-accounts if any
+        val orphaned = allAccounts.filter { it.parentId != null && parentGroups.none { p -> p.id == it.parentId } }
+        if (orphaned.isNotEmpty()) {
+            val matchingOrphaned = if (q.isBlank()) orphaned else orphaned.filter {
+                it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q)
+            }
+            if (matchingOrphaned.isNotEmpty()) {
+                list.add(AccountGroupWithChildren(null, matchingOrphaned))
+            }
+        }
+        list
     }
 
     Dialog(
@@ -2770,7 +3214,7 @@ private fun PaymentSourceSelectorDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.88f)
                 .padding(8.dp)
                 .testTag("dialog_select_payment_sources"),
             shape = RoundedCornerShape(18.dp),
@@ -2793,7 +3237,7 @@ private fun PaymentSourceSelectorDialog(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র নির্বাচিত একাউন্টগুলো পেমেন্ট সোর্সে প্রদর্শিত হবে।" else "Only selected accounts will appear as payment sources.",
+                            text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র নির্বাচিত একাউন্টগুলো পেমেন্ট সোর্সে ব্যবহৃত হবে।" else "Only selected accounts will appear as payment sources.",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -2813,13 +3257,13 @@ private fun PaymentSourceSelectorDialog(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            selectedIds = allAccounts.map { it.id }.toSet()
+                            selectedIds = allSelectableAccounts.map { it.id }.toSet()
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp), tint = SolidPrimary)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All",
@@ -2836,7 +3280,7 @@ private fun PaymentSourceSelectorDialog(
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(14.dp), tint = SolidExpense)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "সব বাতিল" else "Unselect All",
@@ -2854,69 +3298,199 @@ private fun PaymentSourceSelectorDialog(
                     onValueChange = { searchQuery = it },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text(if (languageMode == LanguageMode.BANGLA) "একাউন্ট খুঁজুন..." else "Search accounts...", fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
                     singleLine = true,
                     shape = RoundedCornerShape(8.dp)
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
+                // Grouped Account List
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredAccounts, key = { it.id }) { acc ->
-                        val isChecked = selectedIds.contains(acc.id)
-                        val balance = balanceMap[acc.id] ?: 0.0
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    selectedIds = if (isChecked) selectedIds - acc.id else selectedIds + acc.id
-                                },
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                        ) {
-                            Row(
+                    if (displayedGroups.isEmpty()) {
+                        item {
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .padding(24.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Checkbox(
-                                        checked = isChecked,
-                                        onCheckedChange = { checked ->
-                                            selectedIds = if (checked) selectedIds + acc.id else selectedIds - acc.id
-                                        }
-                                    )
-                                    Box(
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "কোনো একাউন্ট পাওয়া যায়নি" else "No accounts found",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                    } else {
+                        displayedGroups.forEach { groupItem ->
+                            val group = groupItem.group
+                            val accounts = groupItem.accounts
+                            val groupSelectedCount = accounts.count { selectedIds.contains(it.id) }
+                            val allGroupSelected = accounts.isNotEmpty() && groupSelectedCount == accounts.size
+
+                            item(key = "group_header_${group?.id ?: "standalone"}") {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ) {
+                                    Row(
                                         modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(SolidPrimary.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Icon(
-                                            imageVector = IconHelper.getIconByName(acc.iconName),
-                                            contentDescription = null,
-                                            tint = SolidPrimary,
-                                            modifier = Modifier.size(15.dp)
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            if (group != null) {
+                                                Icon(
+                                                    imageVector = IconHelper.getIconByName(group.iconName),
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = group.localizedName(languageMode),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Default.AccountBalanceWallet,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "অন্যান্য / প্রধান হিসাব" else "General Accounts",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = SolidPrimary.copy(alpha = 0.12f)
+                                            ) {
+                                                Text(
+                                                    text = "$groupSelectedCount/${accounts.size}",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SolidPrimary,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+
+                                        // Quick Group Toggle Action
+                                        if (accounts.size > 1) {
+                                            Text(
+                                                text = if (allGroupSelected) {
+                                                    if (languageMode == LanguageMode.BANGLA) "সব বাতিল" else "Clear All"
+                                                } else {
+                                                    if (languageMode == LanguageMode.BANGLA) "গ্রুপের সব নির্বাচন" else "Select Group"
+                                                },
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = SolidPrimary,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .clickable {
+                                                        val groupIds = accounts.map { it.id }.toSet()
+                                                        selectedIds = if (allGroupSelected) {
+                                                            selectedIds - groupIds
+                                                        } else {
+                                                            selectedIds + groupIds
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(text = acc.localizedName(languageMode), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                        Text(
-                                            text = LanguageHelper.formatCurrency(balance, languageMode),
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
+                                }
+                            }
+
+                            // Sub-accounts in this group (selectable)
+                            items(accounts, key = { "sub_acc_${it.id}" }) { acc ->
+                                val isChecked = selectedIds.contains(acc.id)
+                                val balance = balanceMap[acc.id] ?: 0.0
+                                val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
+
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 6.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            selectedIds = if (isChecked) selectedIds - acc.id else selectedIds + acc.id
+                                        },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                                    border = if (isChecked) BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.4f)) else null
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            Checkbox(
+                                                checked = isChecked,
+                                                onCheckedChange = { checked ->
+                                                    selectedIds = if (checked) selectedIds + acc.id else selectedIds - acc.id
+                                                },
+                                                colors = CheckboxDefaults.colors(checkedColor = SolidPrimary)
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                IconHelper.AppIcon(
+                                                    iconName = acc.iconName,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(if (isImg) 28.dp else 15.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(
+                                                    text = acc.localizedName(languageMode),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(
+                                                        text = LanguageHelper.formatCurrency(balance, languageMode),
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.outline
+                                                    )
+                                                    if (acc.accountNumber.isNotBlank()) {
+                                                        Text(
+                                                            text = "• ${acc.accountNumber}",
+                                                            fontSize = 9.sp,
+                                                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -2924,15 +3498,16 @@ private fun PaymentSourceSelectorDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
+                // Bottom bar with count and actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${selectedIds.size} / ${allAccounts.size} ${if (languageMode == LanguageMode.BANGLA) "টি নির্বাচিত" else "Selected"}",
+                        text = "${selectedIds.size} / ${allSelectableAccounts.size} ${if (languageMode == LanguageMode.BANGLA) "টি নির্বাচিত" else "Accounts Selected"}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -3503,22 +4078,34 @@ private fun SelectCategoryForAccountDialog(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .clickable {
-                                        val targetAlloc = existingAlloc ?: CategoryAllocationAnalysis(
-                                            category = cat,
-                                            totalBudgetOrRequired = 0.0,
-                                            totalBudgeted = 0.0,
-                                            totalActualSpent = 0.0,
-                                            totalRemaining = 0.0,
-                                            accountSplits = listOf(
-                                                CategoryAccountSplit(
-                                                    account = targetAccount,
-                                                    allocatedAmount = 0.0,
-                                                    percentageOfCategory = 100.0
+                                        val targetAlloc = if (existingAlloc != null) {
+                                            existingAlloc.copy(
+                                                accountSplits = listOf(
+                                                    CategoryAccountSplit(
+                                                        account = targetAccount,
+                                                        allocatedAmount = existingAlloc.totalBudgeted,
+                                                        percentageOfCategory = 100.0
+                                                    )
                                                 )
-                                            ),
-                                            isMultiAccount = false,
-                                            isExpense = isExpense
-                                        )
+                                            )
+                                        } else {
+                                            CategoryAllocationAnalysis(
+                                                category = cat,
+                                                totalBudgetOrRequired = cat.budgetLimit,
+                                                totalBudgeted = cat.budgetLimit,
+                                                totalActualSpent = 0.0,
+                                                totalRemaining = cat.budgetLimit,
+                                                accountSplits = listOf(
+                                                    CategoryAccountSplit(
+                                                        account = targetAccount,
+                                                        allocatedAmount = cat.budgetLimit,
+                                                        percentageOfCategory = 100.0
+                                                    )
+                                                ),
+                                                isMultiAccount = false,
+                                                isExpense = isExpense
+                                            )
+                                        }
                                         onCategorySelected(targetAlloc)
                                     },
                                 shape = RoundedCornerShape(10.dp),

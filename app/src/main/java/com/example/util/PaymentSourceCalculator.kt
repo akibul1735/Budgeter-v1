@@ -58,7 +58,7 @@ object PaymentSourceCalculator {
 
         // Explicit category-account allocation budgets from MonthlyBudget (itemType = "ALLOC_${categoryId}", itemId = accountId)
         val explicitAllocations = monthBudgets.filter {
-            it.itemType.startsWith("ALLOC_") && it.isEnabled && it.budgetedAmount > 0
+            it.itemType.startsWith("ALLOC_") && !it.itemType.startsWith("ALLOC_ACC_") && it.isEnabled
         }
         val allocationsByCatId = explicitAllocations.groupBy {
             it.itemType.removePrefix("ALLOC_").toLongOrNull() ?: 0L
@@ -177,33 +177,35 @@ object PaymentSourceCalculator {
                 for (alloc in explicitCatAllocs) {
                     val accId = alloc.itemId
                     val acc = validAccountsMap[accId] ?: continue
-                    val allocatedAmt = alloc.budgetedAmount
+                    val allocatedAmt = if (splitCount == 1 && effectiveCategoryBudget > 0) {
+                        maxOf(alloc.budgetedAmount, effectiveCategoryBudget)
+                    } else {
+                        alloc.budgetedAmount
+                    }
                     val spentInThisAcc = spentByCatAndAcc[cat.id to accId] ?: 0.0
                     val remainingInThisAcc = maxOf(0.0, allocatedAmt - spentInThisAcc)
 
                     val reqAmt = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) allocatedAmt else remainingInThisAcc
 
-                    if (reqAmt > 0 || spentInThisAcc > 0 || allocatedAmt > 0) {
-                        accountExpensesMap[accId]?.add(
-                            AccountRequirementItem(
-                                title = cat.nameEn,
-                                amount = reqAmt,
-                                originalBudgetOrExpected = allocatedAmt,
-                                actualSpentOrReceived = spentInThisAcc,
-                                remaining = remainingInThisAcc,
-                                isRecurring = false,
-                                isExpense = true,
-                                categoryId = cat.id,
-                                iconName = cat.iconName,
-                                colorHex = cat.colorHex,
-                                isMultiAccountSplit = splitCount > 1,
-                                totalCategoryBudget = effectiveCategoryBudget,
-                                splitAccountCount = splitCount
-                            )
+                    accountExpensesMap[accId]?.add(
+                        AccountRequirementItem(
+                            title = cat.nameEn,
+                            amount = reqAmt,
+                            originalBudgetOrExpected = allocatedAmt,
+                            actualSpentOrReceived = spentInThisAcc,
+                            remaining = remainingInThisAcc,
+                            isRecurring = false,
+                            isExpense = true,
+                            categoryId = cat.id,
+                            iconName = cat.iconName,
+                            colorHex = cat.colorHex,
+                            isMultiAccountSplit = splitCount > 1,
+                            totalCategoryBudget = effectiveCategoryBudget,
+                            splitAccountCount = splitCount
                         )
-                    }
+                    )
 
-                    val pct = if (effectiveCategoryBudget > 0) (allocatedAmt / effectiveCategoryBudget * 100) else 0.0
+                    val pct = if (effectiveCategoryBudget > 0) (allocatedAmt / effectiveCategoryBudget * 100) else (100.0 / splitCount)
                     catSplits.add(
                         CategoryAccountSplit(
                             account = acc,
@@ -436,32 +438,34 @@ object PaymentSourceCalculator {
                 for (alloc in explicitCatAllocs) {
                     val accId = alloc.itemId
                     val acc = validAccountsMap[accId] ?: continue
-                    val allocatedAmt = alloc.budgetedAmount
+                    val allocatedAmt = if (splitCount == 1 && effectiveCategoryBudget > 0) {
+                        maxOf(alloc.budgetedAmount, effectiveCategoryBudget)
+                    } else {
+                        alloc.budgetedAmount
+                    }
                     val receivedInThisAcc = receivedByCatAndAcc[cat.id to accId] ?: 0.0
                     val remainingInThisAcc = maxOf(0.0, allocatedAmt - receivedInThisAcc)
                     val expectedAmt = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) allocatedAmt else remainingInThisAcc
 
-                    if (expectedAmt > 0 || receivedInThisAcc > 0 || allocatedAmt > 0) {
-                        accountIncomesMap[accId]?.add(
-                            AccountRequirementItem(
-                                title = cat.nameEn,
-                                amount = expectedAmt,
-                                originalBudgetOrExpected = allocatedAmt,
-                                actualSpentOrReceived = receivedInThisAcc,
-                                remaining = remainingInThisAcc,
-                                isRecurring = false,
-                                isExpense = false,
-                                categoryId = cat.id,
-                                iconName = cat.iconName,
-                                colorHex = cat.colorHex,
-                                isMultiAccountSplit = splitCount > 1,
-                                totalCategoryBudget = effectiveCategoryBudget,
-                                splitAccountCount = splitCount
-                            )
+                    accountIncomesMap[accId]?.add(
+                        AccountRequirementItem(
+                            title = cat.nameEn,
+                            amount = expectedAmt,
+                            originalBudgetOrExpected = allocatedAmt,
+                            actualSpentOrReceived = receivedInThisAcc,
+                            remaining = remainingInThisAcc,
+                            isRecurring = false,
+                            isExpense = false,
+                            categoryId = cat.id,
+                            iconName = cat.iconName,
+                            colorHex = cat.colorHex,
+                            isMultiAccountSplit = splitCount > 1,
+                            totalCategoryBudget = effectiveCategoryBudget,
+                            splitAccountCount = splitCount
                         )
-                    }
+                    )
 
-                    val pct = if (effectiveCategoryBudget > 0) (allocatedAmt / effectiveCategoryBudget * 100) else 0.0
+                    val pct = if (effectiveCategoryBudget > 0) (allocatedAmt / effectiveCategoryBudget * 100) else (100.0 / splitCount)
                     incSplits.add(
                         CategoryAccountSplit(
                             account = acc,
@@ -571,7 +575,7 @@ object PaymentSourceCalculator {
 
         // Explicit other-account allocations from MonthlyBudget (itemType = "ALLOC_ACC_${otherAccountId}", itemId = paymentSourceAccountId)
         val explicitOtherAccAllocs = monthBudgets.filter {
-            it.itemType.startsWith("ALLOC_ACC_") && it.isEnabled && it.budgetedAmount > 0
+            it.itemType.startsWith("ALLOC_ACC_") && it.isEnabled
         }
         val allocationsByOtherAccId = explicitOtherAccAllocs.groupBy {
             it.itemType.removePrefix("ALLOC_ACC_").toLongOrNull() ?: 0L

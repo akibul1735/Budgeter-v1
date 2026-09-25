@@ -309,29 +309,27 @@ class BudgetRepository(
         val existing = monthlyBudgetDao.getBudgetsForMonthSnapshot(year, month)
             .filter { it.itemType == itemType }
 
-        // Remove allocations that are set to 0 or removed
+        // Remove allocations that are no longer in the map
         for (item in existing) {
-            if (!allocations.containsKey(item.itemId) || (allocations[item.itemId] ?: 0.0) <= 0.0) {
+            if (!allocations.containsKey(item.itemId)) {
                 monthlyBudgetDao.deleteBudget(year, month, itemType, item.itemId)
             }
         }
 
-        // Insert or update non-zero allocations
+        // Insert or update allocations
         for ((accountId, amount) in allocations) {
-            if (amount > 0.0) {
-                val match = existing.find { it.itemId == accountId }
-                val budget = MonthlyBudget(
-                    id = match?.id ?: 0,
-                    year = year,
-                    month = month,
-                    itemType = itemType,
-                    itemId = accountId,
-                    budgetedAmount = amount,
-                    isEnabled = true,
-                    updatedAt = System.currentTimeMillis()
-                )
-                monthlyBudgetDao.upsertBudget(budget)
-            }
+            val match = existing.find { it.itemId == accountId }
+            val budget = MonthlyBudget(
+                id = match?.id ?: 0,
+                year = year,
+                month = month,
+                itemType = itemType,
+                itemId = accountId,
+                budgetedAmount = if (amount > 0.0) amount else 0.001,
+                isEnabled = true,
+                updatedAt = System.currentTimeMillis()
+            )
+            monthlyBudgetDao.upsertBudget(budget)
         }
     }
 
@@ -355,26 +353,24 @@ class BudgetRepository(
             .filter { it.itemType == itemType }
 
         for (item in existing) {
-            if (!allocations.containsKey(item.itemId) || (allocations[item.itemId] ?: 0.0) <= 0.0) {
+            if (!allocations.containsKey(item.itemId)) {
                 monthlyBudgetDao.deleteBudget(year, month, itemType, item.itemId)
             }
         }
 
         for ((accountId, amount) in allocations) {
-            if (amount > 0.0) {
-                val match = existing.find { it.itemId == accountId }
-                val budget = MonthlyBudget(
-                    id = match?.id ?: 0,
-                    year = year,
-                    month = month,
-                    itemType = itemType,
-                    itemId = accountId,
-                    budgetedAmount = amount,
-                    isEnabled = true,
-                    updatedAt = System.currentTimeMillis()
-                )
-                monthlyBudgetDao.upsertBudget(budget)
-            }
+            val match = existing.find { it.itemId == accountId }
+            val budget = MonthlyBudget(
+                id = match?.id ?: 0,
+                year = year,
+                month = month,
+                itemType = itemType,
+                itemId = accountId,
+                budgetedAmount = if (amount > 0.0) amount else 0.001,
+                isEnabled = true,
+                updatedAt = System.currentTimeMillis()
+            )
+            monthlyBudgetDao.upsertBudget(budget)
         }
     }
 

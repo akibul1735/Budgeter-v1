@@ -942,264 +942,289 @@ fun AddEditTransactionSheet(
         }
     }
 
-    val executeSave: () -> Unit = {
-        run {
-            val parsedAmt = parseAmountInput(amountText).let { if (it > 0.0) it else amount }
-            val absAmt = if (isSplitActive && splitItems.isNotEmpty()) splitItems.sumOf { it.amount } else Math.abs(parsedAmt)
-            if (absAmt <= 0.0) {
-                Toast.makeText(
-                    context,
-                    if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount",
-                    Toast.LENGTH_SHORT
-                ).show()
-                return@run
-            }
+    fun executeSave(isPlusOne: Boolean = false) {
+        val parsedAmt = parseAmountInput(amountText).let { if (it > 0.0) it else amount }
+        val absAmt = if (isSplitActive && splitItems.isNotEmpty()) splitItems.sumOf { it.amount } else Math.abs(parsedAmt)
+        if (absAmt <= 0.0) {
+            Toast.makeText(
+                context,
+                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
 
-            // Mandatory Account and Category Validation (when not split)
-            if (!isSplitActive || splitItems.isEmpty()) {
-                when (txType) {
-                    TransactionType.EXPENSE -> {
-                        if (creditAccountId == null) {
-                            Toast.makeText(
-                                context,
-                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি অ্যাকাউন্ট নির্বাচন করুন" else "Please select an account",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@run
-                        }
-                        if (selectedCategoryId == null && selectedSubCategoryId == null) {
-                            Toast.makeText(
-                                context,
-                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন" else "Please select a category",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@run
-                        }
-                    }
-                    TransactionType.INCOME -> {
-                        if (debitAccountId == null) {
-                            Toast.makeText(
-                                context,
-                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি অ্যাকাউন্ট নির্বাচন করুন" else "Please select an account",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@run
-                        }
-                        if (selectedCategoryId == null && selectedSubCategoryId == null) {
-                            Toast.makeText(
-                                context,
-                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন" else "Please select a category",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@run
-                        }
-                    }
-                    TransactionType.TRANSFER -> {
-                        if (creditAccountId == null) {
-                            Toast.makeText(
-                                context,
-                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে উৎস অ্যাকাউন্ট নির্বাচন করুন" else "Please select source (From) account",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@run
-                        }
-                        if (debitAccountId == null) {
-                            Toast.makeText(
-                                context,
-                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে গন্তব্য অ্যাকাউন্ট নির্বাচন করুন" else "Please select destination (To) account",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@run
-                        }
-                        if (creditAccountId == debitAccountId) {
-                            Toast.makeText(
-                                context,
-                                if (languageMode == LanguageMode.BANGLA) "উৎস ও গন্তব্য অ্যাকাউন্ট ভিন্ন হতে হবে" else "Source and destination accounts must be different",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@run
-                        }
-                    }
-                }
-            } else {
-                // For split transactions, ensure at least 2 lines and all amounts > 0
-                if (splitItems.size < 2 || splitItems.any { it.amount <= 0.0 }) {
-                    Toast.makeText(
-                        context,
-                        if (languageMode == LanguageMode.BANGLA) "সকল স্প্লিট আইটেমে পরিমাণ দিন" else "Please enter amounts for all split items",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@run
-                }
-            }
-
-            val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
-            val isRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
-            val finalAmount = if (isRevertExpense || isRevertIncome) -absAmt else absAmt
-
-            val finalCategoryId = if (txType != TransactionType.TRANSFER) {
-                resolvedParentCat?.id ?: resolvedChildCat?.parentId ?: selectedCategoryId
-            } else null
-
-            val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
-                resolvedChildCat?.id ?: selectedSubCategoryId
-            } else null
-
-            val finalPayee = if (payee.isNotBlank()) {
-                payee.trim()
-            } else {
-                when (txConfig.unnamedPayeeMode) {
-                    UnnamedPayeeMode.DEFAULT_OTHERS -> if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
-                    UnnamedPayeeMode.CATEGORY_NAME -> {
-                        val cat = categories.firstOrNull { it.id == (finalSubCategoryId ?: finalCategoryId) }
-                        cat?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
-                    }
-                    UnnamedPayeeMode.ACCOUNT_NAME -> {
-                        val acc = accounts.firstOrNull { it.id == (creditAccountId ?: debitAccountId) }
-                        acc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
-                    }
-                    UnnamedPayeeMode.CUSTOM_NAME -> txConfig.customDefaultPayee.ifBlank {
-                        if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
-                    }
-                }
-            }
-
-            val tx = Transaction(
-                id = existingTransaction?.id ?: 0L,
-                type = txType,
-                amount = finalAmount,
-                dateEpochMs = selectedDateEpochMs,
-                note = note.trim(),
-                referenceNo = labelTag.trim(),
-                payeeOrPayer = finalPayee,
-                attachmentUri = attachmentUri.trim(),
-                status = status,
-                debitAccountId = when (txType) {
-                    TransactionType.EXPENSE -> null
-                    TransactionType.INCOME -> debitAccountId
-                    TransactionType.TRANSFER -> debitAccountId
-                },
-                creditAccountId = when (txType) {
-                    TransactionType.EXPENSE -> creditAccountId
-                    TransactionType.INCOME -> null
-                    TransactionType.TRANSFER -> creditAccountId
-                },
-                categoryId = finalCategoryId,
-                subCategoryId = finalSubCategoryId
-            )
-
-            // If split transaction is active, save via split handler
-            if (isSplitActive && splitItems.size >= 2 && onSaveSplit != null) {
-                val oldTxs = if (existingSplitSiblings.isNotEmpty()) {
-                    existingSplitSiblings.map { it.transaction }
-                } else if (existingTransaction != null) {
-                    listOf(existingTransaction)
-                } else {
-                    emptyList()
-                }
-                onSaveSplit(splitGroupId, tx, splitItems.toList(), oldTxs)
-                onDismiss()
-            } else {
-                // If user reverted a split transaction back to single, delete old siblings
-                if (existingSplitSiblings.isNotEmpty()) {
-                    val siblingsToDelete = existingSplitSiblings.map { it.transaction }.filter { it.id != (existingTransaction?.id ?: 0L) }
-                    siblingsToDelete.forEach { onDelete?.invoke(it) }
-                }
-                onSave(tx)
-
-                // If transfer with fee, create fee transaction as well
-                if (txType == TransactionType.TRANSFER && hasTransferFee && transferFeeAmount > 0) {
-                    val feeAccId = transferFeeAccountId ?: creditAccountId
-                    val feeTx = Transaction(
-                        id = 0,
-                        type = TransactionType.EXPENSE,
-                        amount = transferFeeAmount,
-                        dateEpochMs = selectedDateEpochMs,
-                        note = "Transfer fee for ${payee.ifBlank { "Transfer" }}",
-                        referenceNo = if (labelTag.isNotBlank()) "$labelTag, Fee" else "Fee",
-                        payeeOrPayer = if (payee.isNotBlank()) "$payee (Fee)" else "Transfer Fee",
-                        attachmentUri = "",
-                        status = status,
-                        debitAccountId = null,
-                        creditAccountId = feeAccId,
-                        categoryId = transferFeeCategoryId,
-                        subCategoryId = transferFeeSubCategoryId
-                    )
-                    onSave(feeTx)
-
-                    // Save remembered category in preferences
-                    if (transferFeeCategoryId != null) {
-                        transferFeePrefs.setFeeCategoryForPayee(
-                            payee,
-                            transferFeeCategoryId!!,
-                            transferFeeSubCategoryId
-                        )
-                    }
-                }
-
-                if (keepFormOpen && existingTransaction == null) {
-                    if (txConfig.plusOneClearAmount) {
-                        amount = 0.0
-                        amountText = ""
-                        amountTextFieldValue = TextFieldValue("")
-                    }
-                    if (txConfig.plusOneClearNote) {
-                        note = ""
-                    }
-                    if (txConfig.plusOneClearPayee) {
-                        payee = ""
-                    }
-                    if (txConfig.plusOneClearAttachment) {
-                        attachmentUri = ""
-                    }
-                    if (!txConfig.plusOneKeepDate) {
-                        selectedDateEpochMs = System.currentTimeMillis()
-                    } else if (!txConfig.plusOneKeepTime) {
-                        val cal = Calendar.getInstance().apply {
-                            timeInMillis = selectedDateEpochMs
-                            val nowCal = Calendar.getInstance()
-                            set(Calendar.HOUR_OF_DAY, nowCal.get(Calendar.HOUR_OF_DAY))
-                            set(Calendar.MINUTE, nowCal.get(Calendar.MINUTE))
-                        }
-                        selectedDateEpochMs = cal.timeInMillis
-                    }
-                    if (!txConfig.plusOneKeepCategory && txType != TransactionType.TRANSFER) {
-                        selectedCategoryId = othersCategoryGroup?.id ?: relevantCategories.firstOrNull()?.id
-                        selectedSubCategoryId = null
-                    }
-                    if (!txConfig.plusOneKeepAccount) {
-                        creditAccountId = usableAccounts.firstOrNull()?.id
-                        debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
-                    } else if (!txConfig.plusOneKeepTransferAccount && txType == TransactionType.TRANSFER) {
-                        debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
-                    }
-                    if (txConfig.plusOneAutoIncrementNote && note.isNotBlank()) {
-                        val match = Regex("(.*?) #?(\\d+)$").find(note.trim())
-                        if (match != null) {
-                            val prefix = match.groupValues[1]
-                            val nextNum = (match.groupValues[2].toIntOrNull() ?: 1) + 1
-                            note = "$prefix #$nextNum"
-                        } else {
-                            note = "${note.trim()} #2"
-                        }
-                    }
-                    if (txConfig.plusOneShowConfirmationToast) {
+        // Mandatory Account and Category Validation (when not split)
+        if (!isSplitActive || splitItems.isEmpty()) {
+            when (txType) {
+                TransactionType.EXPENSE -> {
+                    if (creditAccountId == null) {
                         Toast.makeText(
                             context,
-                            if (languageMode == LanguageMode.BANGLA) "লেনদেন সংরক্ষণ (+১) সম্পন্ন হয়েছে" else "Transaction saved (+1)",
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি অ্যাকাউন্ট নির্বাচন করুন" else "Please select an account",
                             Toast.LENGTH_SHORT
                         ).show()
+                        return
                     }
-                    if (!txConfig.plusOneKeepLabels) {
-                        labelTag = ""
+                    if (selectedCategoryId == null && selectedSubCategoryId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন" else "Please select a category",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return
                     }
-                    hasTransferFee = false
-                    transferFeeAmount = 0.0
-                    transferFeeAmountText = ""
-                } else {
-                    onDismiss()
+                }
+                TransactionType.INCOME -> {
+                    if (debitAccountId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি অ্যাকাউন্ট নির্বাচন করুন" else "Please select an account",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return
+                    }
+                    if (selectedCategoryId == null && selectedSubCategoryId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন" else "Please select a category",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return
+                    }
+                }
+                TransactionType.TRANSFER -> {
+                    if (creditAccountId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে উৎস অ্যাকাউন্ট নির্বাচন করুন" else "Please select source (From) account",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return
+                    }
+                    if (debitAccountId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে গন্তব্য অ্যাকাউন্ট নির্বাচন করুন" else "Please select destination (To) account",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return
+                    }
+                    if (creditAccountId == debitAccountId) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "উৎস ও গন্তব্য অ্যাকাউন্ট ভিন্ন হতে হবে" else "Source and destination accounts must be different",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return
+                    }
                 }
             }
+        } else {
+            // For split transactions, ensure at least 2 lines and all amounts > 0
+            if (splitItems.size < 2 || splitItems.any { it.amount <= 0.0 }) {
+                Toast.makeText(
+                    context,
+                    if (languageMode == LanguageMode.BANGLA) "সকল স্প্লিট আইটেমে পরিমাণ দিন" else "Please enter amounts for all split items",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return
+            }
+        }
+
+        val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
+        val isRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
+        val finalAmount = if (isRevertExpense || isRevertIncome) -absAmt else absAmt
+
+        val finalCategoryId = if (txType != TransactionType.TRANSFER) {
+            resolvedParentCat?.id ?: resolvedChildCat?.parentId ?: selectedCategoryId
+        } else null
+
+        val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
+            resolvedChildCat?.id ?: selectedSubCategoryId
+        } else null
+
+        val finalPayee = if (payee.isNotBlank()) {
+            payee.trim()
+        } else {
+            when (txConfig.unnamedPayeeMode) {
+                UnnamedPayeeMode.DEFAULT_OTHERS -> if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
+                UnnamedPayeeMode.CATEGORY_NAME -> {
+                    val cat = categories.firstOrNull { it.id == (finalSubCategoryId ?: finalCategoryId) }
+                    cat?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+                }
+                UnnamedPayeeMode.ACCOUNT_NAME -> {
+                    val acc = accounts.firstOrNull { it.id == (creditAccountId ?: debitAccountId) }
+                    acc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+                }
+                UnnamedPayeeMode.CUSTOM_NAME -> txConfig.customDefaultPayee.ifBlank {
+                    if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
+                }
+            }
+        }
+
+        val tx = Transaction(
+            id = existingTransaction?.id ?: 0L,
+            type = txType,
+            amount = finalAmount,
+            dateEpochMs = selectedDateEpochMs,
+            note = note.trim(),
+            referenceNo = labelTag.trim(),
+            payeeOrPayer = finalPayee,
+            attachmentUri = attachmentUri.trim(),
+            status = status,
+            debitAccountId = when (txType) {
+                TransactionType.EXPENSE -> null
+                TransactionType.INCOME -> debitAccountId
+                TransactionType.TRANSFER -> debitAccountId
+            },
+            creditAccountId = when (txType) {
+                TransactionType.EXPENSE -> creditAccountId
+                TransactionType.INCOME -> null
+                TransactionType.TRANSFER -> creditAccountId
+            },
+            categoryId = finalCategoryId,
+            subCategoryId = finalSubCategoryId
+        )
+
+        // If split transaction is active, save via split handler
+        if (isSplitActive && splitItems.size >= 2 && onSaveSplit != null) {
+            val oldTxs = if (existingSplitSiblings.isNotEmpty()) {
+                existingSplitSiblings.map { it.transaction }
+            } else if (existingTransaction != null) {
+                listOf(existingTransaction)
+            } else {
+                emptyList()
+            }
+            onSaveSplit(splitGroupId, tx, splitItems.toList(), oldTxs)
+            if (!isPlusOne) {
+                onDismiss()
+                return
+            }
+        } else {
+            // If user reverted a split transaction back to single, delete old siblings
+            if (existingSplitSiblings.isNotEmpty()) {
+                val siblingsToDelete = existingSplitSiblings.map { it.transaction }.filter { it.id != (existingTransaction?.id ?: 0L) }
+                siblingsToDelete.forEach { onDelete?.invoke(it) }
+            }
+            onSave(tx)
+
+            // If transfer with fee, create fee transaction as well
+            if (txType == TransactionType.TRANSFER && hasTransferFee && transferFeeAmount > 0) {
+                val feeAccId = transferFeeAccountId ?: creditAccountId
+                val feeTx = Transaction(
+                    id = 0,
+                    type = TransactionType.EXPENSE,
+                    amount = transferFeeAmount,
+                    dateEpochMs = selectedDateEpochMs,
+                    note = "Transfer fee for ${payee.ifBlank { "Transfer" }}",
+                    referenceNo = if (labelTag.isNotBlank()) "$labelTag, Fee" else "Fee",
+                    payeeOrPayer = if (payee.isNotBlank()) "$payee (Fee)" else "Transfer Fee",
+                    attachmentUri = "",
+                    status = status,
+                    debitAccountId = null,
+                    creditAccountId = feeAccId,
+                    categoryId = transferFeeCategoryId,
+                    subCategoryId = transferFeeSubCategoryId
+                )
+                onSave(feeTx)
+
+                // Save remembered category in preferences
+                if (transferFeeCategoryId != null) {
+                    transferFeePrefs.setFeeCategoryForPayee(
+                        payee,
+                        transferFeeCategoryId!!,
+                        transferFeeSubCategoryId
+                    )
+                }
+            }
+        }
+
+        if (isPlusOne) {
+            // Clear or keep Amount
+            if (txConfig.plusOneClearAmount) {
+                amount = 0.0
+                amountText = ""
+                amountTextFieldValue = TextFieldValue("")
+            }
+            // Clear or keep Payee
+            if (txConfig.plusOneClearPayee) {
+                payee = ""
+                showNameDropdown = false
+            }
+            // Clear or keep Note / auto-increment
+            if (txConfig.plusOneClearNote) {
+                note = ""
+            } else if (txConfig.plusOneAutoIncrementNote && note.isNotBlank()) {
+                val match = Regex("(.*?) #?(\\d+)$").find(note.trim())
+                if (match != null) {
+                    val prefix = match.groupValues[1]
+                    val nextNum = (match.groupValues[2].toIntOrNull() ?: 1) + 1
+                    note = "$prefix #$nextNum"
+                } else {
+                    note = "${note.trim()} #2"
+                }
+            }
+            // Clear or keep Attachment
+            if (txConfig.plusOneClearAttachment) {
+                attachmentUri = ""
+            }
+            // Clear or keep Category
+            if (!txConfig.plusOneKeepCategory && txType != TransactionType.TRANSFER) {
+                selectedCategoryId = if (txType == TransactionType.EXPENSE) txConfig.defaultExpenseCategoryId else txConfig.defaultIncomeCategoryId
+                selectedSubCategoryId = null
+            }
+            // Clear or keep Account
+            if (!txConfig.plusOneKeepAccount) {
+                creditAccountId = if (txType == TransactionType.EXPENSE) txConfig.defaultAccountId ?: usableAccounts.firstOrNull()?.id else null
+                debitAccountId = if (txType == TransactionType.INCOME) txConfig.defaultAccountId ?: usableAccounts.firstOrNull()?.id else (usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id)
+            } else if (!txConfig.plusOneKeepTransferAccount && txType == TransactionType.TRANSFER) {
+                debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
+            }
+            // Clear or keep Date / Time
+            if (!txConfig.plusOneKeepDate) {
+                selectedDateEpochMs = System.currentTimeMillis()
+            } else if (!txConfig.plusOneKeepTime) {
+                val cal = Calendar.getInstance().apply {
+                    timeInMillis = selectedDateEpochMs
+                    val nowCal = Calendar.getInstance()
+                    set(Calendar.HOUR_OF_DAY, nowCal.get(Calendar.HOUR_OF_DAY))
+                    set(Calendar.MINUTE, nowCal.get(Calendar.MINUTE))
+                }
+                selectedDateEpochMs = cal.timeInMillis
+            }
+            // Clear or keep Labels
+            if (!txConfig.plusOneKeepLabels) {
+                labelTag = ""
+            }
+            // Reset fee and status
+            hasTransferFee = false
+            transferFeeAmount = 0.0
+            transferFeeAmountText = ""
+            status = TransactionStatus.NONE
+            isSplitActive = false
+            splitItems.clear()
+
+            // Toast feedback
+            if (txConfig.plusOneShowConfirmationToast) {
+                Toast.makeText(
+                    context,
+                    if (languageMode == LanguageMode.BANGLA) "লেনদেন সংরক্ষণ (+১) সম্পন্ন হয়েছে" else "Transaction saved (+1)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+
+            // Keyboard / focus handling
+            try {
+                if (txConfig.autoFocusAmount) {
+                    amountFocusRequester.requestFocus()
+                } else if (txConfig.showKeyboardImmediately) {
+                    nameFocusRequester.requestFocus()
+                }
+                keyboardController?.show()
+            } catch (_: Exception) {}
+        } else {
+            onDismiss()
         }
     }
 
@@ -1369,124 +1394,13 @@ fun AddEditTransactionSheet(
 
                             Spacer(modifier = Modifier.width(4.dp))
 
-                            // "+1" button: saves current entry and clears parameters according to transaction setup rules
+                            // "+1" button: saves current entry and clears/keeps parameters according to transaction setup rules
                             Surface(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .clickable {
-                                        val parsedAmt = parseAmountInput(amountText).let { if (it > 0.0) it else amount }
-                                        val absAmt = Math.abs(parsedAmt)
-                                        if (absAmt > 0) {
-                                            val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
-                                            val isRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
-                                            val finalAmount = if (isRevertExpense || isRevertIncome) -absAmt else absAmt
-
-                                            val fallbackGroup = categories.firstOrNull {
-                                                val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                                                it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
-                                            } ?: relevantCategories.firstOrNull()
-
-                                            val finalCategoryId = if (txType != TransactionType.TRANSFER) {
-                                                selectedCategoryId ?: fallbackGroup?.id
-                                            } else null
-
-                                            val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
-                                                selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
-                                            } else null
-
-                                            val finalPayee = if (payee.isNotBlank()) {
-                                                payee.trim()
-                                            } else {
-                                                when (txConfig.unnamedPayeeMode) {
-                                                    UnnamedPayeeMode.DEFAULT_OTHERS -> if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
-                                                    UnnamedPayeeMode.CATEGORY_NAME -> {
-                                                        val cat = categories.firstOrNull { it.id == (finalSubCategoryId ?: finalCategoryId) }
-                                                        cat?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
-                                                    }
-                                                    UnnamedPayeeMode.ACCOUNT_NAME -> {
-                                                        val acc = accounts.firstOrNull { it.id == (creditAccountId ?: debitAccountId) }
-                                                        acc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
-                                                    }
-                                                    UnnamedPayeeMode.CUSTOM_NAME -> txConfig.customDefaultPayee.ifBlank {
-                                                        if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
-                                                    }
-                                                }
-                                            }
-
-                                            val tx = Transaction(
-                                                id = 0,
-                                                type = txType,
-                                                amount = finalAmount,
-                                                dateEpochMs = selectedDateEpochMs,
-                                                note = note.trim(),
-                                                referenceNo = labelTag.trim(),
-                                                payeeOrPayer = finalPayee,
-                                                attachmentUri = attachmentUri.trim(),
-                                                status = status,
-                                                debitAccountId = when (txType) {
-                                                    TransactionType.EXPENSE -> null
-                                                    TransactionType.INCOME -> debitAccountId
-                                                    TransactionType.TRANSFER -> debitAccountId
-                                                },
-                                                creditAccountId = when (txType) {
-                                                    TransactionType.EXPENSE -> creditAccountId
-                                                    TransactionType.INCOME -> null
-                                                    TransactionType.TRANSFER -> creditAccountId
-                                                },
-                                                categoryId = finalCategoryId,
-                                                subCategoryId = finalSubCategoryId
-                                            )
-                                            onSave(tx)
-
-                                            // Clear / Keep parameters based on user Transaction Setup configuration
-                                            if (txConfig.plusOneClearAmount) {
-                                                amount = 0.0
-                                                amountText = ""
-                                            }
-                                            if (txConfig.plusOneClearPayee) {
-                                                payee = ""
-                                            }
-                                            if (txConfig.plusOneClearNote) {
-                                                note = ""
-                                            }
-                                            if (txConfig.plusOneClearAttachment) {
-                                                attachmentUri = ""
-                                            }
-                                            if (!txConfig.plusOneKeepCategory) {
-                                                selectedCategoryId = null
-                                                selectedSubCategoryId = null
-                                            }
-                                            if (!txConfig.plusOneKeepAccount) {
-                                                debitAccountId = null
-                                                creditAccountId = null
-                                            }
-                                            if (!txConfig.plusOneKeepDate) {
-                                                selectedDateEpochMs = System.currentTimeMillis()
-                                            }
-                                            labelTag = ""
-                                            status = TransactionStatus.NONE
-                                            showNameDropdown = false
-                                            Toast.makeText(
-                                                context,
-                                                if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ করা হয়েছে! পরবর্তী এন্ট্রি দিন" else "Saved! Enter next transaction",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                            if (txConfig.showKeyboardImmediately) {
-                                                try {
-                                                    nameFocusRequester.requestFocus()
-                                                    keyboardController?.show()
-                                                } catch (_: Exception) {
-                                                }
-                                            }
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount first",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    },
+                                    .clickable { executeSave(true) }
+                                    .testTag("btn_plus_one_transaction"),
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
                                 shape = CircleShape
                             ) {
@@ -1504,7 +1418,7 @@ fun AddEditTransactionSheet(
 
                             // Top Bar Save Icon Button
                             IconButton(
-                                onClick = executeSave,
+                                onClick = { executeSave() },
                                 modifier = Modifier
                                     .size(36.dp)
                                     .testTag("btn_top_save_transaction")
