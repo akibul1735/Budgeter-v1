@@ -485,13 +485,7 @@ internal fun AccountRequirementCard(
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
-                    val labelText = if (analysis.isShortfall) {
-                        if (languageMode == LanguageMode.BANGLA) "প্রয়োজন (ঘাটতি)" else "Need (Shortfall)"
-                    } else if (analysis.isSurplus) {
-                        if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত (সারপ্লাস)" else "Surplus"
-                    } else {
-                        if (languageMode == LanguageMode.BANGLA) "প্রাক্কলিত ব্যালেন্স" else "Projected Balance"
-                    }
+                    val labelText = if (languageMode == LanguageMode.BANGLA) "প্রাক্কলিত ব্যালেন্স" else "Projected Balance"
 
                     Text(
                         text = labelText,

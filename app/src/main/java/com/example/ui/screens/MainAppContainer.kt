@@ -1346,9 +1346,6 @@ fun MainAppContainer(
             },
             onSave = { tx ->
                 viewModel.saveTransaction(tx)
-                if (tx.payeeOrPayer.isNotBlank()) {
-                    viewModel.autoDiscoverAndCacheItemIcon(tx.payeeOrPayer, tx.categoryId, tx.subCategoryId)
-                }
                 pendingPurchaseWishlistId?.let { wishId ->
                     viewModel.toggleWishlistPurchased(wishId, true)
                     pendingPurchaseWishlistId = null
@@ -1360,14 +1357,6 @@ fun MainAppContainer(
             },
             onSaveSplit = { splitGroupId, baseTx, items, existingTxs ->
                 viewModel.saveSplitTransaction(splitGroupId, baseTx, items, existingTxs)
-                if (baseTx.payeeOrPayer.isNotBlank()) {
-                    viewModel.autoDiscoverAndCacheItemIcon(baseTx.payeeOrPayer, baseTx.categoryId, baseTx.subCategoryId)
-                }
-                items.forEach { splitItem ->
-                    if (splitItem.payeeOrPayer.isNotBlank()) {
-                        viewModel.autoDiscoverAndCacheItemIcon(splitItem.payeeOrPayer, splitItem.categoryId, splitItem.subCategoryId)
-                    }
-                }
                 pendingPurchaseWishlistId?.let { wishId ->
                     viewModel.toggleWishlistPurchased(wishId, true)
                     pendingPurchaseWishlistId = null
