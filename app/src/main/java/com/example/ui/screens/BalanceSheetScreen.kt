@@ -3021,6 +3021,20 @@ private fun BalanceSheetGroupItem(
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
+                    } else if (isAdjusted) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFD97706).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সমন্বিত" else "Adjusted",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD97706),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
                     }
 
                     // % Share badge
@@ -3055,14 +3069,27 @@ private fun BalanceSheetGroupItem(
                             modifier = Modifier.widthIn(min = 85.dp),
                             contentAlignment = Alignment.CenterEnd
                         ) {
-                            Text(
-                                text = formatBalance(group.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                                textAlign = TextAlign.End
-                            )
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = formatBalance(
+                                        if (isIncluded) group.effectiveCurrentBalance else group.currentBalance,
+                                        displayCurrency, languageMode, displayCurrencySymbol
+                                    ),
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                    textAlign = TextAlign.End
+                                )
+                                if (isAdjusted && isIncluded) {
+                                    Text(
+                                        text = "Base: ${formatBalance(group.currentBalance, displayCurrency, languageMode, displayCurrencySymbol)}",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        textAlign = TextAlign.End
+                                    )
+                                }
+                            }
                         }
                         if (isCalcMode) {
                             Spacer(modifier = Modifier.width(4.dp))
@@ -3100,7 +3127,10 @@ private fun BalanceSheetGroupItem(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = formatBalance(group.baseBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                text = formatBalance(
+                                    if (isIncluded) group.effectiveBaseBalance else group.baseBalance,
+                                    displayCurrency, languageMode, displayCurrencySymbol
+                                ),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
@@ -3117,14 +3147,27 @@ private fun BalanceSheetGroupItem(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                Text(
-                                    text = formatBalance(group.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                                    textAlign = TextAlign.End
-                                )
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = formatBalance(
+                                            if (isIncluded) group.effectiveCurrentBalance else group.currentBalance,
+                                            displayCurrency, languageMode, displayCurrencySymbol
+                                        ),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                        textAlign = TextAlign.End
+                                    )
+                                    if (isAdjusted && isIncluded) {
+                                        Text(
+                                            text = "Base: ${formatBalance(group.currentBalance, displayCurrency, languageMode, displayCurrencySymbol)}",
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.outline,
+                                            textAlign = TextAlign.End
+                                        )
+                                    }
+                                }
                                 Spacer(modifier = Modifier.width(2.dp))
                                 ChangeIndicator(delta = group.delta)
                             }
@@ -3280,6 +3323,20 @@ private fun SubAccountRowItem(
                         modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                     )
                 }
+            } else if (isAdjusted) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Surface(
+                    shape = RoundedCornerShape(3.dp),
+                    color = Color(0xFFD97706).copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "সমন্বিত" else "Adjusted",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD97706),
+                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                    )
+                }
             }
 
             if (row.percentageShare > 0) {
@@ -3311,14 +3368,27 @@ private fun SubAccountRowItem(
                     modifier = Modifier.widthIn(min = 85.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    Text(
-                        text = formatBalance(row.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                        textAlign = TextAlign.End
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = formatBalance(
+                                if (isIncluded) row.effectiveCurrentBalance else row.currentBalance,
+                                displayCurrency, languageMode, displayCurrencySymbol
+                            ),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                            textAlign = TextAlign.End
+                        )
+                        if (isAdjusted && isIncluded) {
+                            Text(
+                                text = "Base: ${formatBalance(row.currentBalance, displayCurrency, languageMode, displayCurrencySymbol)}",
+                                fontSize = 8.5.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
                 }
                 if (isCalcMode) {
                     Spacer(modifier = Modifier.width(4.dp))
@@ -3356,7 +3426,10 @@ private fun SubAccountRowItem(
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        text = formatBalance(row.baseBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                        text = formatBalance(
+                            if (isIncluded) row.effectiveBaseBalance else row.baseBalance,
+                            displayCurrency, languageMode, displayCurrencySymbol
+                        ),
                         fontSize = 11.sp,
                         color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
                         textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
@@ -3372,14 +3445,27 @@ private fun SubAccountRowItem(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = formatBalance(row.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                            textAlign = TextAlign.End
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = formatBalance(
+                                    if (isIncluded) row.effectiveCurrentBalance else row.currentBalance,
+                                    displayCurrency, languageMode, displayCurrencySymbol
+                                ),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                textAlign = TextAlign.End
+                            )
+                            if (isAdjusted && isIncluded) {
+                                Text(
+                                    text = "Base: ${formatBalance(row.currentBalance, displayCurrency, languageMode, displayCurrencySymbol)}",
+                                    fontSize = 8.5.sp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.width(2.dp))
                         ChangeIndicator(delta = row.delta)
                     }
