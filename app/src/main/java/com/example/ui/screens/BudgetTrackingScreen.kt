@@ -100,6 +100,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -150,6 +151,7 @@ import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
+import com.example.util.TabFilterPreferences
 import androidx.compose.ui.platform.LocalContext
 import java.util.Calendar
 import kotlin.math.roundToInt
@@ -231,8 +233,9 @@ fun BudgetTrackingScreen(
     onAccountClick: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
     // Filter State
-    var filterState by remember { mutableStateOf(BudgetFilterState()) }
+    var filterState by remember { mutableStateOf(tabFilterPrefs.budgetTrackingFilterState) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
@@ -245,12 +248,18 @@ fun BudgetTrackingScreen(
     var isDualDateFlow by remember { mutableStateOf(false) }
     var isSpeedDialExpanded by remember { mutableStateOf(false) }
 
-    var searchQuery by remember { mutableStateOf("") }
-    var isSearchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.budgetTrackingSearchQuery) }
+    var isSearchActive by remember { mutableStateOf(tabFilterPrefs.budgetTrackingSearchQuery.isNotEmpty()) }
     var selectedCategoryForDetail by remember { mutableStateOf<CategoryBudgetTrackingItem?>(null) }
     var categoryForSetBudget by remember { mutableStateOf<CategoryBudgetTrackingItem?>(null) }
     var categoryForAdjustBudget by remember { mutableStateOf<CategoryBudgetTrackingItem?>(null) }
-    var activeTabMode by remember { mutableStateOf("EXPENSE") } // "EXPENSE" or "INCOME"
+    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.budgetTrackingActiveTab) } // "EXPENSE" or "INCOME"
+
+    LaunchedEffect(filterState, searchQuery, activeTabMode) {
+        tabFilterPrefs.budgetTrackingFilterState = filterState
+        tabFilterPrefs.budgetTrackingSearchQuery = searchQuery
+        tabFilterPrefs.budgetTrackingActiveTab = activeTabMode
+    }
 
     val budgetAdjustments by viewModel.budgetAdjustments.collectAsStateWithLifecycle()
     val adjustmentsMap = remember(budgetAdjustments) {

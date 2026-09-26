@@ -145,7 +145,9 @@ fun WishlistScreen(
     onAddToBudget: (WishlistItem, Int, Int, Double) -> Unit,
     onConvertToGoal: (WishlistItem, String, Double, Long, String) -> Unit,
     onRecordPurchase: (WishlistItem) -> Unit,
-    onOpenDrawer: () -> Unit
+    onOpenDrawer: () -> Unit,
+    initialOpenAddDialog: Boolean = false,
+    onAddDialogOpened: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
@@ -165,6 +167,14 @@ fun WishlistScreen(
 
     var showAddEditDialog by remember { mutableStateOf(false) }
     var itemToEdit by remember { mutableStateOf<WishlistItem?>(null) }
+
+    LaunchedEffect(initialOpenAddDialog) {
+        if (initialOpenAddDialog) {
+            itemToEdit = null
+            showAddEditDialog = true
+            onAddDialogOpened()
+        }
+    }
     var itemToDelete by remember { mutableStateOf<WishlistItem?>(null) }
     var itemToBuy by remember { mutableStateOf<WishlistItemWithCategory?>(null) }
     var itemToAddToBudget by remember { mutableStateOf<WishlistItemWithCategory?>(null) }

@@ -27,6 +27,8 @@ object WidgetUpdateHelper {
     const val ACTION_ADD_EXPENSE = "com.example.budgeter.ACTION_ADD_EXPENSE"
     const val ACTION_ADD_INCOME = "com.example.budgeter.ACTION_ADD_INCOME"
     const val ACTION_ADD_TRANSFER = "com.example.budgeter.ACTION_ADD_TRANSFER"
+    const val ACTION_ADD_TRANSACTION = "com.example.budgeter.ACTION_ADD_TRANSACTION"
+    const val ACTION_ADD_WISHLIST = "com.example.budgeter.ACTION_ADD_WISHLIST"
     const val ACTION_VIEW_GOALS = "com.example.budgeter.ACTION_VIEW_GOALS"
     const val ACTION_VIEW_TRANSACTIONS = "com.example.budgeter.ACTION_VIEW_TRANSACTIONS"
     const val ACTION_REFRESH_WIDGETS = "com.example.budgeter.ACTION_REFRESH_WIDGETS"
@@ -96,6 +98,9 @@ object WidgetUpdateHelper {
 
                 // 4. Push updates to widgets
                 updateQuickActionWidgets(context, appWidgetManager, isPrivacy, currencySymbol, netBalance, monthIncome, monthExpense)
+                updateQuickAddWidgets(context, appWidgetManager)
+                updateQuickAddTransactionWidgets(context, appWidgetManager)
+                updateQuickAddWishlistWidgets(context, appWidgetManager)
                 updateBudgetMeterWidgets(context, appWidgetManager, currencySymbol, currentYear, currentMonth, totalBudget, monthExpense, safeToSpendPerDay)
                 updateSavingsGoalWidgets(context, appWidgetManager, currencySymbol, topGoal, goalSavedAmount)
                 updateRecentTransactionsWidgets(context, appWidgetManager)
@@ -194,6 +199,130 @@ object WidgetUpdateHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.btn_action_transfer, transferPending)
+
+            // Add Wishlist
+            val wishlistIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_ADD_WISHLIST
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val wishlistPending = PendingIntent.getActivity(
+                context, 106, wishlistIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_action_wishlist, wishlistPending)
+
+            manager.updateAppWidget(appWidgetId, views)
+        }
+    }
+
+    private fun updateQuickAddWidgets(context: Context, manager: AppWidgetManager) {
+        val componentName = ComponentName(context, QuickAddWidgetProvider::class.java)
+        val ids = manager.getAppWidgetIds(componentName)
+        if (ids.isEmpty()) return
+
+        for (appWidgetId in ids) {
+            val views = RemoteViews(context.packageName, R.layout.widget_quick_add)
+
+            // Open app on header click
+            val openAppIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val openAppPending = PendingIntent.getActivity(
+                context, 200, openAppIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_quick_add_root, openAppPending)
+
+            // Primary Quick Add Transaction
+            val txIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_ADD_TRANSACTION
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val txPending = PendingIntent.getActivity(
+                context, 201, txIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_quick_add_transaction, txPending)
+
+            // Primary Quick Add Wishlist
+            val wishIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_ADD_WISHLIST
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val wishPending = PendingIntent.getActivity(
+                context, 202, wishIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_quick_add_wishlist, wishPending)
+
+            // Sub-button: + Expense
+            val expenseIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_ADD_EXPENSE
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val expensePending = PendingIntent.getActivity(
+                context, 203, expenseIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_sub_add_expense, expensePending)
+
+            // Sub-button: + Income
+            val incomeIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_ADD_INCOME
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val incomePending = PendingIntent.getActivity(
+                context, 204, incomeIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.btn_sub_add_income, incomePending)
+
+            // Sub-button: + Wishlist
+            views.setOnClickPendingIntent(R.id.btn_sub_add_wishlist, wishPending)
+
+            manager.updateAppWidget(appWidgetId, views)
+        }
+    }
+
+    private fun updateQuickAddTransactionWidgets(context: Context, manager: AppWidgetManager) {
+        val componentName = ComponentName(context, QuickAddTransactionWidgetProvider::class.java)
+        val ids = manager.getAppWidgetIds(componentName)
+        if (ids.isEmpty()) return
+
+        for (appWidgetId in ids) {
+            val views = RemoteViews(context.packageName, R.layout.widget_quick_add_transaction)
+
+            val txIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_ADD_TRANSACTION
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val txPending = PendingIntent.getActivity(
+                context, 210, txIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_root_add_transaction, txPending)
+
+            manager.updateAppWidget(appWidgetId, views)
+        }
+    }
+
+    private fun updateQuickAddWishlistWidgets(context: Context, manager: AppWidgetManager) {
+        val componentName = ComponentName(context, QuickAddWishlistWidgetProvider::class.java)
+        val ids = manager.getAppWidgetIds(componentName)
+        if (ids.isEmpty()) return
+
+        for (appWidgetId in ids) {
+            val views = RemoteViews(context.packageName, R.layout.widget_quick_add_wishlist)
+
+            val wishIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_ADD_WISHLIST
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val wishPending = PendingIntent.getActivity(
+                context, 220, wishIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_root_add_wishlist, wishPending)
 
             manager.updateAppWidget(appWidgetId, views)
         }

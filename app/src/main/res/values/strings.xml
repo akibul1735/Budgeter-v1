@@ -4,5 +4,14 @@
     <string name="widget_budget_meter_desc">Live progress meter of monthly budget spending and safe-to-spend balance.</string>
     <string name="widget_recent_transactions_desc">Scrollable live feed of your latest transactions with category icons and amounts.</string>
     <string name="widget_savings_goal_desc">Real-time tracker for your top active savings goal progress.</string>
+    <string name="widget_quick_add_desc">Instant quick-add buttons to record transactions or add wishlist items from your home screen.</string>
+    <string name="widget_quick_add_transaction_title">Quick Add Transaction</string>
+    <string name="widget_quick_add_transaction_desc">Instant one-tap shortcut button to record a new transaction.</string>
+    <string name="widget_quick_add_wishlist_title">Quick Add Wishlist</string>
+    <string name="widget_quick_add_wishlist_desc">Instant one-tap shortcut button to add a new wishlist item.</string>
+    <string name="shortcut_add_transaction_short">Add Transaction</string>
+    <string name="shortcut_add_transaction_long">Record a new transaction</string>
+    <string name="shortcut_add_wishlist_short">Add Wishlist</string>
+    <string name="shortcut_add_wishlist_long">Save item to wishlist</string>
 </resources>
 

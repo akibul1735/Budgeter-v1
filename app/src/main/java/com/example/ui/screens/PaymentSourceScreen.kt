@@ -92,6 +92,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -102,7 +103,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import com.example.util.TabFilterPreferences
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -172,16 +175,39 @@ fun PaymentSourceScreen(
     onDeleteAccountObligation: (String) -> Unit = {},
     onAccountClick: (Long) -> Unit = {}
 ) {
-    var selectedTab by remember { mutableStateOf(MainPaymentSourceTab.PAYMENT_SOURCES) }
-    var calculationBasis by remember { mutableStateOf(RequirementCalculationBasis.BUDGET_AMOUNT) }
-    var accountStatusFilter by remember { mutableStateOf(AccountStatusFilter.ALL) }
-    var paymentSourceSortOption by remember { mutableStateOf(PaymentSourceSortOption.DEFAULT) }
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
+    var selectedTab by remember { mutableStateOf(tabFilterPrefs.paymentSourceTab) }
+    var calculationBasis by remember { mutableStateOf(tabFilterPrefs.paymentSourceCalcBasis) }
+    var accountStatusFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAccountStatus) }
+    var paymentSourceSortOption by remember { mutableStateOf(tabFilterPrefs.paymentSourceSortOption) }
 
     // Assigned items tab filters and sorting
-    var assignedSectionFilter by remember { mutableStateOf(AssignedItemSectionFilter.ALL) }
-    var assignedStatusFilter by remember { mutableStateOf(AssignedItemStatusFilter.ALL) }
-    var assignedItemSortOption by remember { mutableStateOf(AssignedItemSortOption.DEFAULT) }
-    var searchQuery by remember { mutableStateOf("") }
+    var assignedSectionFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedSection) }
+    var assignedStatusFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedStatus) }
+    var assignedItemSortOption by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedSort) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.paymentSourceSearchQuery) }
+
+    LaunchedEffect(
+        selectedTab,
+        calculationBasis,
+        accountStatusFilter,
+        paymentSourceSortOption,
+        assignedSectionFilter,
+        assignedStatusFilter,
+        assignedItemSortOption,
+        searchQuery
+    ) {
+        tabFilterPrefs.paymentSourceTab = selectedTab
+        tabFilterPrefs.paymentSourceCalcBasis = calculationBasis
+        tabFilterPrefs.paymentSourceAccountStatus = accountStatusFilter
+        tabFilterPrefs.paymentSourceSortOption = paymentSourceSortOption
+        tabFilterPrefs.paymentSourceAssignedSection = assignedSectionFilter
+        tabFilterPrefs.paymentSourceAssignedStatus = assignedStatusFilter
+        tabFilterPrefs.paymentSourceAssignedSort = assignedItemSortOption
+        tabFilterPrefs.paymentSourceSearchQuery = searchQuery
+    }
 
     // Dialogs state
     var showSourceSelectorDialog by remember { mutableStateOf(false) }

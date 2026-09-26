@@ -89,6 +89,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -146,6 +147,7 @@ import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
+import com.example.util.TabFilterPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -320,9 +322,10 @@ fun BalanceSheetScreen(
     onResetAccountCalculation: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
 
     // Active Filter State
-    var filterState by remember { mutableStateOf(BalanceSheetFilterState()) }
+    var filterState by remember { mutableStateOf(tabFilterPrefs.balanceSheetFilterState) }
     var showTimelineScreen by remember { mutableStateOf(false) }
 
     if (showTimelineScreen) {
@@ -336,12 +339,12 @@ fun BalanceSheetScreen(
     }
 
     var baseDateMs by remember {
-        val (base, _) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.THIS_MONTH)
-        mutableStateOf(base)
+        val defaultBase = tabFilterPrefs.balanceSheetBaseDateMs ?: BalanceSheetHelper.getPresetDateRanges(filterState.preset).first
+        mutableStateOf(defaultBase)
     }
     var compareDateMs by remember {
-        val (_, compare) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.THIS_MONTH)
-        mutableStateOf(compare)
+        val defaultCompare = tabFilterPrefs.balanceSheetCompareDateMs ?: BalanceSheetHelper.getPresetDateRanges(filterState.preset).second
+        mutableStateOf(defaultCompare)
     }
 
     // Modal Filter Dialog & Calculation Mode
@@ -351,9 +354,17 @@ fun BalanceSheetScreen(
     var isCalcMode by remember { mutableStateOf(false) }
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
     var isDualDateFlow by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
-    var activeTabMode by remember { mutableStateOf("ASSETS") } // "ASSETS" or "LIABILITIES"
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.balanceSheetSearchQuery) }
+    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.balanceSheetActiveTab) } // "ASSETS" or "LIABILITIES"
     var isSpeedDialExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(filterState, searchQuery, activeTabMode, baseDateMs, compareDateMs) {
+        tabFilterPrefs.balanceSheetFilterState = filterState
+        tabFilterPrefs.balanceSheetSearchQuery = searchQuery
+        tabFilterPrefs.balanceSheetActiveTab = activeTabMode
+        tabFilterPrefs.balanceSheetBaseDateMs = baseDateMs
+        tabFilterPrefs.balanceSheetCompareDateMs = compareDateMs
+    }
 
     // Counts for Excluded and Inactive accounts
     val excludedAccountsCount = remember(accounts, accountCalcConfig) {

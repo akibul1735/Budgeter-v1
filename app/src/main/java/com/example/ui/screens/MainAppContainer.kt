@@ -364,10 +364,12 @@ fun MainAppContainer(
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
+    var openWishlistAddDialogTrigger by remember { mutableStateOf(false) }
 
     LaunchedEffect(widgetAction) {
         if (widgetAction != null) {
             when (widgetAction) {
+                com.example.widget.WidgetUpdateHelper.ACTION_ADD_TRANSACTION,
                 com.example.widget.WidgetUpdateHelper.ACTION_ADD_EXPENSE -> {
                     presetTxType = TransactionType.EXPENSE
                     editingTransaction = null
@@ -382,6 +384,10 @@ fun MainAppContainer(
                     presetTxType = TransactionType.TRANSFER
                     editingTransaction = null
                     showAddTransactionSheet = true
+                }
+                com.example.widget.WidgetUpdateHelper.ACTION_ADD_WISHLIST -> {
+                    currentView = AppView.WISHLIST
+                    openWishlistAddDialogTrigger = true
                 }
                 com.example.widget.WidgetUpdateHelper.ACTION_VIEW_GOALS -> {
                     currentView = AppView.SAVINGS_GOALS
@@ -783,7 +789,9 @@ fun MainAppContainer(
                                         onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                         onAccountClick = { acc -> selectedAccountForDetail = acc },
                                         dashboardConfig = dashboardConfig,
-                                        paymentSourceConfig = paymentSourceConfig
+                                        paymentSourceConfig = paymentSourceConfig,
+                                        openWishlistAddDialog = openWishlistAddDialogTrigger,
+                                        onWishlistAddDialogOpened = { openWishlistAddDialogTrigger = false }
                                     )
                                 }
                             } else {
@@ -923,7 +931,9 @@ fun MainAppContainer(
                                     onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                     onAccountClick = { acc -> selectedAccountForDetail = acc },
                                     dashboardConfig = dashboardConfig,
-                                    paymentSourceConfig = paymentSourceConfig
+                                    paymentSourceConfig = paymentSourceConfig,
+                                    openWishlistAddDialog = openWishlistAddDialogTrigger,
+                                    onWishlistAddDialogOpened = { openWishlistAddDialogTrigger = false }
                                 )
                             }
                         }
@@ -1115,7 +1125,9 @@ fun MainAppContainer(
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 onAccountClick = { acc -> selectedAccountForDetail = acc },
                                 dashboardConfig = dashboardConfig,
-                                paymentSourceConfig = paymentSourceConfig
+                                paymentSourceConfig = paymentSourceConfig,
+                                openWishlistAddDialog = openWishlistAddDialogTrigger,
+                                onWishlistAddDialogOpened = { openWishlistAddDialogTrigger = false }
                             )
                         }
                     }
@@ -1299,7 +1311,9 @@ fun MainAppContainer(
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 onAccountClick = { acc -> selectedAccountForDetail = acc },
                                 dashboardConfig = dashboardConfig,
-                                paymentSourceConfig = paymentSourceConfig
+                                paymentSourceConfig = paymentSourceConfig,
+                                openWishlistAddDialog = openWishlistAddDialogTrigger,
+                                onWishlistAddDialogOpened = { openWishlistAddDialogTrigger = false }
                             )
                         }
                     }
@@ -2673,7 +2687,9 @@ private fun ScreenRouter(
     dashboardConfig: com.example.util.DashboardConfig = com.example.util.DashboardConfig(),
     paymentSourceConfig: com.example.util.PaymentSourceConfig = com.example.util.PaymentSourceConfig(),
     initialBudgetSearchQuery: String? = null,
-    initialAccountsFilter: AccountViewHierarchyFilter = AccountViewHierarchyFilter.ALL
+    initialAccountsFilter: AccountViewHierarchyFilter = AccountViewHierarchyFilter.ALL,
+    openWishlistAddDialog: Boolean = false,
+    onWishlistAddDialogOpened: () -> Unit = {}
 ) {
     when (currentView) {
         AppView.DASHBOARD -> DashboardScreen(
@@ -2911,7 +2927,9 @@ private fun ScreenRouter(
                         item.id
                     )
                 },
-                onOpenDrawer = onOpenDrawer
+                onOpenDrawer = onOpenDrawer,
+                initialOpenAddDialog = openWishlistAddDialog,
+                onAddDialogOpened = onWishlistAddDialogOpened
             )
         }
         AppView.REPORTS -> ReportsScreen(

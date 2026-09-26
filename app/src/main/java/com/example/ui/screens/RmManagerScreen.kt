@@ -159,6 +159,7 @@ import com.example.util.RmManagerHelper.RmRepaymentStatus
 import com.example.util.RmManagerHelper.RmSortOption
 import com.example.util.RmManagerHelper.RmTransactionItem
 import com.example.util.RmManagerPreferences
+import com.example.util.TabFilterPreferences
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
@@ -188,9 +189,10 @@ fun RmManagerScreen(
     val focusManager = LocalFocusManager.current
 
     val filterConfig by RmManagerPreferences.getInstance(context).config.collectAsState()
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
 
-    var searchQuery by remember { mutableStateOf("") }
-    var isSearchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.rmSearchQuery) }
+    var isSearchExpanded by remember { mutableStateOf(tabFilterPrefs.rmSearchQuery.isNotEmpty()) }
     val searchFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -204,8 +206,14 @@ fun RmManagerScreen(
         }
     }
     var isUnifiedFilterOpen by remember { mutableStateOf(false) }
-    var selectedFilterCategory by remember { mutableStateOf(RmFilterCategory.ALL) }
-    var selectedSortOption by remember { mutableStateOf(RmSortOption.HIGHEST_DUE) }
+    var selectedFilterCategory by remember { mutableStateOf(tabFilterPrefs.rmFilterCategory) }
+    var selectedSortOption by remember { mutableStateOf(tabFilterPrefs.rmSortOption) }
+
+    LaunchedEffect(searchQuery, selectedFilterCategory, selectedSortOption) {
+        tabFilterPrefs.rmSearchQuery = searchQuery
+        tabFilterPrefs.rmFilterCategory = selectedFilterCategory
+        tabFilterPrefs.rmSortOption = selectedSortOption
+    }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
     var selectedEntityId by remember { mutableStateOf<String?>(null) }
     var refreshTrigger by remember { mutableStateOf(0) }
@@ -1543,8 +1551,15 @@ private fun RmModernDetailView(
     onQuickReconcileTransaction: (Transaction) -> Unit,
     onShareStatement: () -> Unit
 ) {
-    var detailViewMode by remember { mutableStateOf(RmDetailViewMode.KHATIAN_LEDGER) }
-    var timelineFilter by remember { mutableStateOf(0) } // 0: All, 1: Repayments (Cr), 2: Liabilities (Dr)
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    var detailViewMode by remember { mutableStateOf(tabFilterPrefs.rmDetailViewMode) }
+    var timelineFilter by remember { mutableStateOf(tabFilterPrefs.rmTimelineFilter) }
+
+    LaunchedEffect(detailViewMode, timelineFilter) {
+        tabFilterPrefs.rmDetailViewMode = detailViewMode
+        tabFilterPrefs.rmTimelineFilter = timelineFilter
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

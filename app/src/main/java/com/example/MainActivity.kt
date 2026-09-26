@@ -15,6 +15,7 @@ import com.example.ui.screens.MainAppContainer
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.DropboxAuthBridge
+import com.example.util.ShortcutHelper
 
 class MainActivity : FragmentActivity() {
 
@@ -24,6 +25,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleAuthRedirect(intent)
+        ShortcutHelper.setupShortcuts(this)
         currentWidgetAction = intent?.action
 
         setContent {

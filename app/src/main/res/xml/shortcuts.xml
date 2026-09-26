@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="shortcut_add_transaction"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_receipt"
+        android:shortcutShortLabel="@string/shortcut_add_transaction_short"
+        android:shortcutLongLabel="@string/shortcut_add_transaction_long">
+        <intent
+            android:action="com.example.budgeter.ACTION_ADD_TRANSACTION"
+            android:targetPackage="com.budgeter.app"
+            android:targetClass="com.example.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="shortcut_add_wishlist"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_wishlist"
+        android:shortcutShortLabel="@string/shortcut_add_wishlist_short"
+        android:shortcutLongLabel="@string/shortcut_add_wishlist_long">
+        <intent
+            android:action="com.example.budgeter.ACTION_ADD_WISHLIST"
+            android:targetPackage="com.budgeter.app"
+            android:targetClass="com.example.MainActivity" />
+    </shortcut>
+</shortcuts>
