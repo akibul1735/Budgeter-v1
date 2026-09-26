@@ -6,6 +6,7 @@
     <string name="widget_savings_goal_desc">Real-time tracker for your top active savings goal progress.</string>
     <string name="widget_quick_add_desc">Instant quick-add buttons to record transactions or add wishlist items from your home screen.</string>
     <string name="widget_quick_add_transaction_title">Quick Add Transaction</string>
+    <string name="widget_transaction_label">Transaction</string>
     <string name="widget_quick_add_transaction_desc">Instant one-tap shortcut button to record a new transaction.</string>
     <string name="widget_quick_add_wishlist_title">Quick Add Wishlist</string>
     <string name="widget_quick_add_wishlist_desc">Instant one-tap shortcut button to add a new wishlist item.</string>

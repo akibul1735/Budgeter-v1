@@ -301,6 +301,7 @@ object WidgetUpdateHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.widget_root_add_transaction, txPending)
+            views.setOnClickPendingIntent(R.id.btn_add_transaction_icon, txPending)
 
             manager.updateAppWidget(appWidgetId, views)
         }

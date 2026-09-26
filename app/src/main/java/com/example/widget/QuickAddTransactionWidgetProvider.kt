@@ -14,7 +14,9 @@ class QuickAddTransactionWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == WidgetUpdateHelper.ACTION_REFRESH_WIDGETS) {
+        if (intent.action == WidgetUpdateHelper.ACTION_REFRESH_WIDGETS ||
+            intent.action == Intent.ACTION_CONFIGURATION_CHANGED
+        ) {
             WidgetUpdateHelper.updateAllWidgets(context)
         }
     }

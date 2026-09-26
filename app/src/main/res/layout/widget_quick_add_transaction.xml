@@ -3,36 +3,43 @@
     android:id="@+id/widget_root_add_transaction"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_1x1_container_bg"
+    android:background="@android:color/transparent"
     android:gravity="center"
     android:orientation="vertical"
-    android:padding="6dp"
+    android:padding="2dp"
     android:clickable="true"
     android:focusable="true">
 
     <LinearLayout
-        android:layout_width="46dp"
-        android:layout_height="46dp"
-        android:background="@drawable/widget_circle_button_tx_bg"
+        android:id="@+id/btn_add_transaction_icon"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:background="@drawable/widget_icon_transaction_bg"
         android:gravity="center"
         android:orientation="vertical">
 
         <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:src="@drawable/ic_widget_receipt"
             android:tint="#FFFFFF"
-            android:contentDescription="Quick Add Transaction" />
+            android:contentDescription="@string/widget_quick_add_transaction_title" />
     </LinearLayout>
 
     <TextView
+        android:id="@+id/widget_transaction_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:text="+ Transaction"
-        android:textColor="#34D399"
-        android:textSize="10sp"
-        android:textStyle="bold"
+        android:layout_marginTop="4dp"
+        android:text="@string/widget_transaction_label"
+        android:textColor="@color/widget_transaction_label_color"
+        android:shadowColor="@color/widget_transaction_label_shadow"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="2"
+        android:textSize="12sp"
+        android:textStyle="normal"
+        android:singleLine="true"
         android:maxLines="1"
         android:ellipsize="end" />
 </LinearLayout>
