@@ -1,6 +1,7 @@
 {
   "name": "Budgeter",
-  "description": "Smart personal finance and budget manager with advanced multi-filter ledger, envelope budgeting, multi-currency support, and comprehensive analytics.",
+  "description": "Personal finance and budget manager with double-entry accounting, smart budgets, balance sheet, savings goals with multi-account allocations and deficit protection, net worth analytics, recurring bills, and debt payoff.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
+

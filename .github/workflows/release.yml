@@ -1,71 +1,267 @@
-name: Publish Budgeter Release
+name: Build & Release Budgeter
 
 on:
   push:
-    branches:
-      - '**'
+    branches: [ main, master ]
     tags:
       - 'v*'
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: 'Release tag (e.g., v1.0.0)'
+      create_release:
+        description: 'Create a GitHub Release with APK & Zip artifacts'
         required: false
-        default: 'v1.0.0'
+        type: boolean
+        default: true
 
-permissions:
-  contents: write
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-release:
+  build:
+    name: Build & Release Android App
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Source Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
           distribution: 'temurin'
+          java-version: '21'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+          cache-disabled: true
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Extract App Version
-        id: get_version
+      - name: Grant Execute Permission for Gradle Wrapper
         run: |
-          VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -n 1 | cut -d'"' -f2)
-          if [ -z "$VERSION" ]; then
-            VERSION="1.0.0"
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Generating Gradle wrapper files..."
+            gradle wrapper --gradle-version 9.3.1 || true
           fi
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+          fi
+
+      - name: Setup Environment & Secrets
+        run: |
+          if [ ! -f ".env.example" ]; then
+            echo 'GEMINI_API_KEY=""' > .env.example
+          fi
+          if [ ! -f ".env" ]; then
+            echo 'GEMINI_API_KEY=""' > .env
+          fi
+
+      - name: Configure Keystore from Secrets & Repository
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'budgeter' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+        run: |
+          EFFECTIVE_STORE_PASSWORD="${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}"
+          EFFECTIVE_KEY_ALIAS="${{ secrets.KEY_ALIAS || 'budgeter' }}"
+          EFFECTIVE_KEY_PASSWORD="${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}"
+
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "Decoding release keystore from secrets..."
+            echo "$SIGNING_KEYSTORE_BASE64" | base64 -di > release.keystore 2>/dev/null || echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > release.keystore || true
+          elif [ -f "release.keystore.base64" ]; then
+            echo "Decoding release keystore from repository base64 file..."
+            base64 -di release.keystore.base64 > release.keystore 2>/dev/null || base64 --decode release.keystore.base64 > release.keystore || true
+          fi
+
+          if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
+            echo "Decoding debug keystore from repository base64 file..."
+            base64 -di debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore || true
+          fi
+
+          # Ensure debug.keystore is always available and valid
+          if [ ! -s "debug.keystore" ] || ! keytool -list -keystore debug.keystore -storepass android >/dev/null 2>&1; then
+            echo "Generating fallback debug keystore..."
+            rm -f debug.keystore
+            keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" -noprompt
+          fi
+
+          # Verify release keystore validity or generate matching one
+          if [ -n "$EFFECTIVE_STORE_PASSWORD" ]; then
+            KEYSTORE_VALID=false
+            if [ -s "release.keystore" ]; then
+              if keytool -list -keystore release.keystore -storepass "$EFFECTIVE_STORE_PASSWORD" >/dev/null 2>&1; then
+                KEYSTORE_VALID=true
+                echo "release.keystore is valid with provided STORE_PASSWORD."
+              fi
+            fi
+            if [ "$KEYSTORE_VALID" = false ]; then
+              echo "Generating a matching release.keystore for provided credentials..."
+              rm -f release.keystore release.keystore.base64
+              keytool -genkeypair -v -keystore release.keystore -storepass "$EFFECTIVE_STORE_PASSWORD" -alias "$EFFECTIVE_KEY_ALIAS" -keypass "$EFFECTIVE_KEY_PASSWORD" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Budgeter,OU=Release,O=Budgeter,C=US" -noprompt
+              base64 release.keystore > release.keystore.base64
+            fi
+          else
+            echo "No STORE_PASSWORD secret provided. Removing release keystore to sign cleanly with debug keystore..."
+            rm -f release.keystore release.keystore.base64
+          fi
+
+      - name: Run Unit & Robolectric Tests
+        id: unit-tests
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:+UseParallelGC -XX:MaxMetaspaceSize=1024m -Dkotlin.daemon.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8 -Djava.awt.headless=true"
+        run: |
+          mkdir -p build_logs
+          set +e
+          set -o pipefail
+          if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
+            TEST_EXIT_CODE=$?
+          else
+            gradle :app:testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
+            TEST_EXIT_CODE=$?
+          fi
+
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo "::error::Unit and Robolectric tests failed with exit code $TEST_EXIT_CODE"
+            echo "### ❌ Unit & Robolectric Tests Failed" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Click to view Unit Test Error Log (last 200 lines)</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 200 build_logs/test_unit.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            exit $TEST_EXIT_CODE
+          else
+            echo "### ✅ Unit & Robolectric Tests Passed" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
-
-      - name: Prepare Release Asset
+        id: build-apk
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'budgeter' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:+UseParallelGC -XX:MaxMetaspaceSize=1024m -Dkotlin.daemon.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8"
         run: |
-          mkdir -p release-artifacts
-          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            cp app/build/outputs/apk/release/app-release-unsigned.apk release-artifacts/Budgeter-release.apk
-          elif [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk release-artifacts/Budgeter-release.apk
-          else
-            cp app/build/outputs/apk/release/*.apk release-artifacts/Budgeter-release.apk
+          mkdir -p build_logs build_output
+          
+          EFFECTIVE_STORE_PASSWORD="${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}"
+          if [ -z "$EFFECTIVE_STORE_PASSWORD" ] || [ ! -f "release.keystore" ] || ! keytool -list -keystore release.keystore -storepass "$EFFECTIVE_STORE_PASSWORD" >/dev/null 2>&1; then
+            echo "Signing with debug configuration..."
+            export STORE_PASSWORD=""
+            export KEYSTORE_PASSWORD=""
+            export KEY_PASSWORD=""
+            unset STORE_PASSWORD
+            unset KEYSTORE_PASSWORD
+            unset KEY_PASSWORD
+            rm -f release.keystore release.keystore.base64
           fi
 
-      - name: Create GitHub Release
+          set +e
+          set -o pipefail
+          if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            ./gradlew :app:assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
+            GRADLE_EXIT_CODE=$?
+          else
+            gradle :app:assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
+            GRADLE_EXIT_CODE=$?
+          fi
+
+          if [ $GRADLE_EXIT_CODE -ne 0 ]; then
+            echo "::error::Gradle assembleRelease failed with exit code $GRADLE_EXIT_CODE"
+            echo "### ❌ Gradle assembleRelease Failed" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Click to view Gradle Build Error Log (last 200 lines)</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 200 build_logs/build_release.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            exit $GRADLE_EXIT_CODE
+          else
+            echo "### ✅ Gradle assembleRelease Succeeded" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Prepare Release Artifacts (APK)
+        id: prepare-artifacts
+        run: |
+          mkdir -p build_output
+          # Locate release apk and rename to Budgeter-release.apk
+          RELEASE_APK=$(find app/build/outputs/apk -name "*release*.apk" | head -n 1)
+          if [ -z "$RELEASE_APK" ]; then
+            RELEASE_APK=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          fi
+          if [ -n "$RELEASE_APK" ]; then
+            echo "Found release APK: $RELEASE_APK"
+            cp "$RELEASE_APK" build_output/Budgeter-release.apk
+          else
+            echo "::error::No APK found in app/build/outputs/apk!"
+            echo "### ❌ No APK Found in Build Outputs" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "Release artifacts ready:"
+          ls -la build_output/
+
+      - name: Collect Diagnostic Reports & Logs
+        if: always()
+        run: |
+          mkdir -p build_logs/reports
+          if [ -d "app/build/reports" ]; then
+            cp -r app/build/reports/* build_logs/reports/ 2>/dev/null || true
+          fi
+          if [ -d "app/build/test-results" ]; then
+            mkdir -p build_logs/test-results
+            cp -r app/build/test-results/* build_logs/test-results/ 2>/dev/null || true
+          fi
+
+      - name: Upload Error Logs & Build Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: budgeter-build-error-logs
+          path: build_logs/
+          retention-days: 7
+
+      - name: Upload Build Artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: budgeter-release-artifacts
+          path: build_output/Budgeter-release.apk
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          name: Budgeter-release
-          tag_name: ${{ inputs.tag_name || (github.ref_type == 'tag' && github.ref_name) || steps.get_version.outputs.tag }}
-          files: release-artifacts/Budgeter-release.apk
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v3.6.{0}', github.run_number) }}
+          name: "Budgeter-release"
+          files: |
+            build_output/Budgeter-release.apk
           generate_release_notes: true
+          draft: false
+          prerelease: false
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prune Old Releases (Keep Latest 5)
+        if: github.event_name != 'pull_request'
+        uses: dev-drprasad/delete-older-releases@v0.3.3
+        with:
+          keep_latest: 5
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

@@ -218,7 +218,7 @@ fun LedgerScreen(
 
     // Search & Filter state - remembered and restored from TabFilterPreferences
     var searchQuery by remember { mutableStateOf(tabFilterPrefs.ledgerSearchQuery) }
-    var selectedTypeFilters by remember { mutableStateOf(tabFilterPrefs.ledgerTypeFilters) }
+    var selectedTypeFilter by remember { mutableStateOf(tabFilterPrefs.ledgerTypeFilter) }
     var showSearchField by remember { mutableStateOf(true) }
     var selectedDatePreset by remember { mutableStateOf(tabFilterPrefs.ledgerDatePreset) }
     var minAmountFilter by remember { mutableDoubleStateOf(tabFilterPrefs.ledgerMinAmount) }
@@ -226,12 +226,10 @@ fun LedgerScreen(
     var customStartDateMs by remember { mutableLongStateOf(tabFilterPrefs.ledgerCustomStartDateMs) }
     var customEndDateMs by remember { mutableLongStateOf(tabFilterPrefs.ledgerCustomEndDateMs) }
 
-    var selectedCategoryIdsFilter by remember { mutableStateOf(tabFilterPrefs.ledgerCategoryIds) }
-    var selectedAccountIdsFilter by remember { mutableStateOf(tabFilterPrefs.ledgerAccountIds) }
-    var selectedLabelsFilter by remember { mutableStateOf(tabFilterPrefs.ledgerLabels) }
-    var selectedPayeesFilter by remember { mutableStateOf(tabFilterPrefs.ledgerPayees) }
-    var selectedAccountTypesFilter by remember { mutableStateOf(tabFilterPrefs.ledgerAccountTypes) }
-    var selectedStatusesFilter by remember { mutableStateOf(tabFilterPrefs.ledgerStatuses) }
+    var selectedCategoryIdFilter by remember { mutableStateOf(tabFilterPrefs.ledgerCategoryId) }
+    var selectedAccountIdFilter by remember { mutableStateOf(tabFilterPrefs.ledgerAccountId) }
+    var selectedLabelFilter by remember { mutableStateOf(tabFilterPrefs.ledgerLabel) }
+    var selectedStatusFilter by remember { mutableStateOf(tabFilterPrefs.ledgerStatus) }
 
     var rowStyle by remember { mutableStateOf(tabFilterPrefs.ledgerRowStyle) }
     var displaySettings by remember { mutableStateOf(tabFilterPrefs.ledgerDisplaySettings) }
@@ -239,34 +237,30 @@ fun LedgerScreen(
     // Sync state changes to TabFilterPreferences
     LaunchedEffect(
         searchQuery,
-        selectedTypeFilters,
+        selectedTypeFilter,
         selectedDatePreset,
         customStartDateMs,
         customEndDateMs,
         minAmountFilter,
         maxAmountFilter,
-        selectedCategoryIdsFilter,
-        selectedAccountIdsFilter,
-        selectedLabelsFilter,
-        selectedPayeesFilter,
-        selectedAccountTypesFilter,
-        selectedStatusesFilter,
+        selectedCategoryIdFilter,
+        selectedAccountIdFilter,
+        selectedLabelFilter,
+        selectedStatusFilter,
         rowStyle,
         displaySettings
     ) {
         tabFilterPrefs.ledgerSearchQuery = searchQuery
-        tabFilterPrefs.ledgerTypeFilters = selectedTypeFilters
+        tabFilterPrefs.ledgerTypeFilter = selectedTypeFilter
         tabFilterPrefs.ledgerDatePreset = selectedDatePreset
         tabFilterPrefs.ledgerCustomStartDateMs = customStartDateMs
         tabFilterPrefs.ledgerCustomEndDateMs = customEndDateMs
         tabFilterPrefs.ledgerMinAmount = minAmountFilter
         tabFilterPrefs.ledgerMaxAmount = maxAmountFilter
-        tabFilterPrefs.ledgerCategoryIds = selectedCategoryIdsFilter
-        tabFilterPrefs.ledgerAccountIds = selectedAccountIdsFilter
-        tabFilterPrefs.ledgerLabels = selectedLabelsFilter
-        tabFilterPrefs.ledgerPayees = selectedPayeesFilter
-        tabFilterPrefs.ledgerAccountTypes = selectedAccountTypesFilter
-        tabFilterPrefs.ledgerStatuses = selectedStatusesFilter
+        tabFilterPrefs.ledgerCategoryId = selectedCategoryIdFilter
+        tabFilterPrefs.ledgerAccountId = selectedAccountIdFilter
+        tabFilterPrefs.ledgerLabel = selectedLabelFilter
+        tabFilterPrefs.ledgerStatus = selectedStatusFilter
         tabFilterPrefs.ledgerRowStyle = rowStyle
         tabFilterPrefs.ledgerDisplaySettings = displaySettings
     }
@@ -416,52 +410,37 @@ fun LedgerScreen(
     val filteredTransactions = remember(
         transactions,
         searchQuery,
-        selectedTypeFilters,
+        selectedTypeFilter,
         startEpochMs,
         endEpochMs,
         minAmountFilter,
         maxAmountFilter,
-        selectedCategoryIdsFilter,
-        selectedAccountIdsFilter,
-        selectedLabelsFilter,
-        selectedPayeesFilter,
-        selectedAccountTypesFilter,
-        selectedStatusesFilter
+        selectedCategoryIdFilter,
+        selectedAccountIdFilter,
+        selectedLabelFilter,
+        selectedStatusFilter
     ) {
         transactions.filter { item ->
             val tx = item.transaction
-            val matchesType = selectedTypeFilters.isEmpty() || tx.type in selectedTypeFilters
+            val matchesType = selectedTypeFilter == null || tx.type == selectedTypeFilter
             val matchesDate = tx.dateEpochMs in startEpochMs..endEpochMs
             val matchesAmount = Math.abs(tx.amount) >= minAmountFilter && Math.abs(tx.amount) <= maxAmountFilter
 
-            val matchesCategory = if (selectedCategoryIdsFilter.isEmpty()) true else {
-                (tx.categoryId != null && tx.categoryId in selectedCategoryIdsFilter) ||
-                (tx.subCategoryId != null && tx.subCategoryId in selectedCategoryIdsFilter)
+            val matchesCategory = if (selectedCategoryIdFilter == null) true else {
+                tx.categoryId == selectedCategoryIdFilter || tx.subCategoryId == selectedCategoryIdFilter
             }
 
-            val matchesAccount = if (selectedAccountIdsFilter.isEmpty()) true else {
-                (tx.debitAccountId != null && tx.debitAccountId in selectedAccountIdsFilter) ||
-                (tx.creditAccountId != null && tx.creditAccountId in selectedAccountIdsFilter)
+            val matchesAccount = if (selectedAccountIdFilter == null) true else {
+                tx.debitAccountId == selectedAccountIdFilter || tx.creditAccountId == selectedAccountIdFilter
             }
 
-            val matchesPayee = if (selectedPayeesFilter.isEmpty()) true else {
-                tx.payeeOrPayer.isNotBlank() && tx.payeeOrPayer in selectedPayeesFilter
+            val matchesLabel = if (selectedLabelFilter == null) true else {
+                tx.referenceNo.equals(selectedLabelFilter, ignoreCase = true) ||
+                        tx.note.contains(selectedLabelFilter!!, ignoreCase = true)
             }
 
-            val matchesAccountType = if (selectedAccountTypesFilter.isEmpty()) true else {
-                val debitType = item.debitAccount?.type
-                val creditType = item.creditAccount?.type
-                (debitType != null && debitType in selectedAccountTypesFilter) ||
-                (creditType != null && creditType in selectedAccountTypesFilter)
-            }
-
-            val matchesLabel = if (selectedLabelsFilter.isEmpty()) true else {
-                (tx.referenceNo.isNotBlank() && tx.referenceNo in selectedLabelsFilter) ||
-                selectedLabelsFilter.any { lbl -> tx.note.contains(lbl, ignoreCase = true) }
-            }
-
-            val matchesStatus = if (selectedStatusesFilter.isEmpty()) true else {
-                tx.status in selectedStatusesFilter
+            val matchesStatus = if (selectedStatusFilter == null) true else {
+                tx.status == selectedStatusFilter
             }
 
             val matchesSearch = if (searchQuery.isBlank()) true else {
@@ -495,7 +474,7 @@ fun LedgerScreen(
                         dateStr.contains(query) ||
                         Math.abs(tx.amount).toString().contains(query)
             }
-            matchesType && matchesDate && matchesAmount && matchesCategory && matchesAccount && matchesPayee && matchesAccountType && matchesLabel && matchesStatus && matchesSearch
+            matchesType && matchesDate && matchesAmount && matchesCategory && matchesAccount && matchesLabel && matchesStatus && matchesSearch
         }
     }
 
@@ -543,7 +522,7 @@ fun LedgerScreen(
         inc - exp
     }
 
-    val filteredTotals = remember(filteredTransactions, selectedTypeFilters, displaySettings.showTransfersInTotal, languageMode) {
+    val filteredTotals = remember(filteredTransactions, selectedTypeFilter, displaySettings.showTransfersInTotal, languageMode) {
         var totalInc = 0.0
         var totalExp = 0.0
         var totalTrans = 0.0
@@ -567,8 +546,7 @@ fun LedgerScreen(
             totalInc - totalExp
         }
 
-        val singleType = if (selectedTypeFilters.size == 1) selectedTypeFilters.first() else null
-        when (singleType) {
+        when (selectedTypeFilter) {
             TransactionType.EXPENSE -> {
                 val fmt = "-${LanguageHelper.formatCurrency(totalExp, languageMode)}"
                 FilteredTotalsInfo(
@@ -677,22 +655,19 @@ fun LedgerScreen(
     }
 
     val hasActiveFilters = selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS ||
-            selectedTypeFilters.isNotEmpty() ||
+            selectedTypeFilter != null ||
             minAmountFilter > 0.0 ||
             maxAmountFilter < Double.MAX_VALUE ||
-            selectedCategoryIdsFilter.isNotEmpty() ||
-            selectedAccountIdsFilter.isNotEmpty() ||
-            selectedLabelsFilter.isNotEmpty() ||
-            selectedPayeesFilter.isNotEmpty() ||
-            selectedAccountTypesFilter.isNotEmpty() ||
-            selectedStatusesFilter.isNotEmpty() ||
+            selectedCategoryIdFilter != null ||
+            selectedAccountIdFilter != null ||
+            selectedLabelFilter != null ||
+            selectedStatusFilter != null ||
             searchQuery.isNotBlank()
 
     val activeFilterSummary = remember(
         selectedDatePreset, customStartDateMs, customEndDateMs,
-        selectedTypeFilters, selectedCategoryIdsFilter, selectedAccountIdsFilter,
-        selectedLabelsFilter, selectedPayeesFilter, selectedAccountTypesFilter,
-        selectedStatusesFilter, minAmountFilter, maxAmountFilter,
+        selectedTypeFilter, selectedCategoryIdFilter, selectedAccountIdFilter,
+        selectedLabelFilter, selectedStatusFilter, minAmountFilter, maxAmountFilter,
         searchQuery, allCategories, allAccounts, languageMode
     ) {
         val parts = mutableListOf<String>()
@@ -704,63 +679,36 @@ fun LedgerScreen(
             parts.add(selectedDatePreset.displayName)
         }
 
-        if (selectedTypeFilters.isNotEmpty()) {
-            val typeNames = selectedTypeFilters.mapNotNull { type ->
-                when (type) {
-                    TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
-                    TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
-                    TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
-                    else -> null
-                }
+        if (selectedTypeFilter != null) {
+            val typeName = when (selectedTypeFilter) {
+                TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
+                TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+                TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+                else -> ""
             }
-            if (typeNames.isNotEmpty()) parts.add(typeNames.joinToString(", "))
+            if (typeName.isNotEmpty()) parts.add(typeName)
         }
 
-        if (selectedAccountTypesFilter.isNotEmpty()) {
-            val classNames = selectedAccountTypesFilter.map { accType ->
-                when (accType) {
-                    AccountType.ASSET -> if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Assets"
-                    AccountType.LIABILITY -> if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities"
-                    AccountType.EQUITY -> if (languageMode == LanguageMode.BANGLA) "ইক্যুইটি" else "Equity"
-                    AccountType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
-                    AccountType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
-                }
-            }
-            parts.add(classNames.joinToString(", "))
-        }
-
-        if (selectedCategoryIdsFilter.isNotEmpty()) {
-            val catNames = selectedCategoryIdsFilter.mapNotNull { catId ->
-                allCategories.find { it.id == catId }?.let { LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode) }
-            }
-            if (catNames.isNotEmpty()) {
-                if (catNames.size <= 2) parts.add(catNames.joinToString(", "))
-                else parts.add("${catNames.size} Categories")
+        if (selectedCategoryIdFilter != null) {
+            val cat = allCategories.find { it.id == selectedCategoryIdFilter }
+            if (cat != null) {
+                parts.add(LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode))
             }
         }
 
-        if (selectedAccountIdsFilter.isNotEmpty()) {
-            val accNames = selectedAccountIdsFilter.mapNotNull { accId ->
-                allAccounts.find { it.id == accId }?.let { LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode) }
-            }
-            if (accNames.isNotEmpty()) {
-                if (accNames.size <= 2) parts.add(accNames.joinToString(", "))
-                else parts.add("${accNames.size} Accounts")
+        if (selectedAccountIdFilter != null) {
+            val acc = allAccounts.find { it.id == selectedAccountIdFilter }
+            if (acc != null) {
+                parts.add(LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode))
             }
         }
 
-        if (selectedPayeesFilter.isNotEmpty()) {
-            if (selectedPayeesFilter.size <= 2) parts.add(selectedPayeesFilter.joinToString(", "))
-            else parts.add("${selectedPayeesFilter.size} Payees")
+        if (!selectedLabelFilter.isNullOrBlank()) {
+            parts.add(selectedLabelFilter!!)
         }
 
-        if (selectedLabelsFilter.isNotEmpty()) {
-            if (selectedLabelsFilter.size <= 2) parts.add(selectedLabelsFilter.joinToString(", ") { "#$it" })
-            else parts.add("${selectedLabelsFilter.size} Labels")
-        }
-
-        if (selectedStatusesFilter.isNotEmpty()) {
-            parts.add(selectedStatusesFilter.joinToString(", ") { it.name })
+        if (selectedStatusFilter != null) {
+            parts.add(selectedStatusFilter!!.name)
         }
 
         if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) {
@@ -973,14 +921,12 @@ fun LedgerScreen(
                 showSearchButton = true,
                 showFilterButton = true,
                 isFilterActive = hasActiveFilters,
-                activeFilterCount = (if (selectedTypeFilters.isNotEmpty()) 1 else 0) +
+                activeFilterCount = (if (selectedTypeFilter != null) 1 else 0) +
                         (if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) 1 else 0) +
-                        (if (selectedCategoryIdsFilter.isNotEmpty()) 1 else 0) +
-                        (if (selectedAccountIdsFilter.isNotEmpty()) 1 else 0) +
-                        (if (selectedAccountTypesFilter.isNotEmpty()) 1 else 0) +
-                        (if (selectedPayeesFilter.isNotEmpty()) 1 else 0) +
-                        (if (selectedLabelsFilter.isNotEmpty()) 1 else 0) +
-                        (if (selectedStatusesFilter.isNotEmpty()) 1 else 0) +
+                        (if (selectedCategoryIdFilter != null) 1 else 0) +
+                        (if (selectedAccountIdFilter != null) 1 else 0) +
+                        (if (selectedLabelFilter != null) 1 else 0) +
+                        (if (selectedStatusFilter != null) 1 else 0) +
                         (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
                 onFilterClick = { showFilterDialog = true },
                 actions = {
@@ -1023,8 +969,8 @@ fun LedgerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 FilterChip(
-                                    selected = selectedTypeFilters.isEmpty(),
-                                    onClick = { selectedTypeFilters = emptySet() },
+                                    selected = selectedTypeFilter == null,
+                                    onClick = { selectedTypeFilter = null },
                                     label = { Text(LanguageHelper.getString("all", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(8.dp),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -1033,14 +979,8 @@ fun LedgerScreen(
                                     )
                                 )
                                 FilterChip(
-                                    selected = selectedTypeFilters.contains(TransactionType.EXPENSE),
-                                    onClick = {
-                                        selectedTypeFilters = if (selectedTypeFilters.contains(TransactionType.EXPENSE)) {
-                                            selectedTypeFilters - TransactionType.EXPENSE
-                                        } else {
-                                            selectedTypeFilters + TransactionType.EXPENSE
-                                        }
-                                    },
+                                    selected = selectedTypeFilter == TransactionType.EXPENSE,
+                                    onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.EXPENSE) null else TransactionType.EXPENSE },
                                     label = { Text(LanguageHelper.getString("expense", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(8.dp),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -1049,14 +989,8 @@ fun LedgerScreen(
                                     )
                                 )
                                 FilterChip(
-                                    selected = selectedTypeFilters.contains(TransactionType.INCOME),
-                                    onClick = {
-                                        selectedTypeFilters = if (selectedTypeFilters.contains(TransactionType.INCOME)) {
-                                            selectedTypeFilters - TransactionType.INCOME
-                                        } else {
-                                            selectedTypeFilters + TransactionType.INCOME
-                                        }
-                                    },
+                                    selected = selectedTypeFilter == TransactionType.INCOME,
+                                    onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.INCOME) null else TransactionType.INCOME },
                                     label = { Text(LanguageHelper.getString("income", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(8.dp),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -1065,14 +999,8 @@ fun LedgerScreen(
                                     )
                                 )
                                 FilterChip(
-                                    selected = selectedTypeFilters.contains(TransactionType.TRANSFER),
-                                    onClick = {
-                                        selectedTypeFilters = if (selectedTypeFilters.contains(TransactionType.TRANSFER)) {
-                                            selectedTypeFilters - TransactionType.TRANSFER
-                                        } else {
-                                            selectedTypeFilters + TransactionType.TRANSFER
-                                        }
-                                    },
+                                    selected = selectedTypeFilter == TransactionType.TRANSFER,
+                                    onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.TRANSFER) null else TransactionType.TRANSFER },
                                     label = { Text(LanguageHelper.getString("transfer", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(8.dp),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -1182,13 +1110,13 @@ fun LedgerScreen(
                                     TextButton(
                                         onClick = {
                                             selectedDatePreset = LedgerDatePreset.LAST_12_MONTHS
-                                            selectedTypeFilters = emptySet()
+                                            selectedTypeFilter = null
                                             minAmountFilter = 0.0
                                             maxAmountFilter = Double.MAX_VALUE
-                                            selectedCategoryIdsFilter = emptySet()
-                                            selectedAccountIdsFilter = emptySet()
-                                            selectedLabelsFilter = emptySet()
-                                            selectedStatusesFilter = emptySet()
+                                            selectedCategoryIdFilter = null
+                                            selectedAccountIdFilter = null
+                                            selectedLabelFilter = null
+                                            selectedStatusFilter = null
                                             searchQuery = ""
                                         },
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
@@ -1285,8 +1213,8 @@ fun LedgerScreen(
                                 val isSelected = selectedTransactionIds.contains(tx.id)
 
                                 if (tx.type == TransactionType.TRANSFER) {
-                                    val showSourceLeg = selectedAccountIdsFilter.isEmpty() || (tx.creditAccountId != null && tx.creditAccountId in selectedAccountIdsFilter)
-                                    val showDestLeg = selectedAccountIdsFilter.isEmpty() || (tx.debitAccountId != null && tx.debitAccountId in selectedAccountIdsFilter)
+                                    val showSourceLeg = selectedAccountIdFilter == null || tx.creditAccountId == selectedAccountIdFilter
+                                    val showDestLeg = selectedAccountIdFilter == null || tx.debitAccountId == selectedAccountIdFilter
                                     val transferTitle = if (tx.payeeOrPayer.isNotBlank()) tx.payeeOrPayer else (item.debitAccount?.localizedName(languageMode) ?: LanguageHelper.getString("transfer", languageMode))
 
                                     if (showSourceLeg) {
@@ -1461,18 +1389,16 @@ fun LedgerScreen(
     if (showFilterDialog) {
         val currentFilterState = remember(
             searchQuery,
-            selectedTypeFilters,
+            selectedTypeFilter,
             selectedDatePreset,
             customStartDateMs,
             customEndDateMs,
             minAmountFilter,
             maxAmountFilter,
-            selectedCategoryIdsFilter,
-            selectedAccountIdsFilter,
-            selectedLabelsFilter,
-            selectedPayeesFilter,
-            selectedAccountTypesFilter,
-            selectedStatusesFilter,
+            selectedCategoryIdFilter,
+            selectedAccountIdFilter,
+            selectedLabelFilter,
+            selectedStatusFilter,
             rowStyle,
             displaySettings
         ) {
@@ -1483,13 +1409,11 @@ fun LedgerScreen(
                 datePreset = selectedDatePreset,
                 startDateMs = customStartDateMs,
                 endDateMs = customEndDateMs,
-                transactionTypes = selectedTypeFilters,
-                categoryIds = selectedCategoryIdsFilter,
-                accountIds = selectedAccountIdsFilter,
-                accountTypes = selectedAccountTypesFilter,
-                payees = selectedPayeesFilter,
-                labels = selectedLabelsFilter,
-                statuses = selectedStatusesFilter,
+                transactionType = selectedTypeFilter,
+                categoryId = selectedCategoryIdFilter,
+                accountId = selectedAccountIdFilter,
+                label = selectedLabelFilter,
+                status = selectedStatusFilter,
                 rowStyle = rowStyle,
                 displaySettings = displaySettings
             )
@@ -1503,18 +1427,16 @@ fun LedgerScreen(
             languageMode = languageMode,
             onApply = { newFilter ->
                 searchQuery = newFilter.searchQuery
-                selectedTypeFilters = newFilter.transactionTypes
+                selectedTypeFilter = newFilter.transactionType
                 selectedDatePreset = newFilter.datePreset
                 customStartDateMs = newFilter.startDateMs
                 customEndDateMs = newFilter.endDateMs
                 minAmountFilter = newFilter.minAmount ?: 0.0
                 maxAmountFilter = newFilter.maxAmount ?: Double.MAX_VALUE
-                selectedCategoryIdsFilter = newFilter.categoryIds
-                selectedAccountIdsFilter = newFilter.accountIds
-                selectedAccountTypesFilter = newFilter.accountTypes
-                selectedPayeesFilter = newFilter.payees
-                selectedLabelsFilter = newFilter.labels
-                selectedStatusesFilter = newFilter.statuses
+                selectedCategoryIdFilter = newFilter.categoryId
+                selectedAccountIdFilter = newFilter.accountId
+                selectedLabelFilter = newFilter.label
+                selectedStatusFilter = newFilter.status
                 rowStyle = newFilter.rowStyle
                 displaySettings = newFilter.displaySettings
                 showFilterDialog = false

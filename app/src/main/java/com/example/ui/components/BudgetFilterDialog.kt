@@ -665,31 +665,6 @@ fun BudgetFilterDialog(
                                 )
                             }
 
-                            // Amount focus (hides progress bar)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "অ্যামাউন্ট ফোকাস (প্রগ্রেস বার লুকান)" else "Amount focus (hides progress bar)",
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি প্রগ্রেস বার লুকিয়ে শুধুমাত্র পরিমাণের উপর দৃষ্টি নিবদ্ধ করে" else "Hides progress bar to focus purely on numbers",
-                                        fontSize = 10.5.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                    )
-                                }
-                                Switch(
-                                    checked = tempFilter.amountFocus,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(amountFocus = it) }
-                                )
-                            }
-
                             // Show expense categories first
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1310,19 +1285,7 @@ fun ActiveBudgetFilterBar(
                     )
                 }
 
-                if (filterState.amountFocus) {
-                    FilterChipPill(
-                        text = if (languageMode == LanguageMode.BANGLA) "অ্যামাউন্ট ফোকাস" else "Amount Focus",
-                        onClear = { onFilterChange(filterState.copy(amountFocus = false)) }
-                    )
-                }
-
-                if (filterState.sortOrder != BudgetSortOrder.DEFAULT) {
-                    FilterChipPill(
-                        text = filterState.sortOrder.getLabel(false, languageMode),
-                        onClear = { onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.DEFAULT)) }
-                    )
-                } else if (filterState.sortByAmount) {
+                if (filterState.sortByAmount) {
                     FilterChipPill(
                         text = "Sorted by Amt",
                         onClear = { onFilterChange(filterState.copy(sortByAmount = false)) }
