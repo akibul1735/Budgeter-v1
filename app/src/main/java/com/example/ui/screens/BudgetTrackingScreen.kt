@@ -361,9 +361,9 @@ fun BudgetTrackingScreen(
         }
     }
 
-    // Map monthly budget items: "itemType_itemId" -> MonthlyBudget
-    val budgetMap = remember(monthlyBudgets) {
-        monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+    // Map monthly budget items: "itemType_itemId" -> MonthlyBudget (for currently selected month)
+    val budgetMap = remember(monthlyBudgets, selectedYear, selectedMonth) {
+        monthlyBudgets.filter { it.year == selectedYear && it.month == selectedMonth }.associateBy { "${it.itemType}_${it.itemId}" }
     }
 
     // Calculate TODAY marker position (0.0 to 1.0)

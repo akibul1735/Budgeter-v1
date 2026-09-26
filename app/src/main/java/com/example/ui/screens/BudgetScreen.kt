@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -279,7 +280,7 @@ enum class BudgetSortOption {
     fun getTitle(itemType: String, languageMode: LanguageMode): String {
         val isBn = languageMode == LanguageMode.BANGLA
         return when (this) {
-            DEFAULT -> if (isBn) "ডিফল্ট ক্রম" else "Default Order"
+            DEFAULT -> if (isBn) "ডিফল্ট ক্রম (গ্রুপ ও ক্যাটাগরি A-Z)" else "Default (Group & Cat A → Z)"
             BUDGET_DESC -> when (itemType) {
                 "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য: বেশি → কম" else "Target: High → Low"
                 else -> if (isBn) "বাজেট: বেশি → কম" else "Budget: High → Low"
@@ -465,17 +466,28 @@ fun BudgetScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val allMonthlyBudgets by viewModel.allMonthlyBudgets.collectAsStateWithLifecycle()
 
     // Pager state for swipeable tab navigation
     val pagerState = rememberPagerState(initialPage = selectedTab, pageCount = { 5 })
-    androidx.compose.runtime.LaunchedEffect(selectedTab) {
-        if (pagerState.currentPage != selectedTab) {
-            pagerState.animateScrollToPage(selectedTab)
+
+    val navigateToBudgetTab: (Int) -> Unit = { tabIndex ->
+        if (selectedTab != tabIndex) {
+            selectedTab = tabIndex
+        }
+        scope.launch {
+            pagerState.animateScrollToPage(tabIndex)
         }
     }
-    androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
-        if (selectedTab != pagerState.currentPage) {
-            selectedTab = pagerState.currentPage
+
+    androidx.compose.runtime.LaunchedEffect(pagerState.settledPage) {
+        if (selectedTab != pagerState.settledPage) {
+            selectedTab = pagerState.settledPage
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(selectedTab) {
+        if (pagerState.currentPage != selectedTab && !pagerState.isScrollInProgress) {
+            pagerState.animateScrollToPage(selectedTab)
         }
     }
 
@@ -492,9 +504,9 @@ fun BudgetScreen(
         transactionsWithDetails.filter { it.transaction.dateEpochMs in startOfMonthMs..endOfMonthMs }
     }
 
-    // Map monthly budget items: "itemType_itemId" -> MonthlyBudget
-    val budgetMap = remember(monthlyBudgets) {
-        monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+    // Map monthly budget items: "itemType_itemId" -> MonthlyBudget (for currently selected month)
+    val budgetMap = remember(allMonthlyBudgets, selectedYear, selectedMonth) {
+        allMonthlyBudgets.filter { it.year == selectedYear && it.month == selectedMonth }.associateBy { "${it.itemType}_${it.itemId}" }
     }
 
     val allWishlistWithDetails by viewModel.wishlistWithDetails.collectAsStateWithLifecycle()
@@ -555,7 +567,7 @@ fun BudgetScreen(
                 groupIconName = groupIcon,
                 groupColorHex = groupColor
             )
-        }
+        }.sortedWith(compareBy({ it.groupName.lowercase() }, { it.nameEn.lowercase() }))
     }
 
     // 2. LIABILITIES
@@ -580,7 +592,7 @@ fun BudgetScreen(
                 groupIconName = groupIcon,
                 groupColorHex = groupColor
             )
-        }
+        }.sortedWith(compareBy({ it.groupName.lowercase() }, { it.nameEn.lowercase() }))
     }
 
     // 3. INCOMES
@@ -605,7 +617,7 @@ fun BudgetScreen(
                 groupIconName = groupIcon,
                 groupColorHex = groupColor
             )
-        }
+        }.sortedWith(compareBy({ it.groupName.lowercase() }, { it.nameEn.lowercase() }))
     }
 
     // 4. ASSETS
@@ -630,7 +642,7 @@ fun BudgetScreen(
                 groupIconName = groupIcon,
                 groupColorHex = groupColor
             )
-        }
+        }.sortedWith(compareBy({ it.groupName.lowercase() }, { it.nameEn.lowercase() }))
     }
 
     // Calculate totals for dashboard & subheaders
@@ -1545,7 +1557,7 @@ fun BudgetScreen(
                     BudgetTabBar(
                         selectedTab = selectedTab,
                         tabLabels = tabLabels,
-                        onTabSelected = { selectedTab = it }
+                        onTabSelected = { navigateToBudgetTab(it) }
                     )
                 }
             }
@@ -1666,6 +1678,19 @@ fun BudgetScreen(
                                 }
                             }
 
+                            // Suggestions Guide Button (Direct Top-Bar Access)
+                            IconButton(
+                                onClick = { showHelpDialog = true },
+                                modifier = Modifier.size(36.dp).testTag("budget_suggestions_guide_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.HelpOutline,
+                                    contentDescription = "Suggestions",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
                             Box {
                                 IconButton(
                                     onClick = { showTabSettingsMenu = true },
@@ -1683,6 +1708,25 @@ fun BudgetScreen(
                                     expanded = showTabSettingsMenu,
                                     onDismissRequest = { showTabSettingsMenu = false }
                                 ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "সাজেশন গাইড (Suggestions)" else "Suggestions",
+                                                fontSize = 13.5.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.HelpOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        },
+                                        onClick = {
+                                            showTabSettingsMenu = false
+                                            showHelpDialog = true
+                                        }
+                                    )
+
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                                     DropdownMenuItem(
                                         text = {
                                             Text(
@@ -2015,7 +2059,7 @@ fun BudgetScreen(
                     BudgetTabBar(
                         selectedTab = selectedTab,
                         tabLabels = tabLabels,
-                        onTabSelected = { selectedTab = it }
+                        onTabSelected = { navigateToBudgetTab(it) }
                     )
                 }
             }
@@ -2056,27 +2100,28 @@ fun BudgetScreen(
                                     1 -> {
                                         expenseSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         expenseSelectedSort = BudgetSortOption.BUDGET_DESC
-                                        selectedTab = 1
+                                        navigateToBudgetTab(1)
                                     }
                                     2 -> {
                                         incomeSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         incomeSelectedSort = BudgetSortOption.BUDGET_DESC
-                                        selectedTab = 2
+                                        navigateToBudgetTab(2)
                                     }
                                     3 -> {
                                         assetSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         assetSelectedSort = BudgetSortOption.BUDGET_DESC
-                                        selectedTab = 3
+                                        navigateToBudgetTab(3)
                                     }
                                     4 -> {
                                         liabilitySelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         liabilitySelectedSort = BudgetSortOption.BUDGET_DESC
-                                        selectedTab = 4
+                                        navigateToBudgetTab(4)
                                     }
-                                    else -> selectedTab = tabIdx
+                                    else -> navigateToBudgetTab(tabIdx)
                                 }
                             },
-                            onRunningExpendableClick = { openExpendableBreakdown() }
+                            onRunningExpendableClick = { openExpendableBreakdown() },
+                            onOpenSuggestionsHelp = { showHelpDialog = true }
                         )
                     }
                     1 -> {
@@ -2084,7 +2129,7 @@ fun BudgetScreen(
                         CategoriesBudgetEntryView(
                             title = LanguageHelper.getString("expenses", languageMode),
                             items = expenseItems,
-                            monthlyBudgets = monthlyBudgets,
+                            monthlyBudgets = allMonthlyBudgets,
                             allTransactions = transactionsWithDetails,
                             allAccounts = allAccounts,
                             accountsWithBalances = accountsWithBalances,
@@ -2129,7 +2174,7 @@ fun BudgetScreen(
                         CategoriesBudgetEntryView(
                             title = LanguageHelper.getString("incomes", languageMode),
                             items = incomeItems,
-                            monthlyBudgets = monthlyBudgets,
+                            monthlyBudgets = allMonthlyBudgets,
                             allTransactions = transactionsWithDetails,
                             allAccounts = allAccounts,
                             accountsWithBalances = accountsWithBalances,
@@ -2174,7 +2219,7 @@ fun BudgetScreen(
                         CategoriesBudgetEntryView(
                             title = LanguageHelper.getString("assets", languageMode),
                             items = assetItems,
-                            monthlyBudgets = monthlyBudgets,
+                            monthlyBudgets = allMonthlyBudgets,
                             allTransactions = transactionsWithDetails,
                             allAccounts = allAccounts,
                             accountsWithBalances = accountsWithBalances,
@@ -2219,7 +2264,7 @@ fun BudgetScreen(
                         CategoriesBudgetEntryView(
                             title = LanguageHelper.getString("liabilities", languageMode),
                             items = liabilityItems,
-                            monthlyBudgets = monthlyBudgets,
+                            monthlyBudgets = allMonthlyBudgets,
                             allTransactions = transactionsWithDetails,
                             allAccounts = allAccounts,
                             accountsWithBalances = accountsWithBalances,
@@ -2308,7 +2353,7 @@ fun BudgetScreen(
 
     // Help Dialog
     if (showHelpDialog) {
-        BudgetHelpDialog(onDismiss = { showHelpDialog = false })
+        BudgetHelpDialog(languageMode = languageMode, onDismiss = { showHelpDialog = false })
     }
 
     // Quick Action FAB Dialog
@@ -2843,8 +2888,8 @@ private fun CategoriesBudgetEntryView(
     onSaveBudget: (BudgetTargetItem, Double, Boolean) -> Unit,
     onSaveMultiple: (List<MonthlyBudget>) -> Unit
 ) {
-    val budgetMap = remember(monthlyBudgets) {
-        monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+    val budgetMap = remember(monthlyBudgets, selectedYear, selectedMonth) {
+        monthlyBudgets.filter { it.year == selectedYear && it.month == selectedMonth }.associateBy { "${it.itemType}_${it.itemId}" }
     }
 
     // Account Balance Map from Balance Sheet (includes parents and children)
@@ -3137,7 +3182,7 @@ private fun CategoriesBudgetEntryView(
 
         // 6. Sorting
         when (selectedSort) {
-            BudgetSortOption.DEFAULT -> list
+            BudgetSortOption.DEFAULT -> list.sortedWith(compareBy({ it.item.groupName.lowercase() }, { it.item.nameEn.lowercase() }))
             BudgetSortOption.BUDGET_DESC -> list.sortedByDescending { it.currentBudget }
             BudgetSortOption.BUDGET_ASC -> list.sortedBy { it.currentBudget }
             BudgetSortOption.ACTUAL_DESC -> list.sortedByDescending { it.actualSpent }
@@ -3146,13 +3191,22 @@ private fun CategoriesBudgetEntryView(
         }
     }
 
-    // Group items by parent group name
+    // Group items by parent group name (Default alphabetical A to Z by group name and category)
     val groupedItems = remember(filteredItems, selectedSort, tabFilter.hideEmptyGroups) {
-        val groups = filteredItems.groupBy { it.item.groupName }
-        if (tabFilter.hideEmptyGroups) {
-            groups.filter { entry -> entry.value.any { it.currentBudget > 0.0 || it.actualSpent != 0.0 } }
+        val groups = if (selectedSort == BudgetSortOption.DEFAULT || selectedSort == BudgetSortOption.NAME_ASC) {
+            filteredItems.groupBy { it.item.groupName }.toSortedMap(compareBy { it.lowercase() })
+        } else {
+            filteredItems.groupBy { it.item.groupName }
+        }
+        val sortedGroupEntries = if (selectedSort == BudgetSortOption.DEFAULT) {
+            groups.mapValues { entry -> entry.value.sortedBy { it.item.nameEn.lowercase() } }
         } else {
             groups
+        }
+        if (tabFilter.hideEmptyGroups) {
+            sortedGroupEntries.filter { entry -> entry.value.any { it.currentBudget > 0.0 || it.actualSpent != 0.0 } }
+        } else {
+            sortedGroupEntries
         }
     }
 
@@ -4018,83 +4072,215 @@ private fun BudgetItemRow(
 }
 
 /**
- * Informative Guide Dialog.
+ * Comprehensive Informative Guide Dialog for Smart Budget Suggestions & Codes.
  */
 @Composable
-private fun BudgetHelpDialog(onDismiss: () -> Unit) {
+private fun BudgetHelpDialog(
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit
+) {
+    val isBn = languageMode == LanguageMode.BANGLA
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Budget Maker & Insights Guide",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandBlue
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Lightbulb,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (isBn) "স্মার্ট সাজেশন ও কোড গাইড" else "Suggestions & Codes",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
                     }
                 }
 
-                HorizontalDivider()
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "• Quick Suggestions Checkmarks:",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "Tap any checkmark circle to instantly set your budget based on Previous Month actuals, Frequent spend patterns, or 3-Month averages.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Text(
+                    text = if (isBn)
+                        "বাজেট মেকারে প্রতিটি ক্যাটাগরি ও একাউন্টের নিচে দেওয়া শর্টকোড পিলের বিস্তারিত অর্থ:"
+                    else
+                        "Full meaning of suggestion codes shown under categories and accounts:",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                // Code Definitions
+                SuggestionCodeItem(
+                    code = "PB",
+                    badgeColor = SolidPrimary,
+                    title = if (isBn) "Previous Budget (পূর্ববর্তী বাজেট)" else "Previous Budget (PB)",
+                    description = if (isBn)
+                        "গত মাসের (বা সর্বশেষ নির্ধারিত মাসের) প্ল্যান করা বাজেট। ট্যাপ করলেই সেই বাজেটটি চলতি মাসে বসে যাবে।"
+                    else
+                        "Exact budget allocation from the previous month. Tap to carry over your prior planned budget amount."
+                )
 
-                    Text(
-                        text = "• Smart Filters & Sorting:",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "Filter by Frequently Budgeted or Frequently Expensed categories, or sort by Budget Amount and Transaction Frequency for effortless planning.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                SuggestionCodeItem(
+                    code = "PE",
+                    badgeColor = SolidExpense,
+                    title = if (isBn) "Previous Expensed (পূর্ববর্তী খরচ)" else "Previous Expensed (PE)",
+                    description = if (isBn)
+                        "গত মাসে এই ব্যয় ক্যাটাগরিতে প্রকৃতপক্ষে মোট কত টাকা খরচ হয়েছিল তার পরিমাণ।"
+                    else
+                        "Actual total amount spent in this expense category during the previous month."
+                )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                SuggestionCodeItem(
+                    code = "PI",
+                    badgeColor = SolidIncome,
+                    title = if (isBn) "Previous Income (পূর্ববর্তী আয়)" else "Previous Income (PI)",
+                    description = if (isBn)
+                        "গত মাসে এই আয় ক্যাটাগরিতে প্রকৃতপক্ষে মোট কত টাকা আয় অর্জিত হয়েছিল তার পরিমাণ।"
+                    else
+                        "Actual total earnings/income received in this category during the previous month."
+                )
 
-                    Text(
-                        text = "• Frequency Conversions:",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = "Set budgets as Weekly, Bi-weekly, Monthly, Quarterly, or Yearly. All amounts are automatically converted and saved to standard monthly figures.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                SuggestionCodeItem(
+                    code = "Limit",
+                    badgeColor = AmberGold,
+                    title = if (isBn) "Default Limit (ডিফল্ট লিমিট)" else "Default Limit (Limit)",
+                    description = if (isBn)
+                        "ক্যাটাগরি বা একাউন্ট সেটিংসে কনফিগার করা প্রাথমিক বা স্থায়ী বাজেট সীমা।"
+                    else
+                        "Baseline budget limit configured in Category / Account settings."
+                )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                SuggestionCodeItem(
+                    code = "Actual",
+                    badgeColor = SolidPrimary,
+                    title = if (isBn) "Actual Balance (বর্তমান ব্যালেন্স)" else "Actual Balance (Actual)",
+                    description = if (isBn)
+                        "সম্পদ (Assets) ও দায় (Liabilities) এর ক্ষেত্রে ব্যালেন্স শিটের লাইভ ব্যালেন্স।"
+                    else
+                        "Live balance sheet balance for Assets and Liabilities."
+                )
+
+                SuggestionCodeItem(
+                    code = "1st Day",
+                    badgeColor = Color(0xFF6366F1),
+                    title = if (isBn) "1st Day Balance (১ম দিনের ব্যালেন্স)" else "1st Day Balance (1st Day)",
+                    description = if (isBn)
+                        "নির্বাচিত মাসের শুরুর দিন (১ তারিখ) একাউন্টের প্রারম্ভিক প্রারম্ভিক ব্যালেন্স।"
+                    else
+                        "Opening balance of the account on the 1st day of the selected month."
+                )
+
+                SuggestionCodeItem(
+                    code = "F1, F2, F3",
+                    badgeColor = DarkEmerald,
+                    title = if (isBn) "Frequent Totals (সর্বাধিক লেনদেনের পরিমাণ)" else "Frequent Totals (F1, F2, F3)",
+                    description = if (isBn)
+                        "আপনার অতীতের লেনদেন ইতিহাস থেকে পাওয়া শীর্ষ ৩টি পুনরাবৃত্তিমূলক মাসিক মোট বা একক লেনদেনের পরিমাণ।"
+                    else
+                        "Top 3 most recurring monthly sums or transaction amounts detected from your history."
+                )
+
+                SuggestionCodeItem(
+                    code = "Manual",
+                    badgeColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    title = if (isBn) "Manual Calculator (ক্যালকুলেটর ইনপুট)" else "Manual Keypad (Manual)",
+                    description = if (isBn)
+                        "ট্যাপ করলে বিল্ট-ইন ক্যালকুলেটর খুলবে। সাপ্তাহিক, পাক্ষিক, মাসিক বা বাৎসরিক ভিত্তিতে কাস্টম বাজেট লিখুন।"
+                    else
+                        "Opens popup calculator to enter custom amount in Weekly, Bi-weekly, Monthly, Quarterly, or Yearly frequencies."
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Button(onClick = onDismiss) {
-                        Text("Got It")
+                        Text(if (isBn) "বুঝেছি" else "Got It")
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionCodeItem(
+    code: String,
+    badgeColor: Color,
+    title: String,
+    description: String
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = badgeColor.copy(alpha = 0.18f),
+                    border = BorderStroke(0.7.dp, badgeColor.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = code,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = badgeColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(
+                text = description,
+                fontSize = 11.5.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 15.sp
+            )
         }
     }
 }
@@ -4123,8 +4309,17 @@ internal fun calculateSuggestionsForItem(
         prevYear -= 1
     }
 
-    val prevSaved = monthlyBudgets.find { it.year == prevYear && it.month == prevMonth && it.itemType == itemType && it.itemId == itemId }
-    val prevBudgetAmt = prevSaved?.budgetedAmount ?: 0.0
+    val exactPrevSaved = monthlyBudgets.find { it.year == prevYear && it.month == prevMonth && it.itemType == itemType && it.itemId == itemId && it.isEnabled }
+        ?: monthlyBudgets.find { it.year == prevYear && it.month == prevMonth && it.itemType == itemType && it.itemId == itemId }
+    val prevBudgetAmt = if (exactPrevSaved != null && exactPrevSaved.budgetedAmount > 0.0) {
+        exactPrevSaved.budgetedAmount
+    } else {
+        // Look up the most recent previous budgeted amount for this item across all past months
+        monthlyBudgets
+            .filter { it.itemType == itemType && it.itemId == itemId && it.budgetedAmount > 0.0 && (it.year < selectedYear || (it.year == selectedYear && it.month < selectedMonth)) }
+            .maxByOrNull { it.year * 12 + it.month }
+            ?.budgetedAmount ?: 0.0
+    }
 
     val prevMonthStart = DateUtils.getStartOfMonth(prevYear, prevMonth)
     val prevMonthEnd = DateUtils.getEndOfMonth(prevYear, prevMonth)
@@ -4155,12 +4350,16 @@ internal fun calculateSuggestionsForItem(
         return list
     }
 
-    // EXPENSES & INCOMES: Previous Month Budget (PB), Previous Month Expensed (PE), Category Default Limit (Limit)
+    // EXPENSES & INCOMES: Previous Month Budget (PB), Previous Month Expensed/Income (PE/PI), Category Default Limit (Limit)
     if (prevBudgetAmt > 0.0) {
         list.add(BudgetSuggestionOption(nextIndex++, prevBudgetAmt, "Previous Budget", "PB"))
     }
     if (prevExpensedAmt > 0.0) {
-        list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Expensed", "PE"))
+        if (itemType == "INCOME") {
+            list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Income", "PI"))
+        } else {
+            list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Expensed", "PE"))
+        }
     }
     if (defaultLimit > 0.0 && defaultLimit != prevBudgetAmt) {
         list.add(BudgetSuggestionOption(nextIndex++, defaultLimit, "Default Limit", "Limit"))
@@ -4223,7 +4422,8 @@ private fun BudgetDashboardView(
     wishlistItemsForMonth: List<com.example.data.model.WishlistItemWithCategory> = emptyList(),
     onAddWishlistToBudget: ((com.example.data.model.WishlistItem) -> Unit)? = null,
     onNavigateToTab: (Int) -> Unit,
-    onRunningExpendableClick: () -> Unit = {}
+    onRunningExpendableClick: () -> Unit = {},
+    onOpenSuggestionsHelp: () -> Unit = {}
 ) {
     var includeRunningExpendable by rememberSaveable { mutableStateOf(false) }
 
@@ -4755,7 +4955,7 @@ private fun BudgetDashboardView(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "• Swipe horizontally across suggestion pills (PB, PE, F1/F2/F3) to set your plan instantly.",
+                        text = "• Swipe horizontally across suggestion pills (PB, PE/PI, F1/F2/F3) to set your plan instantly.",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -4764,8 +4964,31 @@ private fun BudgetDashboardView(
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    OutlinedButton(
+                        onClick = onOpenSuggestionsHelp,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .testTag("btn_dashboard_suggestions_guide")
+                    ) {
+                        Icon(Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সাজেশন কোড গাইড (PB, PE, PI...)" else "Suggestions Guide (PB, PE, PI...)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
