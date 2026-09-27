@@ -135,6 +135,7 @@ import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.ActiveBudgetFilterBar
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
+import com.example.ui.components.BudgetQuickShortcutsRow
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.BudgetDateRangePreset
 import com.example.ui.components.BudgetComparisonPreset
@@ -495,10 +496,13 @@ fun BudgetTrackingScreen(
                     when (filterState.sortOrder) {
                         BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> trackingItems.sortedByDescending { it.spentAmount }
                         BudgetSortOrder.AMOUNT_ASC -> trackingItems.sortedBy { it.spentAmount }
+                        BudgetSortOrder.REMAINING_DESC -> trackingItems.sortedByDescending { it.remainingAmount }
+                        BudgetSortOrder.REMAINING_ASC -> trackingItems.sortedBy { it.remainingAmount }
                         BudgetSortOrder.BUDGET_DESC -> trackingItems.sortedByDescending { it.budgetLimit }
                         BudgetSortOrder.BUDGET_ASC -> trackingItems.sortedBy { it.budgetLimit }
                         BudgetSortOrder.UTILIZATION_DESC -> trackingItems.sortedByDescending { it.percentageInt }
                         BudgetSortOrder.NAME_ASC -> trackingItems.sortedBy { it.category.nameEn.lowercase() }
+                        BudgetSortOrder.NAME_DESC -> trackingItems.sortedByDescending { it.category.nameEn.lowercase() }
                         BudgetSortOrder.DEFAULT -> trackingItems
                     }
                 }
@@ -661,10 +665,13 @@ fun BudgetTrackingScreen(
                 when (filterState.sortOrder) {
                     BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> orphanItems.sortedByDescending { it.spentAmount }
                     BudgetSortOrder.AMOUNT_ASC -> orphanItems.sortedBy { it.spentAmount }
+                    BudgetSortOrder.REMAINING_DESC -> orphanItems.sortedByDescending { it.remainingAmount }
+                    BudgetSortOrder.REMAINING_ASC -> orphanItems.sortedBy { it.remainingAmount }
                     BudgetSortOrder.BUDGET_DESC -> orphanItems.sortedByDescending { it.budgetLimit }
                     BudgetSortOrder.BUDGET_ASC -> orphanItems.sortedBy { it.budgetLimit }
                     BudgetSortOrder.UTILIZATION_DESC -> orphanItems.sortedByDescending { it.percentageInt }
                     BudgetSortOrder.NAME_ASC -> orphanItems.sortedBy { it.category.nameEn.lowercase() }
+                    BudgetSortOrder.NAME_DESC -> orphanItems.sortedByDescending { it.category.nameEn.lowercase() }
                     BudgetSortOrder.DEFAULT -> orphanItems
                 }
             }
@@ -684,10 +691,19 @@ fun BudgetTrackingScreen(
         val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
         if (shouldSortByAmount) {
             resultList.sortByDescending { it.totalSpent }
-        } else if (filterState.sortOrder == BudgetSortOrder.BUDGET_DESC) {
-            resultList.sortByDescending { it.totalBudget }
-        } else if (filterState.sortOrder == BudgetSortOrder.NAME_ASC) {
-            resultList.sortBy { it.groupNameEn.lowercase() }
+        } else {
+            when (filterState.sortOrder) {
+                BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> resultList.sortByDescending { it.totalSpent }
+                BudgetSortOrder.AMOUNT_ASC -> resultList.sortBy { it.totalSpent }
+                BudgetSortOrder.REMAINING_DESC -> resultList.sortByDescending { it.remainingAmount }
+                BudgetSortOrder.REMAINING_ASC -> resultList.sortBy { it.remainingAmount }
+                BudgetSortOrder.BUDGET_DESC -> resultList.sortByDescending { it.totalBudget }
+                BudgetSortOrder.BUDGET_ASC -> resultList.sortBy { it.totalBudget }
+                BudgetSortOrder.UTILIZATION_DESC -> resultList.sortByDescending { if (it.totalBudget > 0) it.totalSpent / it.totalBudget else 0.0 }
+                BudgetSortOrder.NAME_ASC -> resultList.sortBy { it.groupNameEn.lowercase() }
+                BudgetSortOrder.NAME_DESC -> resultList.sortByDescending { it.groupNameEn.lowercase() }
+                BudgetSortOrder.DEFAULT -> { /* keep default category order */ }
+            }
         }
 
         val totalGrandSpent = resultList.sumOf { it.totalSpent }
@@ -728,6 +744,17 @@ fun BudgetTrackingScreen(
     val overallDiff = kotlin.math.abs(totalFlowBudget - totalFlowSpent)
     val overallDeltaSpent = totalFlowSpent - totalFlowSpentBase
     val overallDeltaPercent = if (totalFlowSpentBase > 0.0) ((overallDeltaSpent / totalFlowSpentBase) * 100.0) else 0.0
+
+    val allGroupsExpanded = remember(categoryGroups, expandedGroups, filterState.showOnlyGroups) {
+        if (filterState.showOnlyGroups) {
+            false
+        } else {
+            categoryGroups.isNotEmpty() && categoryGroups.all { group ->
+                val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
+                expandedGroups[groupKey] ?: true
+            }
+        }
+    }
 
     // Track scroll state to transition top card between normal and mini mode
     val listState = rememberLazyListState()
@@ -1415,13 +1442,31 @@ fun BudgetTrackingScreen(
             }
         }
 
+            // Compact Quick Shortcuts Toolbar (View: All/Groups/Categories, Sort, Expand/Collapse, Quick Toggles)
+            BudgetQuickShortcutsRow(
+                filterState = filterState,
+                onFilterChange = { filterState = it },
+                allGroupsExpanded = allGroupsExpanded,
+                onToggleExpandAll = { expanded ->
+                    categoryGroups.forEach { group ->
+                        val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
+                        expandedGroups[groupKey] = expanded
+                    }
+                    if (expanded && filterState.showOnlyGroups) {
+                        filterState = filterState.copy(showOnlyGroups = false)
+                    }
+                },
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            )
+
             // Active Filters Bar
             ActiveBudgetFilterBar(
                 filterState = filterState,
                 onFilterChange = { filterState = it },
                 onOpenFilterDialog = { showFilterDialog = true },
                 languageMode = languageMode,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp)
             )
 
             // Comparison Column Labels (When Comparison is Active)
@@ -1530,10 +1575,13 @@ fun BudgetTrackingScreen(
                                 when (filterState.sortOrder) {
                                     BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> list.sortedByDescending { it.spentAmount }
                                     BudgetSortOrder.AMOUNT_ASC -> list.sortedBy { it.spentAmount }
+                                    BudgetSortOrder.REMAINING_DESC -> list.sortedByDescending { it.remainingAmount }
+                                    BudgetSortOrder.REMAINING_ASC -> list.sortedBy { it.remainingAmount }
                                     BudgetSortOrder.BUDGET_DESC -> list.sortedByDescending { it.budgetLimit }
                                     BudgetSortOrder.BUDGET_ASC -> list.sortedBy { it.budgetLimit }
                                     BudgetSortOrder.UTILIZATION_DESC -> list.sortedByDescending { it.percentageInt }
                                     BudgetSortOrder.NAME_ASC -> list.sortedBy { it.category.nameEn.lowercase() }
+                                    BudgetSortOrder.NAME_DESC -> list.sortedByDescending { it.category.nameEn.lowercase() }
                                     BudgetSortOrder.DEFAULT -> list
                                 }
                             }
@@ -1560,7 +1608,11 @@ fun BudgetTrackingScreen(
                             key = { "${it.parentCategory?.id ?: "others"}_${it.groupNameEn}_${it.groupNameBn}" }
                         ) { group ->
                             val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
-                            val isExpanded = expandedGroups[groupKey] ?: true
+                            val isExpanded = if (filterState.showOnlyGroups) {
+                                expandedGroups[groupKey] ?: false
+                            } else {
+                                expandedGroups[groupKey] ?: true
+                            }
 
                             CategoryGroupSection(
                                 group = group,

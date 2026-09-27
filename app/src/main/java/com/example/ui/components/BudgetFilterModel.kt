@@ -44,11 +44,14 @@ enum class BudgetSortOrder(val titleEn: String, val titleBn: String) {
     DEFAULT("Default Order", "ডিফল্ট ক্রম"),
     AMOUNT_DESC("Amount: High → Low", "পরিমাণ: বেশি → কম"),
     AMOUNT_ASC("Amount: Low → High", "পরিমাণ: কম → বেশি"),
+    SPENT_DESC("Actual Spent: High → Low", "ব্যয়: বেশি → কম"),
+    REMAINING_DESC("Remaining: High → Low", "অবশিষ্ট: বেশি → কম"),
+    REMAINING_ASC("Remaining: Low → High", "অবশিষ্ট: কম → বেশি"),
     BUDGET_DESC("Budget Limit: High → Low", "বাজেট সীমা: বেশি → কম"),
     BUDGET_ASC("Budget Limit: Low → High", "বাজেট সীমা: কম → বেশি"),
-    SPENT_DESC("Actual Spent: High → Low", "ব্যয়: বেশি → কম"),
     UTILIZATION_DESC("Utilization %: High → Low", "ব্যবহারের হার: বেশি → কম"),
-    NAME_ASC("Alphabetical: A → Z", "নাম: A → Z")
+    NAME_ASC("Alphabetical: A → Z", "নাম: A → Z"),
+    NAME_DESC("Alphabetical: Z → A", "নাম: Z → A")
 }
 
 /**
@@ -78,6 +81,7 @@ data class BudgetFilterState(
     val excludeZeroAmounts: Boolean = true,
     val hideEmptyGroups: Boolean = true,
     val showOnlyCategoriesWithoutGroups: Boolean = false,
+    val showOnlyGroups: Boolean = false,
 
     // 6. Display Currency & Symbol
     val displayCurrency: Boolean = true,

@@ -1328,14 +1328,14 @@ fun ActiveBudgetFilterBar(
     if (!filterState.isFilterActive) return
 
     Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 6.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1343,24 +1343,24 @@ fun ActiveBudgetFilterBar(
                 modifier = Modifier
                     .weight(1f)
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Active count badge
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(5.dp),
                     color = BrandGreen,
                     modifier = Modifier.clickable { onOpenFilterDialog() }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        horizontalArrangement = Arrangement.spacedBy(2.5.dp)
                     ) {
-                        Icon(Icons.Default.FilterList, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                        Icon(Icons.Default.FilterList, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
                         Text(
                             text = "${filterState.activeFilterCount} Active",
-                            fontSize = 11.sp,
+                            fontSize = 9.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
@@ -1459,14 +1459,16 @@ fun ActiveBudgetFilterBar(
                 }
             }
 
-            // Reset all text button
+            // Compact Reset all button
             TextButton(
                 onClick = { onFilterChange(BudgetFilterState()) },
-                modifier = Modifier.padding(start = 4.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                modifier = Modifier.height(20.dp)
             ) {
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset",
-                    fontSize = 11.5.sp,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -1513,22 +1515,23 @@ private fun FilterChipPill(
     onClear: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(6.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(0.7.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        modifier = Modifier.height(20.dp)
     ) {
         Row(
-            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+            modifier = Modifier.padding(start = 5.dp, end = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(text = text, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text(text = text, fontSize = 9.5.sp, fontWeight = FontWeight.Medium)
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Remove",
                 tint = MaterialTheme.colorScheme.outline,
                 modifier = Modifier
-                    .size(14.dp)
+                    .size(11.5.dp)
                     .clickable(onClick = onClear)
             )
         }
