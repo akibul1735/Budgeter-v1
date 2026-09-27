@@ -77,6 +77,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.LanguageMode
 import com.example.ui.theme.SolidPrimary
+import com.example.util.LanguageHelper
 
 /**
  * Unified modal container for filter popups across all tabs.
@@ -87,6 +88,7 @@ import com.example.ui.theme.SolidPrimary
 fun UnifiedFilterDialogContainer(
     onDismissRequest: () -> Unit,
     testTag: String = "unified_filter_dialog",
+    maxHeightFraction: Float = 0.80f,
     content: @Composable () -> Unit
 ) {
     Dialog(
@@ -107,7 +109,7 @@ fun UnifiedFilterDialogContainer(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.40f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.74f)
+                    .fillMaxHeight(maxHeightFraction)
                     .testTag(testTag)
             ) {
                 content()
@@ -1020,6 +1022,477 @@ fun UnifiedFilterFooter(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Data model for hierarchical group in multi-select dropdown dialogs.
+ * Group header is purely visual and NOT selectable.
+ */
+data class UnifiedFilterGroup<T>(
+    val groupKey: String,
+    val groupTitle: String,
+    val groupSubtitle: String? = null,
+    val icon: ImageVector? = null,
+    val color: Color? = null,
+    val items: List<UnifiedFilterItem<T>>
+)
+
+/**
+ * Data model for selectable item under a group in multi-select dropdown dialogs.
+ */
+data class UnifiedFilterItem<T>(
+    val id: T,
+    val title: String,
+    val subtitle: String? = null,
+    val color: Color? = null,
+    val icon: ImageVector? = null
+)
+
+/**
+ * Unified hierarchical multi-select dropdown field for Categories and Accounts.
+ * Displays groups and items clearly, but only the items (categories/accounts) are selectable.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> UnifiedGroupedMultiSelectDropdown(
+    label: String,
+    groups: List<UnifiedFilterGroup<T>>,
+    selectedIds: Set<T>,
+    onSelectionChanged: (Set<T>) -> Unit,
+    placeholder: String = "(All)",
+    leadingIcon: ImageVector? = null,
+    languageMode: LanguageMode = LanguageMode.ENGLISH,
+    modifier: Modifier = Modifier
+) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    // Flatten items for label lookup
+    val allItems = remember(groups) { groups.flatMap { it.items } }
+
+    val displayText = remember(selectedIds, allItems) {
+        if (selectedIds.isEmpty()) {
+            placeholder
+        } else if (selectedIds.size == 1) {
+            allItems.firstOrNull { it.id == selectedIds.first() }?.title ?: "${selectedIds.size} Selected"
+        } else {
+            if (languageMode == LanguageMode.BANGLA) {
+                "${LanguageHelper.toBanglaDigits(selectedIds.size.toString())}টি নির্বাচিত"
+            } else {
+                "${selectedIds.size} Selected"
+            }
+        }
+    }
+
+    val isSelected = selectedIds.isNotEmpty()
+
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { showDialog = true }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                if (leadingIcon != null) {
+                    Icon(
+                        imageVector = leadingIcon,
+                        contentDescription = null,
+                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+                Column {
+                    Text(
+                        text = label,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = displayText,
+                        fontSize = 12.5.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isSelected) {
+                    IconButton(
+                        onClick = { onSelectionChanged(emptySet()) },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Clear",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(2.dp))
+                }
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Dropdown",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+
+    if (showDialog) {
+        var tempSelection by remember { mutableStateOf(selectedIds) }
+        var searchQuery by remember { mutableStateOf("") }
+
+        val filteredGroups = remember(groups, searchQuery) {
+            if (searchQuery.isBlank()) {
+                groups
+            } else {
+                groups.mapNotNull { group ->
+                    val matchingItems = group.items.filter { item ->
+                        item.title.contains(searchQuery, ignoreCase = true) ||
+                                (item.subtitle != null && item.subtitle.contains(searchQuery, ignoreCase = true)) ||
+                                group.groupTitle.contains(searchQuery, ignoreCase = true)
+                    }
+                    if (matchingItems.isNotEmpty()) {
+                        group.copy(items = matchingItems)
+                    } else null
+                }
+            }
+        }
+
+        val allSelectableIds = remember(groups) {
+            groups.flatMap { it.items }.map { it.id }.toSet()
+        }
+
+        Dialog(
+            onDismissRequest = { showDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .fillMaxHeight(0.78f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(14.dp)
+                ) {
+                    // Header: Title & Close
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (leadingIcon != null) {
+                                Icon(
+                                    imageVector = leadingIcon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Text(
+                                text = label,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (tempSelection.isNotEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "${tempSelection.size}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                        IconButton(onClick = { showDialog = false }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Live Search Field
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = {
+                            Text(
+                                if (languageMode == LanguageMode.BANGLA) "অনুসন্ধান করুন..." else "Search...",
+                                fontSize = 12.sp
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(20.dp)) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Select All / Clear All Quick Actions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { tempSelection = allSelectableIds },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন (${allSelectableIds.size})" else "Select All (${allSelectableIds.size})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { tempSelection = emptySet() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                if (languageMode == LanguageMode.BANGLA) "সব মুছুন" else "Clear All",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Grouped List: Groups are visual headers only, Categories/Accounts are selectable
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        filteredGroups.forEach { group ->
+                            // 1. Group Header (Non-selectable)
+                            item(key = "header_${group.groupKey}") {
+                                val selectedInGroup = group.items.count { tempSelection.contains(it.id) }
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp, bottom = 2.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            if (group.icon != null) {
+                                                Icon(
+                                                    imageVector = group.icon,
+                                                    contentDescription = null,
+                                                    tint = group.color ?: MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            } else if (group.color != null) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(9.dp)
+                                                        .clip(CircleShape)
+                                                        .background(group.color)
+                                                )
+                                            }
+                                            Text(
+                                                text = group.groupTitle,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            if (!group.groupSubtitle.isNullOrBlank()) {
+                                                Text(
+                                                    text = "• ${group.groupSubtitle}",
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                )
+                                            }
+                                        }
+
+                                        // Badge showing selected/total under this group
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (selectedInGroup > 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                        ) {
+                                            Text(
+                                                text = if (selectedInGroup > 0) "$selectedInGroup/${group.items.size}" else "${group.items.size}",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (selectedInGroup > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 2. Selectable items under this group (Indented with Checkbox)
+                            items(
+                                items = group.items,
+                                key = { "${group.groupKey}_item_${it.id}" }
+                            ) { item ->
+                                val isChecked = tempSelection.contains(item.id)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 12.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            tempSelection = if (isChecked) {
+                                                tempSelection - item.id
+                                            } else {
+                                                tempSelection + item.id
+                                            }
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = isChecked,
+                                        onCheckedChange = { checked ->
+                                            tempSelection = if (checked) {
+                                                tempSelection + item.id
+                                            } else {
+                                                tempSelection - item.id
+                                            }
+                                        },
+                                        modifier = Modifier.size(20.dp)
+                                    )
+
+                                    if (item.color != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(item.color)
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.title,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = if (isChecked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (!item.subtitle.isNullOrBlank()) {
+                                            Text(
+                                                text = item.subtitle,
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Bottom Action Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = { showDialog = false },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel",
+                                fontSize = 12.5.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                onSelectionChanged(tempSelection)
+                                showDialog = false
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "প্রয়োগ (${tempSelection.size})" else "Done (${tempSelection.size})",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }

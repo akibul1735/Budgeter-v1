@@ -391,6 +391,21 @@ fun BudgetTrackingScreen(
         allCategories.filter { it.parentId == null }.associateBy { it.id }
     }
 
+    // Active category IDs in the recent 3-month window
+    val activeCategoryIdsInLast3Months = remember(transactionsWithDetails, compareRange) {
+        val threeMonthsAgoMs = compareRange.first - (60L * 24 * 3600 * 1000L)
+        val rangeEndMs = compareRange.second
+        val activeIds = mutableSetOf<Long>()
+        transactionsWithDetails.forEach { twd ->
+            val tx = twd.transaction
+            if (tx.dateEpochMs in threeMonthsAgoMs..rangeEndMs) {
+                tx.categoryId?.let { activeIds.add(it) }
+                tx.subCategoryId?.let { activeIds.add(it) }
+            }
+        }
+        activeIds
+    }
+
     val targetCatType = if (activeTabMode == "EXPENSE") CategoryType.EXPENSE else CategoryType.INCOME
     val itemTypeKey = if (activeTabMode == "EXPENSE") "EXPENSE" else "INCOME"
 
@@ -405,7 +420,8 @@ fun BudgetTrackingScreen(
         targetCatType,
         itemTypeKey,
         searchQuery,
-        filterState
+        filterState,
+        activeCategoryIdsInLast3Months
     ) {
         val relevantCategories = allCategories.filter { it.type == targetCatType }
         val parentCategories = relevantCategories.filter { it.parentId == null }
@@ -453,13 +469,23 @@ fun BudgetTrackingScreen(
                             item.category.nameBn.contains(searchQuery, ignoreCase = true)
                     val matchesBudgeted = !filterState.filterOnlyBudgeted || item.hasBudget
                     val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
-                    val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() || filterState.selectedCategoryIds.contains(item.category.id)
-                    val matchesZero = !filterState.excludeZeroAmounts || (item.spentAmount > 0.0 || item.budgetLimit > 0.0)
+                    // Correct Remaining Only: MUST have budget and remaining > 0 (spentAmount < budgetLimit)
+                    val matchesRemaining = !filterState.showOnlyRemainingBalance || (item.hasBudget && item.remainingAmount > 0.001)
+                    val matchesActual = !filterState.showOnlyActual || (item.spentAmount > 0.001)
+                    val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(item.category.id) || item.hasBudget || item.spentAmount > 0.0)
+                    val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() ||
+                            filterState.selectedCategoryIds.contains(item.category.id) ||
+                            (item.category.parentId != null && filterState.selectedCategoryIds.contains(item.category.parentId))
+                    val matchesZero = !filterState.excludeZeroAmounts || (
+                        if (filterState.selectedAccountIds.isNotEmpty()) item.spentAmount > 0.0
+                        else (item.spentAmount > 0.0 || item.budgetLimit > 0.0)
+                    )
                     val minAmt = filterState.minAmount
                     val maxAmt = filterState.maxAmount
-                    val matchesMin = minAmt == null || (item.spentAmount >= minAmt || item.budgetLimit >= minAmt)
-                    val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || item.budgetLimit <= maxAmt)
-                    matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax
+                    val matchesMin = minAmt == null || (item.spentAmount >= minAmt || (item.hasBudget && item.budgetLimit >= minAmt))
+                    val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || (item.hasBudget && item.budgetLimit <= maxAmt))
+
+                    matchesSearch && matchesBudgeted && matchesOver && matchesRemaining && matchesActual && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax
                 }
 
                 val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
@@ -477,10 +503,25 @@ fun BudgetTrackingScreen(
                     }
                 }
 
-                val shouldIncludeGroup = if (filterState.excludeZeroAmounts || filterState.hideEmptyGroups) {
+                val isAnyFilterActive = filterState.excludeZeroAmounts ||
+                        filterState.hideEmptyGroups ||
+                        filterState.showOnlyRemainingBalance ||
+                        filterState.showOnlyActual ||
+                        filterState.filterOnlyBudgeted ||
+                        filterState.filterOnlyOverBudget ||
+                        filterState.filterActive3Months ||
+                        filterState.selectedCategoryIds.isNotEmpty() ||
+                        filterState.selectedAccountIds.isNotEmpty() ||
+                        filterState.selectedLabels.isNotEmpty() ||
+                        filterState.selectedStatusSet.isNotEmpty() ||
+                        searchQuery.isNotEmpty() ||
+                        filterState.minAmount != null ||
+                        filterState.maxAmount != null
+
+                val shouldIncludeGroup = if (filterState.hideEmptyGroups || isAnyFilterActive) {
                     sortedTrackingItems.isNotEmpty()
                 } else {
-                    sortedTrackingItems.isNotEmpty() || (searchQuery.isEmpty() && !filterState.filterOnlyBudgeted && !filterState.filterOnlyOverBudget && filterState.selectedCategoryIds.isEmpty())
+                    true
                 }
 
                 if (shouldIncludeGroup) {
@@ -529,14 +570,21 @@ fun BudgetTrackingScreen(
                         parent.nameBn.contains(searchQuery, ignoreCase = true)
                 val matchesBudgeted = !filterState.filterOnlyBudgeted || singleItem.hasBudget
                 val matchesOver = !filterState.filterOnlyOverBudget || singleItem.isOverBudget
+                // Correct Remaining Only: MUST have budget and remaining > 0
+                val matchesRemaining = !filterState.showOnlyRemainingBalance || (singleItem.hasBudget && singleItem.remainingAmount > 0.001)
+                val matchesActual = !filterState.showOnlyActual || (singleItem.spentAmount > 0.001)
+                val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(parent.id) || singleItem.hasBudget || singleItem.spentAmount > 0.0)
                 val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() || filterState.selectedCategoryIds.contains(parent.id)
-                val matchesZero = !filterState.excludeZeroAmounts || (singleItem.spentAmount > 0.0 || singleItem.budgetLimit > 0.0)
+                val matchesZero = !filterState.excludeZeroAmounts || (
+                    if (filterState.selectedAccountIds.isNotEmpty()) singleItem.spentAmount > 0.0
+                    else (singleItem.spentAmount > 0.0 || singleItem.budgetLimit > 0.0)
+                )
                 val minAmt = filterState.minAmount
                 val maxAmt = filterState.maxAmount
-                val matchesMin = minAmt == null || (singleItem.spentAmount >= minAmt || singleItem.budgetLimit >= minAmt)
-                val matchesMax = maxAmt == null || (singleItem.spentAmount <= maxAmt || singleItem.budgetLimit <= maxAmt)
+                val matchesMin = minAmt == null || (singleItem.spentAmount >= minAmt || (singleItem.hasBudget && singleItem.budgetLimit >= minAmt))
+                val matchesMax = maxAmt == null || (singleItem.spentAmount <= maxAmt || (singleItem.hasBudget && singleItem.budgetLimit <= maxAmt))
 
-                if (matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax) {
+                if (matchesSearch && matchesBudgeted && matchesOver && matchesRemaining && matchesActual && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax) {
                     resultList.add(
                         CategoryGroupBudgetTracking(
                             parentCategory = parent,
@@ -587,13 +635,23 @@ fun BudgetTrackingScreen(
                         item.category.nameBn.contains(searchQuery, ignoreCase = true)
                 val matchesBudgeted = !filterState.filterOnlyBudgeted || item.hasBudget
                 val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
-                val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() || filterState.selectedCategoryIds.contains(item.category.id)
-                val matchesZero = !filterState.excludeZeroAmounts || (item.spentAmount > 0.0 || item.budgetLimit > 0.0)
+                // Correct Remaining Only: MUST have budget and remaining > 0
+                val matchesRemaining = !filterState.showOnlyRemainingBalance || (item.hasBudget && item.remainingAmount > 0.001)
+                val matchesActual = !filterState.showOnlyActual || (item.spentAmount > 0.001)
+                val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(item.category.id) || item.hasBudget || item.spentAmount > 0.0)
+                val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() ||
+                        filterState.selectedCategoryIds.contains(item.category.id) ||
+                        (item.category.parentId != null && filterState.selectedCategoryIds.contains(item.category.parentId))
+                val matchesZero = !filterState.excludeZeroAmounts || (
+                    if (filterState.selectedAccountIds.isNotEmpty()) item.spentAmount > 0.0
+                    else (item.spentAmount > 0.0 || item.budgetLimit > 0.0)
+                )
                 val minAmt = filterState.minAmount
                 val maxAmt = filterState.maxAmount
-                val matchesMin = minAmt == null || (item.spentAmount >= minAmt || item.budgetLimit >= minAmt)
-                val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || item.budgetLimit <= maxAmt)
-                matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax
+                val matchesMin = minAmt == null || (item.spentAmount >= minAmt || (item.hasBudget && item.budgetLimit >= minAmt))
+                val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || (item.hasBudget && item.budgetLimit <= maxAmt))
+
+                matchesSearch && matchesBudgeted && matchesOver && matchesRemaining && matchesActual && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax
             }
 
             val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
@@ -711,6 +769,14 @@ fun BudgetTrackingScreen(
                                 if (filterState.filterOnlyBudgeted) {
                                     append(" • ")
                                     append(if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বাজেটকৃত" else "Budgeted Only")
+                                }
+                                if (filterState.showOnlyRemainingBalance) {
+                                    append(" • ")
+                                    append(if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র অবশিষ্ট" else "Remaining Only")
+                                }
+                                if (filterState.showOnlyActual) {
+                                    append(" • ")
+                                    append(if (languageMode == LanguageMode.BANGLA) "প্রকৃত ব্যয়" else "Actual Only")
                                 }
                                 if (filterState.filterOnlyOverBudget) {
                                     append(" • ")

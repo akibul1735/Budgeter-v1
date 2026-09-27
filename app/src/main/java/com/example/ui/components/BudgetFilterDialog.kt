@@ -91,6 +91,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -151,31 +152,181 @@ fun BudgetFilterDialog(
         }
     }
 
-    val categoryDropdownItems = remember(categories, languageMode) {
-        categories.filter { it.isActive }.map { cat ->
-            val catName = if (languageMode == LanguageMode.BANGLA) cat.nameBn.ifBlank { cat.nameEn } else cat.nameEn
-            DropdownItem(
-                id = cat.id,
-                title = catName,
-                subtitle = if (cat.parentId != null) "Subcategory" else "Category",
-                color = try {
-                    if (cat.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(cat.colorHex)) else null
-                } catch (e: Exception) {
-                    null
+    val categoryFilterGroups = remember(categories, languageMode) {
+        val activeCats = categories.filter { it.isActive }
+        val parentCats = activeCats.filter { it.parentId == null }
+        val childCats = activeCats.filter { it.parentId != null }
+        val childrenByParent = childCats.groupBy { it.parentId }
+
+        val groupList = mutableListOf<UnifiedFilterGroup<Long>>()
+
+        parentCats.forEach { parent ->
+            val children = childrenByParent[parent.id] ?: emptyList()
+            val parentName = if (languageMode == LanguageMode.BANGLA) parent.nameBn.ifBlank { parent.nameEn } else parent.nameEn
+            val parentColor = try {
+                if (parent.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(parent.colorHex)) else null
+            } catch (_: Exception) { null }
+
+            if (children.isNotEmpty()) {
+                // Parent is the Group Header (non-selectable). Children are the selectable Categories.
+                val items = children.map { child ->
+                    val childName = if (languageMode == LanguageMode.BANGLA) child.nameBn.ifBlank { child.nameEn } else child.nameEn
+                    val childColor = try {
+                        if (child.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(child.colorHex)) else parentColor
+                    } catch (_: Exception) { parentColor }
+
+                    UnifiedFilterItem(
+                        id = child.id,
+                        title = childName,
+                        subtitle = if (child.type == CategoryType.EXPENSE) (if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense") else (if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"),
+                        color = childColor
+                    )
                 }
+                groupList.add(
+                    UnifiedFilterGroup(
+                        groupKey = "cat_parent_${parent.id}",
+                        groupTitle = parentName,
+                        groupSubtitle = if (parent.type == CategoryType.EXPENSE) (if (languageMode == LanguageMode.BANGLA) "ব্যয় গ্রুপ" else "Expense Group") else (if (languageMode == LanguageMode.BANGLA) "আয় গ্রুপ" else "Income Group"),
+                        color = parentColor,
+                        items = items
+                    )
+                )
+            } else {
+                // Standalone category without children
+                val singleItem = UnifiedFilterItem(
+                    id = parent.id,
+                    title = parentName,
+                    subtitle = if (parent.type == CategoryType.EXPENSE) (if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense") else (if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"),
+                    color = parentColor
+                )
+                groupList.add(
+                    UnifiedFilterGroup(
+                        groupKey = "cat_parent_${parent.id}",
+                        groupTitle = parentName,
+                        color = parentColor,
+                        items = listOf(singleItem)
+                    )
+                )
+            }
+        }
+
+        // Orphaned subcategories
+        val orphaned = childCats.filter { child -> parentCats.none { it.id == child.parentId } }
+        if (orphaned.isNotEmpty()) {
+            val items = orphaned.map { child ->
+                val childName = if (languageMode == LanguageMode.BANGLA) child.nameBn.ifBlank { child.nameEn } else child.nameEn
+                UnifiedFilterItem(
+                    id = child.id,
+                    title = childName,
+                    subtitle = if (child.type == CategoryType.EXPENSE) "Expense" else "Income"
+                )
+            }
+            groupList.add(
+                UnifiedFilterGroup(
+                    groupKey = "cat_orphaned",
+                    groupTitle = if (languageMode == LanguageMode.BANGLA) "অন্যান্য ক্যাটাগরি" else "Other Categories",
+                    items = items
+                )
             )
         }
+
+        groupList
     }
 
-    val accountDropdownItems = remember(accounts, languageMode) {
-        accounts.map { acc ->
-            val accName = if (languageMode == LanguageMode.BANGLA) acc.nameBn.ifBlank { acc.nameEn } else acc.nameEn
-            DropdownItem(
-                id = acc.id,
-                title = accName,
-                subtitle = acc.type.name.lowercase().replaceFirstChar { it.uppercase() }
-            )
+    val accountFilterGroups = remember(accounts, languageMode) {
+        val activeAccs = accounts.filter { it.isActive }
+        val parentAccs = activeAccs.filter { it.parentId == null }
+        val childAccs = activeAccs.filter { it.parentId != null }
+        val childrenByParent = childAccs.groupBy { it.parentId }
+
+        val groupList = mutableListOf<UnifiedFilterGroup<Long>>()
+
+        if (childAccs.isNotEmpty()) {
+            parentAccs.forEach { parent ->
+                val children = childrenByParent[parent.id] ?: emptyList()
+                val parentName = if (languageMode == LanguageMode.BANGLA) parent.nameBn.ifBlank { parent.nameEn } else parent.nameEn
+                val parentColor = try {
+                    if (parent.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(parent.colorHex)) else null
+                } catch (_: Exception) { null }
+
+                if (children.isNotEmpty()) {
+                    val items = children.map { child ->
+                        val childName = if (languageMode == LanguageMode.BANGLA) child.nameBn.ifBlank { child.nameEn } else child.nameEn
+                        UnifiedFilterItem(
+                            id = child.id,
+                            title = childName,
+                            subtitle = child.accountNumber.ifBlank { child.type.name },
+                            color = try {
+                                if (child.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(child.colorHex)) else parentColor
+                            } catch (_: Exception) { parentColor }
+                        )
+                    }
+                    groupList.add(
+                        UnifiedFilterGroup(
+                            groupKey = "acc_parent_${parent.id}",
+                            groupTitle = parentName,
+                            groupSubtitle = parent.type.name,
+                            color = parentColor,
+                            items = items
+                        )
+                    )
+                } else {
+                    val singleItem = UnifiedFilterItem(
+                        id = parent.id,
+                        title = parentName,
+                        subtitle = parent.accountNumber.ifBlank { parent.type.name },
+                        color = parentColor
+                    )
+                    groupList.add(
+                        UnifiedFilterGroup(
+                            groupKey = "acc_parent_${parent.id}",
+                            groupTitle = parentName,
+                            color = parentColor,
+                            items = listOf(singleItem)
+                        )
+                    )
+                }
+            }
+        } else {
+            // Group by AccountType
+            val groupedByType = activeAccs.groupBy { it.type }
+            groupedByType.forEach { (type, accList) ->
+                val groupTitle = when (type) {
+                    com.example.data.model.AccountType.ASSET -> if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"
+                    com.example.data.model.AccountType.LIABILITY -> if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"
+                    com.example.data.model.AccountType.EQUITY -> if (languageMode == LanguageMode.BANGLA) "মালিকানাস্বত্ব (Equity)" else "Equity"
+                    com.example.data.model.AccountType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয় (Income)" else "Income"
+                    com.example.data.model.AccountType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয় (Expense)" else "Expense"
+                }
+                val groupColor = when (type) {
+                    com.example.data.model.AccountType.ASSET -> Color(0xFF10B981)
+                    com.example.data.model.AccountType.LIABILITY -> Color(0xFFEF4444)
+                    com.example.data.model.AccountType.EQUITY -> Color(0xFF6366F1)
+                    com.example.data.model.AccountType.INCOME -> Color(0xFF10B981)
+                    com.example.data.model.AccountType.EXPENSE -> Color(0xFFEF4444)
+                }
+                val items = accList.map { acc ->
+                    val accName = if (languageMode == LanguageMode.BANGLA) acc.nameBn.ifBlank { acc.nameEn } else acc.nameEn
+                    UnifiedFilterItem(
+                        id = acc.id,
+                        title = accName,
+                        subtitle = acc.accountNumber.ifBlank { acc.type.name },
+                        color = try {
+                            if (acc.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(acc.colorHex)) else groupColor
+                        } catch (_: Exception) { groupColor }
+                    )
+                }
+                groupList.add(
+                    UnifiedFilterGroup(
+                        groupKey = "acc_type_${type.name}",
+                        groupTitle = groupTitle,
+                        color = groupColor,
+                        items = items
+                    )
+                )
+            }
         }
+        groupList
     }
 
     val labelDropdownItems = remember(allLabels) {
@@ -259,15 +410,6 @@ fun BudgetFilterDialog(
             val isBnBudget = languageMode == LanguageMode.BANGLA
             val budgetShortcuts = listOf(
                 com.example.ui.components.UnifiedShortcutItem(
-                    id = "over_budget",
-                    label = if (isBnBudget) "অতিরিক্ত খরচ" else "Over Budget",
-                    color = Color(0xFFEF4444),
-                    isActive = tempFilter.filterOnlyOverBudget,
-                    onClick = {
-                        tempFilter = tempFilter.copy(filterOnlyOverBudget = !tempFilter.filterOnlyOverBudget)
-                    }
-                ),
-                com.example.ui.components.UnifiedShortcutItem(
                     id = "remaining_only",
                     label = if (isBnBudget) "শুধু অবশিষ্ট" else "Remaining Only",
                     color = Color(0xFF10B981),
@@ -277,12 +419,30 @@ fun BudgetFilterDialog(
                     }
                 ),
                 com.example.ui.components.UnifiedShortcutItem(
+                    id = "over_budget",
+                    label = if (isBnBudget) "অতিরিক্ত খরচ" else "Over Budget",
+                    color = Color(0xFFEF4444),
+                    isActive = tempFilter.filterOnlyOverBudget,
+                    onClick = {
+                        tempFilter = tempFilter.copy(filterOnlyOverBudget = !tempFilter.filterOnlyOverBudget)
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
                     id = "budgeted_only",
                     label = if (isBnBudget) "শুধু বাজেটকৃত" else "Budgeted Only",
                     color = MaterialTheme.colorScheme.primary,
                     isActive = tempFilter.filterOnlyBudgeted,
                     onClick = {
                         tempFilter = tempFilter.copy(filterOnlyBudgeted = !tempFilter.filterOnlyBudgeted)
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "actual_only",
+                    label = if (isBnBudget) "প্রকৃত খরচ" else "Actual Only",
+                    color = Color(0xFFF59E0B),
+                    isActive = tempFilter.showOnlyActual,
+                    onClick = {
+                        tempFilter = tempFilter.copy(showOnlyActual = !tempFilter.showOnlyActual)
                     }
                 ),
                 com.example.ui.components.UnifiedShortcutItem(
@@ -303,8 +463,8 @@ fun BudgetFilterDialog(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // 1. Date Range Dropdown
                 UnifiedFilterSection(
@@ -374,76 +534,81 @@ fun BudgetFilterDialog(
                     }
                 }
 
-                // 2. Multi-Select Dropdowns: Categories, Accounts, Status, Labels
-                if (categories.isNotEmpty()) {
-                    UnifiedFilterSection(
-                        icon = Icons.Default.Category,
-                        title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories"
+                // 2. Categories & Accounts side-by-side in compact 2-column row
+                UnifiedFilterSection(
+                    icon = Icons.Default.Category,
+                    title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও অ্যাকাউন্ট" else "Categories & Accounts"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        UnifiedMultiSelectDropdown(
-                            label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন করুন" else "Select Categories",
-                            items = categoryDropdownItems,
-                            selectedIds = tempFilter.selectedCategoryIds,
-                            onSelectionChanged = { tempFilter = tempFilter.copy(selectedCategoryIds = it) },
-                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল ক্যাটাগরি)" else "(All Categories)",
-                            leadingIcon = Icons.Default.Category,
-                            languageMode = languageMode
-                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            UnifiedGroupedMultiSelectDropdown(
+                                label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
+                                groups = categoryFilterGroups,
+                                selectedIds = tempFilter.selectedCategoryIds,
+                                onSelectionChanged = { tempFilter = tempFilter.copy(selectedCategoryIds = it) },
+                                placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                                leadingIcon = Icons.Default.Category,
+                                languageMode = languageMode
+                            )
+                        }
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            UnifiedGroupedMultiSelectDropdown(
+                                label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Accounts",
+                                groups = accountFilterGroups,
+                                selectedIds = tempFilter.selectedAccountIds,
+                                onSelectionChanged = { tempFilter = tempFilter.copy(selectedAccountIds = it) },
+                                placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                                leadingIcon = Icons.Default.AccountBalanceWallet,
+                                languageMode = languageMode
+                            )
+                        }
                     }
                 }
 
-                if (accounts.isNotEmpty()) {
-                    UnifiedFilterSection(
-                        icon = Icons.Default.AccountBalanceWallet,
-                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Accounts"
-                    ) {
-                        UnifiedMultiSelectDropdown(
-                            label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Accounts",
-                            items = accountDropdownItems,
-                            selectedIds = tempFilter.selectedAccountIds,
-                            onSelectionChanged = { tempFilter = tempFilter.copy(selectedAccountIds = it) },
-                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল অ্যাকাউন্ট)" else "(All Accounts)",
-                            leadingIcon = Icons.Default.AccountBalanceWallet,
-                            languageMode = languageMode
-                        )
-                    }
-                }
-
+                // 3. Status & Labels side-by-side in compact 2-column row
                 UnifiedFilterSection(
                     icon = Icons.Default.Check,
-                    title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status"
+                    title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস ও লেবেল" else "Status & Labels"
                 ) {
-                    UnifiedMultiSelectDropdown(
-                        label = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস নির্বাচন করুন" else "Select Statuses",
-                        items = statusDropdownItems,
-                        selectedIds = selectedStatusIds,
-                        onSelectionChanged = { newIds ->
-                            val selectedStatuses = TransactionStatus.entries.filter { newIds.contains(it.ordinal.toLong()) }.toSet()
-                            tempFilter = tempFilter.copy(selectedStatusSet = selectedStatuses)
-                        },
-                        placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল স্ট্যাটাস)" else "(All Statuses)",
-                        leadingIcon = Icons.Default.Check,
-                        languageMode = languageMode
-                    )
-                }
-
-                if (allLabels.isNotEmpty()) {
-                    UnifiedFilterSection(
-                        icon = Icons.Default.Label,
-                        title = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ" else "Labels / Tags"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        UnifiedMultiSelectDropdown(
-                            label = if (languageMode == LanguageMode.BANGLA) "লেবেল নির্বাচন করুন" else "Select Labels",
-                            items = labelDropdownItems,
-                            selectedIds = selectedLabelIds,
-                            onSelectionChanged = { newIds ->
-                                val selectedStrings = allLabels.filter { newIds.contains(it.hashCode().toLong()) }.toSet()
-                                tempFilter = tempFilter.copy(selectedLabels = selectedStrings)
-                            },
-                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল লেবেল)" else "(All Labels)",
-                            leadingIcon = Icons.Default.Label,
-                            languageMode = languageMode
-                        )
+                        Box(modifier = Modifier.weight(1f)) {
+                            UnifiedMultiSelectDropdown(
+                                label = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status",
+                                items = statusDropdownItems,
+                                selectedIds = selectedStatusIds,
+                                onSelectionChanged = { newIds ->
+                                    val selectedStatuses = TransactionStatus.entries.filter { newIds.contains(it.ordinal.toLong()) }.toSet()
+                                    tempFilter = tempFilter.copy(selectedStatusSet = selectedStatuses)
+                                },
+                                placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                                leadingIcon = Icons.Default.Check,
+                                languageMode = languageMode
+                            )
+                        }
+
+                        if (allLabels.isNotEmpty()) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                UnifiedMultiSelectDropdown(
+                                    label = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
+                                    items = labelDropdownItems,
+                                    selectedIds = selectedLabelIds,
+                                    onSelectionChanged = { newIds ->
+                                        val selectedStrings = allLabels.filter { newIds.contains(it.hashCode().toLong()) }.toSet()
+                                        tempFilter = tempFilter.copy(selectedLabels = selectedStrings)
+                                    },
+                                    placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                                    leadingIcon = Icons.Default.Label,
+                                    languageMode = languageMode
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -550,10 +715,10 @@ fun BudgetFilterDialog(
                     }
                 }
 
-                // 4. Budget Filters & Display Options
+                // 4. Budget Filters & Display Options (Compact 2-Column Grid)
                 UnifiedFilterSection(
                     icon = Icons.Default.Tune,
-                    title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য ফিল্টার ও প্রদর্শন বিকল্প" else "Filters & Display Options"
+                    title = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও প্রদর্শন বিকল্প" else "Filters & Display Options"
                 ) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -561,24 +726,23 @@ fun BudgetFilterDialog(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Exclude zero amounts
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            // Left Column: Filter Conditions
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ দিন" else "Exclude zero amounts",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = if (languageMode == LanguageMode.BANGLA) "শর্তাবলী" else "Conditions",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ" else "Exclude Zero",
                                     checked = tempFilter.excludeZeroAmounts,
                                     onCheckedChange = { isChecked ->
                                         tempFilter = tempFilter.copy(
@@ -587,156 +751,64 @@ fun BudgetFilterDialog(
                                         )
                                     }
                                 )
-                            }
-
-                            // Show only remaining balance
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র অবশিষ্ট ব্যালেন্সের ক্যাটাগরি দেখান" else "Show only remaining balance category",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "শুধু অবশিষ্ট ব্যালেন্স" else "Remaining Only",
                                     checked = tempFilter.showOnlyRemainingBalance,
                                     onCheckedChange = { tempFilter = tempFilter.copy(showOnlyRemainingBalance = it) }
                                 )
-                            }
-
-                            // Show only actual
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র প্রকৃত খরচ/আয় দেখান" else "Show only actual",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "শুধু প্রকৃত ব্যয়" else "Actual Only",
                                     checked = tempFilter.showOnlyActual,
                                     onCheckedChange = { tempFilter = tempFilter.copy(showOnlyActual = it) }
                                 )
-                            }
-
-                            // Hide empty groups
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "শূন্য বা ফাঁকা গ্রুপ লুকান" else "Hide empty groups",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
-                                    checked = tempFilter.hideEmptyGroups,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(hideEmptyGroups = it) }
-                                )
-                            }
-
-                            // Show only categories without groups
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ছাড়া শুধুমাত্র ক্যাটাগরি দেখান" else "Show only categories without groups",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
-                                    checked = tempFilter.showOnlyCategoriesWithoutGroups,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyCategoriesWithoutGroups = it) }
-                                )
-                            }
-
-                            // Only budgeted categories
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বাজেট নির্ধারিত ক্যাটাগরি" else "Only Budgeted Categories",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "শুধু বাজেটকৃত" else "Budgeted Only",
                                     checked = tempFilter.filterOnlyBudgeted,
                                     onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyBudgeted = it) }
                                 )
-                            }
-
-                            // Only over budget categories
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বাজেট অতিক্রান্ত ক্যাটাগরি" else "Only Over Budget Categories",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Budget Only",
                                     checked = tempFilter.filterOnlyOverBudget,
                                     onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyOverBudget = it) }
                                 )
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "সক্রিয় (৩ মাস)" else "Active (3 Mo)",
+                                    checked = tempFilter.filterActive3Months,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(filterActive3Months = it) }
+                                )
                             }
 
-                            // Display currency symbol
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            // Right Column: Display & Layout
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রতীক প্রদর্শন করুন (৳)" else "Display Currency Symbol (৳)",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = if (languageMode == LanguageMode.BANGLA) "প্রদর্শন ও বিন্যাস" else "Display & Layout",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "ফাঁকা গ্রুপ লুকান" else "Hide Empty Groups",
+                                    checked = tempFilter.hideEmptyGroups,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(hideEmptyGroups = it) }
+                                )
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ছাড়া তালিকা" else "Flat (No Groups)",
+                                    checked = tempFilter.showOnlyCategoriesWithoutGroups,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyCategoriesWithoutGroups = it) }
+                                )
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রতীক (৳)" else "Currency Symbol (৳)",
                                     checked = tempFilter.displayCurrencySymbol,
                                     onCheckedChange = { tempFilter = tempFilter.copy(displayCurrencySymbol = it) }
                                 )
-                            }
-
-                            // Show expense categories first
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "প্রথমে ব্যয়ের ক্যাটাগরি দেখান" else "Show expense categories first",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "প্রথমে ব্যয়" else "Expense First",
                                     checked = tempFilter.showExpenseCategoriesFirst,
                                     onCheckedChange = { tempFilter = tempFilter.copy(showExpenseCategoriesFirst = it) }
                                 )
-                            }
-
-                            // Sort by amount
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "পরিমাণ অনুযায়ী সাজান" else "Sort by amount",
-                                    fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
+                                BudgetCompactToggleRow(
+                                    title = if (languageMode == LanguageMode.BANGLA) "পরিমাণ অনুযায়ী সাজান" else "Sort by Amount",
                                     checked = tempFilter.sortByAmount,
                                     onCheckedChange = { tempFilter = tempFilter.copy(sortByAmount = it) }
                                 )
@@ -1129,6 +1201,9 @@ object BudgetFilterPresetsStorage {
                     put("sortByAmount", p.filterState.sortByAmount)
                     put("filterOnlyBudgeted", p.filterState.filterOnlyBudgeted)
                     put("filterOnlyOverBudget", p.filterState.filterOnlyOverBudget)
+                    put("showOnlyRemainingBalance", p.filterState.showOnlyRemainingBalance)
+                    put("showOnlyActual", p.filterState.showOnlyActual)
+                    put("filterActive3Months", p.filterState.filterActive3Months)
                     put("categoryIds", JSONArray(p.filterState.selectedCategoryIds))
                     put("accountIds", JSONArray(p.filterState.selectedAccountIds))
                     put("labels", JSONArray(p.filterState.selectedLabels))
@@ -1174,6 +1249,9 @@ object BudgetFilterPresetsStorage {
                 val sortAmt = obj.optBoolean("sortByAmount", false)
                 val onlyBud = obj.optBoolean("filterOnlyBudgeted", false)
                 val onlyOver = obj.optBoolean("filterOnlyOverBudget", false)
+                val onlyRem = obj.optBoolean("showOnlyRemainingBalance", false)
+                val onlyAct = obj.optBoolean("showOnlyActual", false)
+                val active3M = obj.optBoolean("filterActive3Months", false)
 
                 val catIds = mutableSetOf<Long>()
                 obj.optJSONArray("categoryIds")?.let { arr ->
@@ -1219,7 +1297,10 @@ object BudgetFilterPresetsStorage {
                             showExpenseCategoriesFirst = expFirst,
                             sortByAmount = sortAmt,
                             filterOnlyBudgeted = onlyBud,
-                            filterOnlyOverBudget = onlyOver
+                            filterOnlyOverBudget = onlyOver,
+                            showOnlyRemainingBalance = onlyRem,
+                            showOnlyActual = onlyAct,
+                            filterActive3Months = active3M
                         ),
                         createdAtMs = createdAt
                     )
@@ -1321,6 +1402,41 @@ fun ActiveBudgetFilterBar(
                     )
                 }
 
+                if (filterState.filterOnlyOverBudget) {
+                    FilterChipPill(
+                        text = if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত খরচ" else "Over Budget",
+                        onClear = { onFilterChange(filterState.copy(filterOnlyOverBudget = false)) }
+                    )
+                }
+
+                if (filterState.showOnlyRemainingBalance) {
+                    FilterChipPill(
+                        text = if (languageMode == LanguageMode.BANGLA) "শুধু অবশিষ্ট" else "Remaining Only",
+                        onClear = { onFilterChange(filterState.copy(showOnlyRemainingBalance = false)) }
+                    )
+                }
+
+                if (filterState.filterOnlyBudgeted) {
+                    FilterChipPill(
+                        text = if (languageMode == LanguageMode.BANGLA) "শুধু বাজেটকৃত" else "Budgeted Only",
+                        onClear = { onFilterChange(filterState.copy(filterOnlyBudgeted = false)) }
+                    )
+                }
+
+                if (filterState.showOnlyActual) {
+                    FilterChipPill(
+                        text = if (languageMode == LanguageMode.BANGLA) "প্রকৃত খরচ" else "Actual Only",
+                        onClear = { onFilterChange(filterState.copy(showOnlyActual = false)) }
+                    )
+                }
+
+                if (filterState.filterActive3Months) {
+                    FilterChipPill(
+                        text = if (languageMode == LanguageMode.BANGLA) "সক্রিয় (৩ মাস)" else "Active (3 Mo)",
+                        onClear = { onFilterChange(filterState.copy(filterActive3Months = false)) }
+                    )
+                }
+
                 if (filterState.excludeZeroAmounts) {
                     FilterChipPill(
                         text = "Non-zero",
@@ -1355,6 +1471,39 @@ fun ActiveBudgetFilterBar(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun BudgetCompactToggleRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontSize = 11.sp,
+            fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.scale(0.70f)
+        )
     }
 }
 
