@@ -270,6 +270,7 @@ fun ItemsScreen(
         }
 
         when (filterState.sortOrder) {
+            AggregatedSortOrder.DEFAULT,
             AggregatedSortOrder.AMOUNT_DESC -> list.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
             AggregatedSortOrder.AMOUNT_ASC -> list.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
             AggregatedSortOrder.COUNT_DESC -> list.sortedByDescending { it.transactionCount }

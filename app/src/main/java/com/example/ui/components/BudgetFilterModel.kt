@@ -93,6 +93,7 @@ data class BudgetFilterState(
     val showOnlyActual: Boolean = false,
     val filterOnlyBudgeted: Boolean = false,
     val filterOnlyOverBudget: Boolean = false,
+    val filterActive3Months: Boolean = false,
     val minAmount: Double? = null,
     val maxAmount: Double? = null
 ) {

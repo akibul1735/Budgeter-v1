@@ -80,7 +80,8 @@ import com.example.ui.theme.SolidPrimary
 
 /**
  * Unified modal container for filter popups across all tabs.
- * Provides a mid-normal, mid-compact height, clean elevation, and rounded corners.
+ * Anchored to the bottom for optimal thumb reachability, with compact ergonomic height,
+ * smooth top curvature, and modern elevation.
  */
 @Composable
 fun UnifiedFilterDialogContainer(
@@ -92,17 +93,138 @@ fun UnifiedFilterDialogContainer(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        Box(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .fillMaxHeight(0.80f)
-                .testTag(testTag)
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            content()
+            Surface(
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.40f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.74f)
+                    .testTag(testTag)
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+/**
+ * Data item for 1-tap quick filter shortcut pills.
+ */
+data class UnifiedShortcutItem(
+    val id: String,
+    val label: String,
+    val icon: ImageVector? = null,
+    val color: Color? = null,
+    val isActive: Boolean = false,
+    val onClick: () -> Unit
+)
+
+/**
+ * Unified horizontal shortcut bar providing 1-tap presets at the top of filter popups.
+ */
+@Composable
+fun UnifiedFilterShortcutBar(
+    shortcuts: List<UnifiedShortcutItem>,
+    modifier: Modifier = Modifier
+) {
+    if (shortcuts.isNotEmpty()) {
+        androidx.compose.foundation.lazy.LazyRow(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items(shortcuts, key = { it.id }) { shortcut ->
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (shortcut.isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(
+                        0.8.dp,
+                        if (shortcut.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier.clickable { shortcut.onClick() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        if (shortcut.color != null) {
+                            Box(modifier = Modifier.size(7.dp).background(shortcut.color, CircleShape))
+                        } else if (shortcut.icon != null) {
+                            Icon(
+                                imageVector = shortcut.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = if (shortcut.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = shortcut.label,
+                            fontSize = 11.5.sp,
+                            fontWeight = if (shortcut.isActive) FontWeight.Bold else FontWeight.Medium,
+                            color = if (shortcut.isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+    }
+}
+
+/**
+ * Reusable compact filter chip (28-32dp height) for dense multi-option grids.
+ */
+@Composable
+fun CompactFilterChipItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    icon: ImageVector? = null,
+    leadingColor: Color? = null,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(
+            width = 0.8.dp,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        modifier = modifier.clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            if (leadingColor != null) {
+                Box(modifier = Modifier.size(7.dp).background(leadingColor, CircleShape))
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = label,
+                fontSize = 11.5.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

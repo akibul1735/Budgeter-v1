@@ -1253,6 +1253,57 @@ fun MaterialBalanceSheetFilterDialog(
                 onDismiss = onDismiss
             )
 
+            // 1-Tap Quick Shortcuts for Balance Sheet
+            val isBnBs = languageMode == LanguageMode.BANGLA
+            val bsShortcuts = listOf(
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "active_only",
+                    label = if (isBnBs) "শুধু সক্রিয়" else "Active Only",
+                    icon = Icons.Default.AccountBalance,
+                    isActive = !tempShowHidden,
+                    onClick = {
+                        tempShowHidden = !tempShowHidden
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "cleared_only",
+                    label = if (isBnBs) "শুধু সম্পন্ন" else "Cleared",
+                    color = Color(0xFF10B981),
+                    isActive = tempStatuses.contains(TransactionStatus.CLEARED),
+                    onClick = {
+                        tempStatuses = if (tempStatuses.contains(TransactionStatus.CLEARED)) {
+                            tempStatuses - TransactionStatus.CLEARED
+                        } else {
+                            tempStatuses + TransactionStatus.CLEARED
+                        }
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "exclude_zero",
+                    label = if (isBnBs) "শূন্য ব্যালেন্স বাদ" else "Exclude ৳0",
+                    color = MaterialTheme.colorScheme.primary,
+                    isActive = tempExcludeZero,
+                    onClick = {
+                        tempExcludeZero = !tempExcludeZero
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "mom_compare",
+                    label = if (isBnBs) "মাসিক তুলনা" else "MoM Compare",
+                    color = Color(0xFF1976D2),
+                    isActive = tempPreset == BalanceSheetComparisonPreset.END_OF_LAST_MONTH,
+                    onClick = {
+                        tempPreset = if (tempPreset == BalanceSheetComparisonPreset.END_OF_LAST_MONTH) {
+                            BalanceSheetComparisonPreset.BEGINNING_OF_MONTH
+                        } else {
+                            BalanceSheetComparisonPreset.END_OF_LAST_MONTH
+                        }
+                    }
+                )
+            )
+
+            com.example.ui.components.UnifiedFilterShortcutBar(shortcuts = bsShortcuts)
+
             Column(
                 modifier = Modifier
                     .weight(1f)

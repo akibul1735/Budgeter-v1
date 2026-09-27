@@ -255,6 +255,49 @@ fun BudgetFilterDialog(
                 onDismiss = onDismiss
             )
 
+            // 1-Tap Quick Shortcuts for Budget Tracking
+            val isBnBudget = languageMode == LanguageMode.BANGLA
+            val budgetShortcuts = listOf(
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "over_budget",
+                    label = if (isBnBudget) "অতিরিক্ত খরচ" else "Over Budget",
+                    color = Color(0xFFEF4444),
+                    isActive = tempFilter.filterOnlyOverBudget,
+                    onClick = {
+                        tempFilter = tempFilter.copy(filterOnlyOverBudget = !tempFilter.filterOnlyOverBudget)
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "remaining_only",
+                    label = if (isBnBudget) "শুধু অবশিষ্ট" else "Remaining Only",
+                    color = Color(0xFF10B981),
+                    isActive = tempFilter.showOnlyRemainingBalance,
+                    onClick = {
+                        tempFilter = tempFilter.copy(showOnlyRemainingBalance = !tempFilter.showOnlyRemainingBalance)
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "budgeted_only",
+                    label = if (isBnBudget) "শুধু বাজেটকৃত" else "Budgeted Only",
+                    color = MaterialTheme.colorScheme.primary,
+                    isActive = tempFilter.filterOnlyBudgeted,
+                    onClick = {
+                        tempFilter = tempFilter.copy(filterOnlyBudgeted = !tempFilter.filterOnlyBudgeted)
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "active_3mo",
+                    label = if (isBnBudget) "সক্রিয় (৩ মাস)" else "Active (3 Mo)",
+                    color = Color(0xFF6366F1),
+                    isActive = tempFilter.filterActive3Months,
+                    onClick = {
+                        tempFilter = tempFilter.copy(filterActive3Months = !tempFilter.filterActive3Months)
+                    }
+                )
+            )
+
+            com.example.ui.components.UnifiedFilterShortcutBar(shortcuts = budgetShortcuts)
+
             // Scrollable Content
             Column(
                 modifier = Modifier

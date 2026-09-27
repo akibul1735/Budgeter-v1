@@ -107,6 +107,7 @@ enum class AggregatedDatePreset(val labelEn: String, val labelBn: String) {
 }
 
 enum class AggregatedSortOrder(val titleEn: String, val titleBn: String) {
+    DEFAULT("Default", "ডিফল্ট"),
     AMOUNT_DESC("Amount: High → Low", "পরিমাণ: বেশি → কম"),
     AMOUNT_ASC("Amount: Low → High", "পরিমাণ: কম → বেশি"),
     COUNT_DESC("Count: Most Frequent", "লেনদেন: বেশি → কম"),
@@ -351,6 +352,57 @@ fun AggregatedFilterDialog(
                 },
                 onDismiss = onDismiss
             )
+
+            // 1-Tap Quick Shortcuts for Labels and Items
+            val isBnAgg = languageMode == LanguageMode.BANGLA
+            val aggShortcuts = listOf(
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "this_month",
+                    label = if (isBnAgg) "চলতি মাস" else "This Month",
+                    icon = Icons.Default.DateRange,
+                    isActive = tempState.datePreset == AggregatedDatePreset.THIS_MONTH,
+                    onClick = {
+                        tempState = tempState.copy(
+                            datePreset = if (tempState.datePreset == AggregatedDatePreset.THIS_MONTH) AggregatedDatePreset.ALL_TIME else AggregatedDatePreset.THIS_MONTH
+                        )
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "last_30_days",
+                    label = if (isBnAgg) "গত ৩০ দিন" else "Last 30 Days",
+                    color = MaterialTheme.colorScheme.primary,
+                    isActive = tempState.datePreset == AggregatedDatePreset.LAST_30_DAYS,
+                    onClick = {
+                        tempState = tempState.copy(
+                            datePreset = if (tempState.datePreset == AggregatedDatePreset.LAST_30_DAYS) AggregatedDatePreset.ALL_TIME else AggregatedDatePreset.LAST_30_DAYS
+                        )
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "this_year",
+                    label = if (isBnAgg) "চলতি বছর" else "This Year",
+                    color = Color(0xFF1976D2),
+                    isActive = tempState.datePreset == AggregatedDatePreset.THIS_YEAR,
+                    onClick = {
+                        tempState = tempState.copy(
+                            datePreset = if (tempState.datePreset == AggregatedDatePreset.THIS_YEAR) AggregatedDatePreset.ALL_TIME else AggregatedDatePreset.THIS_YEAR
+                        )
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "high_amount",
+                    label = if (isBnAgg) "শীর্ষ পরিমাণ" else "Top Amounts",
+                    color = Color(0xFF10B981),
+                    isActive = tempState.sortOrder == AggregatedSortOrder.AMOUNT_DESC,
+                    onClick = {
+                        tempState = tempState.copy(
+                            sortOrder = if (tempState.sortOrder == AggregatedSortOrder.AMOUNT_DESC) AggregatedSortOrder.DEFAULT else AggregatedSortOrder.AMOUNT_DESC
+                        )
+                    }
+                )
+            )
+
+            com.example.ui.components.UnifiedFilterShortcutBar(shortcuts = aggShortcuts)
 
             // Scrollable Content
             Column(

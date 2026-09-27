@@ -602,6 +602,74 @@ fun TransactionFilterDialog(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
+            // ─── 1.1 QUICK SHORTCUTS ────────────────────────────────────────────────
+            val isBn = languageMode == LanguageMode.BANGLA
+            val shortcuts = listOf(
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "this_month",
+                    label = if (isBn) "চলতি মাস" else "This Month",
+                    icon = Icons.Default.CalendarToday,
+                    isActive = filterState.datePreset == LedgerDatePreset.THIS_MONTH,
+                    onClick = {
+                        val newPreset = if (filterState.datePreset == LedgerDatePreset.THIS_MONTH) LedgerDatePreset.ALL_TIME else LedgerDatePreset.THIS_MONTH
+                        val bounds = computePresetDateBounds(newPreset)
+                        filterState = filterState.copy(
+                            datePreset = newPreset,
+                            startDateMs = bounds.first,
+                            endDateMs = bounds.second
+                        )
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "expense_only",
+                    label = if (isBn) "শুধু ব্যয়" else "Expenses",
+                    color = SolidExpense,
+                    isActive = filterState.transactionType == com.example.data.model.TransactionType.EXPENSE,
+                    onClick = {
+                        filterState = filterState.copy(
+                            transactionType = if (filterState.transactionType == com.example.data.model.TransactionType.EXPENSE) null else com.example.data.model.TransactionType.EXPENSE
+                        )
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "income_only",
+                    label = if (isBn) "শুধু আয়" else "Incomes",
+                    color = SolidIncome,
+                    isActive = filterState.transactionType == com.example.data.model.TransactionType.INCOME,
+                    onClick = {
+                        filterState = filterState.copy(
+                            transactionType = if (filterState.transactionType == com.example.data.model.TransactionType.INCOME) null else com.example.data.model.TransactionType.INCOME
+                        )
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "cleared_only",
+                    label = if (isBn) "সম্পন্ন" else "Cleared",
+                    color = Color(0xFF10B981),
+                    isActive = filterState.status == com.example.data.model.TransactionStatus.CLEARED,
+                    onClick = {
+                        filterState = filterState.copy(
+                            status = if (filterState.status == com.example.data.model.TransactionStatus.CLEARED) null else com.example.data.model.TransactionStatus.CLEARED
+                        )
+                    }
+                ),
+                com.example.ui.components.UnifiedShortcutItem(
+                    id = "high_value",
+                    label = if (isBn) "বেশি পরিমাণ (> ৳১,০০০)" else "High (> ৳1k)",
+                    color = SolidPrimary,
+                    isActive = filterState.minAmount != null && filterState.minAmount!! >= 1000.0,
+                    onClick = {
+                        filterState = if (filterState.minAmount != null && filterState.minAmount!! >= 1000.0) {
+                            filterState.copy(minAmount = null)
+                        } else {
+                            filterState.copy(minAmount = 1000.0)
+                        }
+                    }
+                )
+            )
+
+            com.example.ui.components.UnifiedFilterShortcutBar(shortcuts = shortcuts)
+
             // ─── 2. SCROLLABLE CONTENT ──────────────────────────────────────────────
             Column(
                 modifier = Modifier
