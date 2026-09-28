@@ -88,6 +88,7 @@ class BudgetRepository(
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
     val allBills: Flow<List<RecurringBill>> = recurringBillDao.getAllBills()
     val allMonthlyBudgets: Flow<List<MonthlyBudget>> = monthlyBudgetDao.getAllBudgetsFlow()
+    val allBudgetAdjustments: Flow<List<BudgetAdjustment>> = budgetAdjustmentDao.getAllAdjustmentsFlow()
     val allSavingsGoals: Flow<List<SavingsGoal>> = savingsGoalDao.getAllGoals()
     val allGoalAllocations: Flow<List<GoalAllocation>> = savingsGoalDao.getAllAllocations()
     val allWishlistItems: Flow<List<WishlistItem>> = wishlistDao.getAllWishlistItems()
@@ -559,8 +560,24 @@ class BudgetRepository(
         allTransactions,
         allCategories,
         allAccounts,
+        allMonthlyBudgets,
+        allBudgetAdjustments,
         calcConfigFlow
-    ) { accountsWithBal, txs, categories, accounts, calcConfig ->
+    ) { args: Array<Any?> ->
+        @Suppress("UNCHECKED_CAST")
+        val accountsWithBal = args[0] as List<AccountWithBalance>
+        @Suppress("UNCHECKED_CAST")
+        val txs = args[1] as List<Transaction>
+        @Suppress("UNCHECKED_CAST")
+        val categories = args[2] as List<Category>
+        @Suppress("UNCHECKED_CAST")
+        val accounts = args[3] as List<Account>
+        @Suppress("UNCHECKED_CAST")
+        val monthlyBudgetsList = args[4] as List<MonthlyBudget>
+        @Suppress("UNCHECKED_CAST")
+        val adjustmentsList = args[5] as List<BudgetAdjustment>
+        val calcConfig = args[6] as com.example.util.AccountCalcConfig
+
         var totalAssets = 0.0
         var totalLiabilities = 0.0
 
@@ -629,8 +646,11 @@ class BudgetRepository(
         val currentYear = cal.get(java.util.Calendar.YEAR)
         val currentMonth = cal.get(java.util.Calendar.MONTH) + 1
 
-        val budgets = monthlyBudgetDao.getBudgetsForMonthSnapshot(currentYear, currentMonth)
+        val budgets = monthlyBudgetsList.filter { it.year == currentYear && it.month == currentMonth }
         val budgetMap = budgets.associateBy { "${it.itemType}_${it.itemId}" }
+
+        val adjustments = adjustmentsList.filter { it.year == currentYear && it.month == currentMonth }
+        val adjustmentMap = adjustments.groupBy { "${it.itemType}_${it.itemId}" }
 
         val parentExpenseCatIdsWithChildren = categories
             .filter { it.type == CategoryType.EXPENSE && it.parentId != null }
@@ -639,7 +659,7 @@ class BudgetRepository(
 
         val expenseCategories = categories.filter {
             it.type == CategoryType.EXPENSE &&
-            (it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id) || budgetMap.containsKey("EXPENSE_${it.id}"))
+            (it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id) || budgetMap.containsKey("EXPENSE_${it.id}") || adjustmentMap.containsKey("EXPENSE_${it.id}"))
         }
 
         val parentIncomeCatIdsWithChildren = categories
@@ -649,7 +669,7 @@ class BudgetRepository(
 
         val incomeCategories = categories.filter {
             it.type == CategoryType.INCOME &&
-            (it.parentId != null || !parentIncomeCatIdsWithChildren.contains(it.id) || budgetMap.containsKey("INCOME_${it.id}"))
+            (it.parentId != null || !parentIncomeCatIdsWithChildren.contains(it.id) || budgetMap.containsKey("INCOME_${it.id}") || adjustmentMap.containsKey("INCOME_${it.id}"))
         }
 
         var totalExpenseBudget = 0.0
@@ -670,7 +690,11 @@ class BudgetRepository(
         for (cat in expenseCategories) {
             val budgetEntry = budgetMap["EXPENSE_${cat.id}"]
             val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
-            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val baseBudget = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val latestAdj = adjustmentMap["EXPENSE_${cat.id}"]?.maxByOrNull { it.timestamp }
+            val budgetLimit = if (isEnabled || latestAdj != null) {
+                (latestAdj?.adjustedAmount ?: baseBudget).coerceAtLeast(0.0)
+            } else 0.0
             val spent = expenseTxsByCat[cat.id] ?: 0.0
 
             if (budgetLimit > 0) {
@@ -700,7 +724,11 @@ class BudgetRepository(
         for (cat in incomeCategories) {
             val budgetEntry = budgetMap["INCOME_${cat.id}"]
             val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
-            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val baseBudget = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val latestAdj = adjustmentMap["INCOME_${cat.id}"]?.maxByOrNull { it.timestamp }
+            val budgetLimit = if (isEnabled || latestAdj != null) {
+                (latestAdj?.adjustedAmount ?: baseBudget).coerceAtLeast(0.0)
+            } else 0.0
             val received = incomeTxsByCat[cat.id] ?: 0.0
             if (budgetLimit > 0) {
                 totalIncomeBudget += budgetLimit
@@ -711,7 +739,7 @@ class BudgetRepository(
         }
 
         val availableMoney = totalAssets
-        val hasBudgetConfigured = totalExpenseBudget > 0 || budgets.isNotEmpty()
+        val hasBudgetConfigured = totalExpenseBudget > 0 || budgets.isNotEmpty() || adjustments.isNotEmpty()
 
         // Expendable = Net worth (no inactive account, no excluded account) - budget remaining
         // Budget remaining is calculated partly per category (sum of max(0, budgetLimit - spent))

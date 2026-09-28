@@ -31,6 +31,9 @@ interface BudgetAdjustmentDao {
     @Query("SELECT * FROM budget_adjustments ORDER BY timestamp DESC")
     suspend fun getAllAdjustmentsSnapshot(): List<BudgetAdjustment>
 
+    @Query("SELECT * FROM budget_adjustments ORDER BY timestamp DESC")
+    fun getAllAdjustmentsFlow(): Flow<List<BudgetAdjustment>>
+
     @Query("DELETE FROM budget_adjustments")
     suspend fun deleteAll()
 }
