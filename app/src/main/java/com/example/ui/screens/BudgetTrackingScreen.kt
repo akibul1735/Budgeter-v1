@@ -745,13 +745,15 @@ fun BudgetTrackingScreen(
     val overallDeltaSpent = totalFlowSpent - totalFlowSpentBase
     val overallDeltaPercent = if (totalFlowSpentBase > 0.0) ((overallDeltaSpent / totalFlowSpentBase) * 100.0) else 0.0
 
-    val allGroupsExpanded = remember(categoryGroups, expandedGroups, filterState.showOnlyGroups) {
-        if (filterState.showOnlyGroups) {
-            false
-        } else {
-            categoryGroups.isNotEmpty() && categoryGroups.all { group ->
-                val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
-                expandedGroups[groupKey] ?: true
+    val allGroupsExpanded by remember(categoryGroups, filterState.showOnlyGroups) {
+        derivedStateOf {
+            if (filterState.showOnlyGroups) {
+                false
+            } else {
+                categoryGroups.isNotEmpty() && categoryGroups.all { group ->
+                    val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
+                    expandedGroups[groupKey] ?: true
+                }
             }
         }
     }
@@ -2614,13 +2616,19 @@ private fun CategoryGroupSection(
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
+                                val chevronRotation by animateFloatAsState(
+                                    targetValue = if (isExpanded) 0f else -90f,
+                                    animationSpec = tween(durationMillis = 200),
+                                    label = "chevron_rotation"
+                                )
+
                                 Icon(
                                     imageVector = Icons.Default.KeyboardArrowDown,
                                     contentDescription = if (isExpanded) "Collapse" else "Expand",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                                     modifier = Modifier
                                         .size(17.dp)
-                                        .rotate(if (isExpanded) 0f else -90f)
+                                        .rotate(chevronRotation)
                                 )
                             }
 
@@ -2774,8 +2782,8 @@ private fun CategoryGroupSection(
             // Collapsible Children Rows inside the unified container with thin lucrative border
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = expandVertically(animationSpec = tween(220)) + fadeIn(animationSpec = tween(180)),
+                exit = shrinkVertically(animationSpec = tween(220)) + fadeOut(animationSpec = tween(150))
             ) {
                 Column(
                     modifier = Modifier
