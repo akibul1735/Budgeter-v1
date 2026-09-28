@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SyncProblem
@@ -91,16 +92,22 @@ import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.MonthlyBudget
+import com.example.data.model.RecurringBillWithDetails
+import com.example.data.model.SavingsGoalWithDetails
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
+import com.example.data.model.WishlistItemWithCategory
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.FinancialOverview
 import com.example.ui.components.AutoHidingHeaderContainer
 import com.example.ui.components.ClickableAmountText
 import com.example.ui.components.DashboardBackupRestoreBanner
 import com.example.ui.components.DoubleEntryFlowBadge
+import com.example.ui.components.MasterSearchModal
 import com.example.ui.components.PopupCalculatorDialog
+import com.example.ui.screens.AppView
+import com.example.ui.screens.SettingsSubPage
 import com.example.ui.dialogs.AmountBreakdownDialog
 import com.example.ui.dialogs.AmountDetailInfo
 import com.example.ui.dialogs.BreakdownItem
@@ -160,7 +167,11 @@ fun DashboardScreen(
     recentTransactions: List<TransactionWithDetails>,
     itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     allCategories: List<Category> = emptyList(),
+    allAccounts: List<Account> = emptyList(),
     monthlyBudgets: List<MonthlyBudget> = emptyList(),
+    recurringBills: List<RecurringBillWithDetails> = emptyList(),
+    savingsGoals: List<SavingsGoalWithDetails> = emptyList(),
+    wishlistItems: List<WishlistItemWithCategory> = emptyList(),
     dashboardConfig: DashboardConfig,
     languageMode: LanguageMode,
     isDemoMode: Boolean = false,
@@ -171,6 +182,8 @@ fun DashboardScreen(
     onViewAllTransactionsClick: () -> Unit,
     onNavigateToCashFlow: () -> Unit = {},
     onAccountClick: (Account) -> Unit = {},
+    onNavigate: (AppView) -> Unit = {},
+    onNavigateToSettingsSubPage: (SettingsSubPage) -> Unit = {},
     onToggleCardVisibility: (DashboardCardType, Boolean) -> Unit,
     onReorderCards: (fromIndex: Int, toIndex: Int) -> Unit,
     onUpdateDailySummarySettings: (DailySummaryMode, DailySummaryPeriod, DailyChartType, Boolean, Boolean, DecimalPrecision, Boolean, Boolean) -> Unit,
@@ -186,6 +199,7 @@ fun DashboardScreen(
     syncLiveStatus: SyncLiveStatus = SyncLiveStatus(),
     onTriggerSync: () -> Unit = {}
 ) {
+    var showMasterSearchModal by remember { mutableStateOf(false) }
     var showStandAloneCalculator by remember { mutableStateOf(false) }
     var showCustomizeCardsDialog by remember { mutableStateOf(false) }
     var showDailySettingsDialog by remember { mutableStateOf(false) }
@@ -1673,6 +1687,28 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    IconButton(
+                        onClick = { showMasterSearchModal = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("dashboard_master_search_button")
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = if (languageMode == LanguageMode.BANGLA) "মাস্টার সার্চ" else "Master Search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
+                    }
+
                     SyncLiveStatusChip(
                         status = syncLiveStatus,
                         languageMode = languageMode,
@@ -2183,6 +2219,45 @@ fun DashboardScreen(
                 showDailySummaryDetail = false
                 dailySummarySelectedDayEpoch = null
                 onAccountClick(acc)
+            }
+        )
+    }
+
+    if (showMasterSearchModal) {
+        val allFlatAccounts = remember(accountsWithBalances, allAccounts) {
+            if (allAccounts.isNotEmpty()) allAccounts else accountsWithBalances.flatMap { group -> listOf(group.account) + group.subAccounts.map { it.account } }
+        }
+        MasterSearchModal(
+            languageMode = languageMode,
+            transactions = recentTransactions,
+            allAccounts = allFlatAccounts,
+            accountsWithBalances = accountsWithBalances,
+            allCategories = allCategories,
+            monthlyBudgets = monthlyBudgets,
+            recurringBills = recurringBills,
+            savingsGoals = savingsGoals,
+            wishlistItems = wishlistItems,
+            itemImageCacheMap = itemImageCacheMap,
+            onDismiss = { showMasterSearchModal = false },
+            onNavigate = { view ->
+                showMasterSearchModal = false
+                onNavigate(view)
+            },
+            onTransactionClick = { tx ->
+                showMasterSearchModal = false
+                onTransactionClick(tx)
+            },
+            onAccountClick = { acc ->
+                showMasterSearchModal = false
+                onAccountClick(acc)
+            },
+            onOpenCalculator = {
+                showMasterSearchModal = false
+                showStandAloneCalculator = true
+            },
+            onNavigateToSettingsSubPage = { subPage ->
+                showMasterSearchModal = false
+                onNavigateToSettingsSubPage(subPage)
             }
         )
     }

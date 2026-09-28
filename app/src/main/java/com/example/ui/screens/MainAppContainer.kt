@@ -2699,7 +2699,11 @@ private fun ScreenRouter(
             recentTransactions = transactionsWithDetails,
             itemImageCacheMap = itemImageCacheMap,
             allCategories = allCategories,
+            allAccounts = allAccounts,
             monthlyBudgets = monthlyBudgets,
+            recurringBills = recurringBills,
+            savingsGoals = viewModel.savingsGoalsWithDetails.collectAsStateWithLifecycle().value,
+            wishlistItems = viewModel.wishlistWithDetails.collectAsStateWithLifecycle().value,
             dashboardConfig = dashboardConfig,
             languageMode = languageMode,
             isDemoMode = isDemoMode,
@@ -2712,6 +2716,7 @@ private fun ScreenRouter(
             onAccountClick = { acc ->
                 if (onAccountClick != null) onAccountClick(acc) else onEditAccount(acc)
             },
+            onNavigate = onNavigate,
             onToggleCardVisibility = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
             onReorderCards = { from, to -> viewModel.moveDashboardCard(from, to) },
             onUpdateDailySummarySettings = { m, p, ct, sv, sa, dp, sc, scs -> viewModel.setDailySummarySettings(m, p, ct, sv, sa, dp, sc, scs) },
