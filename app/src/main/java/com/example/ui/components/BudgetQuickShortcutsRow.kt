@@ -254,7 +254,15 @@ fun BudgetQuickShortcutsRow(
                     isSelected = filterState.sortOrder == BudgetSortOrder.SPENT_DESC || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.SPENT_DESC, sortByAmount = true))
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.SPENT_DESC,
+                                sortByAmount = true,
+                                showOnlyActual = true,
+                                showOnlyRemainingBalance = false,
+                                filterOnlyBudgeted = false
+                            )
+                        )
                     }
                 )
                 SortMenuItem(
@@ -262,7 +270,15 @@ fun BudgetQuickShortcutsRow(
                     isSelected = filterState.sortOrder == BudgetSortOrder.AMOUNT_ASC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.AMOUNT_ASC, sortByAmount = false))
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.AMOUNT_ASC,
+                                sortByAmount = false,
+                                showOnlyActual = true,
+                                showOnlyRemainingBalance = false,
+                                filterOnlyBudgeted = false
+                            )
+                        )
                     }
                 )
 
@@ -274,7 +290,15 @@ fun BudgetQuickShortcutsRow(
                     isSelected = filterState.sortOrder == BudgetSortOrder.REMAINING_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.REMAINING_DESC, sortByAmount = false))
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.REMAINING_DESC,
+                                sortByAmount = false,
+                                showOnlyRemainingBalance = true,
+                                showOnlyActual = false,
+                                filterOnlyBudgeted = false
+                            )
+                        )
                     }
                 )
                 SortMenuItem(
@@ -282,7 +306,15 @@ fun BudgetQuickShortcutsRow(
                     isSelected = filterState.sortOrder == BudgetSortOrder.REMAINING_ASC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.REMAINING_ASC, sortByAmount = false))
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.REMAINING_ASC,
+                                sortByAmount = false,
+                                showOnlyRemainingBalance = true,
+                                showOnlyActual = false,
+                                filterOnlyBudgeted = false
+                            )
+                        )
                     }
                 )
 
@@ -294,7 +326,31 @@ fun BudgetQuickShortcutsRow(
                     isSelected = filterState.sortOrder == BudgetSortOrder.BUDGET_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.BUDGET_DESC, sortByAmount = false))
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.BUDGET_DESC,
+                                sortByAmount = false,
+                                filterOnlyBudgeted = true,
+                                showOnlyRemainingBalance = false,
+                                showOnlyActual = false
+                            )
+                        )
+                    }
+                )
+                SortMenuItem(
+                    title = if (isBn) "বাজেট সীমা: কম থেকে বেশি" else "Budget Limit: Low → High",
+                    isSelected = filterState.sortOrder == BudgetSortOrder.BUDGET_ASC,
+                    onClick = {
+                        showSortMenu = false
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.BUDGET_ASC,
+                                sortByAmount = false,
+                                filterOnlyBudgeted = true,
+                                showOnlyRemainingBalance = false,
+                                showOnlyActual = false
+                            )
+                        )
                     }
                 )
 
@@ -304,7 +360,15 @@ fun BudgetQuickShortcutsRow(
                     isSelected = filterState.sortOrder == BudgetSortOrder.UTILIZATION_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.UTILIZATION_DESC, sortByAmount = false))
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.UTILIZATION_DESC,
+                                sortByAmount = false,
+                                filterOnlyBudgeted = true,
+                                showOnlyRemainingBalance = false,
+                                showOnlyActual = false
+                            )
+                        )
                     }
                 )
 
@@ -316,7 +380,15 @@ fun BudgetQuickShortcutsRow(
                     isSelected = filterState.sortOrder == BudgetSortOrder.NAME_ASC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(filterState.copy(sortOrder = BudgetSortOrder.NAME_ASC, sortByAmount = false))
+                        onFilterChange(
+                            filterState.copy(
+                                sortOrder = BudgetSortOrder.NAME_ASC,
+                                sortByAmount = false,
+                                showOnlyRemainingBalance = false,
+                                showOnlyActual = false,
+                                filterOnlyBudgeted = false
+                            )
+                        )
                     }
                 )
             }
