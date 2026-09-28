@@ -17,8 +17,8 @@ android {
     applicationId = "com.budgeter.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 28
-    versionName = "3.16"
+    versionCode = 29
+    versionName = "3.17"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "GEMINI_API_KEY", "\"\"")

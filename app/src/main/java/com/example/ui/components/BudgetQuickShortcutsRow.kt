@@ -42,10 +42,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
@@ -71,9 +76,21 @@ fun BudgetQuickShortcutsRow(
     var showViewMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
 
+    val consumeHorizontalScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                return Offset(available.x, 0f)
+            }
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return Velocity(available.x, 0f)
+            }
+        }
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .nestedScroll(consumeHorizontalScroll)
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically

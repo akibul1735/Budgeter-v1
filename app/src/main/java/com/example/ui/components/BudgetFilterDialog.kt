@@ -92,7 +92,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -406,58 +411,6 @@ fun BudgetFilterDialog(
                 onDismiss = onDismiss
             )
 
-            // 1-Tap Quick Shortcuts for Budget Tracking
-            val isBnBudget = languageMode == LanguageMode.BANGLA
-            val budgetShortcuts = listOf(
-                com.example.ui.components.UnifiedShortcutItem(
-                    id = "remaining_only",
-                    label = if (isBnBudget) "শুধু অবশিষ্ট" else "Remaining Only",
-                    color = Color(0xFF10B981),
-                    isActive = tempFilter.showOnlyRemainingBalance,
-                    onClick = {
-                        tempFilter = tempFilter.copy(showOnlyRemainingBalance = !tempFilter.showOnlyRemainingBalance)
-                    }
-                ),
-                com.example.ui.components.UnifiedShortcutItem(
-                    id = "over_budget",
-                    label = if (isBnBudget) "অতিরিক্ত খরচ" else "Over Budget",
-                    color = Color(0xFFEF4444),
-                    isActive = tempFilter.filterOnlyOverBudget,
-                    onClick = {
-                        tempFilter = tempFilter.copy(filterOnlyOverBudget = !tempFilter.filterOnlyOverBudget)
-                    }
-                ),
-                com.example.ui.components.UnifiedShortcutItem(
-                    id = "budgeted_only",
-                    label = if (isBnBudget) "শুধু বাজেটকৃত" else "Budgeted Only",
-                    color = MaterialTheme.colorScheme.primary,
-                    isActive = tempFilter.filterOnlyBudgeted,
-                    onClick = {
-                        tempFilter = tempFilter.copy(filterOnlyBudgeted = !tempFilter.filterOnlyBudgeted)
-                    }
-                ),
-                com.example.ui.components.UnifiedShortcutItem(
-                    id = "actual_only",
-                    label = if (isBnBudget) "প্রকৃত খরচ" else "Actual Only",
-                    color = Color(0xFFF59E0B),
-                    isActive = tempFilter.showOnlyActual,
-                    onClick = {
-                        tempFilter = tempFilter.copy(showOnlyActual = !tempFilter.showOnlyActual)
-                    }
-                ),
-                com.example.ui.components.UnifiedShortcutItem(
-                    id = "active_3mo",
-                    label = if (isBnBudget) "সক্রিয় (৩ মাস)" else "Active (3 Mo)",
-                    color = Color(0xFF6366F1),
-                    isActive = tempFilter.filterActive3Months,
-                    onClick = {
-                        tempFilter = tempFilter.copy(filterActive3Months = !tempFilter.filterActive3Months)
-                    }
-                )
-            )
-
-            com.example.ui.components.UnifiedFilterShortcutBar(shortcuts = budgetShortcuts)
-
             // Scrollable Content
             Column(
                 modifier = Modifier
@@ -715,10 +668,10 @@ fun BudgetFilterDialog(
                     }
                 }
 
-                // 4. Budget Filters & Display Options (Compact 2-Column Grid)
+                // 4. Display & Basic Options
                 UnifiedFilterSection(
                     icon = Icons.Default.Tune,
-                    title = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও প্রদর্শন বিকল্প" else "Filters & Display Options"
+                    title = if (languageMode == LanguageMode.BANGLA) "প্রদর্শন ও বিকল্প" else "Display & Options"
                 ) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -726,93 +679,31 @@ fun BudgetFilterDialog(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
-                            // Left Column: Filter Conditions
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "শর্তাবলী" else "Conditions",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ" else "Exclude Zero",
-                                    checked = tempFilter.excludeZeroAmounts,
-                                    onCheckedChange = { isChecked ->
-                                        tempFilter = tempFilter.copy(
-                                            excludeZeroAmounts = isChecked,
-                                            hideEmptyGroups = if (isChecked) true else tempFilter.hideEmptyGroups
-                                        )
-                                    }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "শুধু অবশিষ্ট ব্যালেন্স" else "Remaining Only",
-                                    checked = tempFilter.showOnlyRemainingBalance,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyRemainingBalance = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "শুধু প্রকৃত ব্যয়" else "Actual Only",
-                                    checked = tempFilter.showOnlyActual,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyActual = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "শুধু বাজেটকৃত" else "Budgeted Only",
-                                    checked = tempFilter.filterOnlyBudgeted,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyBudgeted = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Budget Only",
-                                    checked = tempFilter.filterOnlyOverBudget,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyOverBudget = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "সক্রিয় (৩ মাস)" else "Active (3 Mo)",
-                                    checked = tempFilter.filterActive3Months,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(filterActive3Months = it) }
-                                )
-                            }
-
-                            // Right Column: Display & Layout
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "প্রদর্শন ও বিন্যাস" else "Display & Layout",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "ফাঁকা গ্রুপ লুকান" else "Hide Empty Groups",
-                                    checked = tempFilter.hideEmptyGroups,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(hideEmptyGroups = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ছাড়া তালিকা" else "Flat (No Groups)",
-                                    checked = tempFilter.showOnlyCategoriesWithoutGroups,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyCategoriesWithoutGroups = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রতীক (৳)" else "Currency Symbol (৳)",
-                                    checked = tempFilter.displayCurrencySymbol,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(displayCurrencySymbol = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "প্রথমে ব্যয়" else "Expense First",
-                                    checked = tempFilter.showExpenseCategoriesFirst,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showExpenseCategoriesFirst = it) }
-                                )
-                                BudgetCompactToggleRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "পরিমাণ অনুযায়ী সাজান" else "Sort by Amount",
-                                    checked = tempFilter.sortByAmount,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(sortByAmount = it) }
-                                )
-                            }
+                            BudgetCompactToggleRow(
+                                title = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ (Exclude Zero)" else "Exclude Zero Amounts",
+                                checked = tempFilter.excludeZeroAmounts,
+                                onCheckedChange = { isChecked ->
+                                    tempFilter = tempFilter.copy(
+                                        excludeZeroAmounts = isChecked,
+                                        hideEmptyGroups = if (isChecked) true else tempFilter.hideEmptyGroups
+                                    )
+                                }
+                            )
+                            BudgetCompactToggleRow(
+                                title = if (languageMode == LanguageMode.BANGLA) "ফাঁকা গ্রুপ লুকান (Hide Empty)" else "Hide Empty Groups",
+                                checked = tempFilter.hideEmptyGroups,
+                                onCheckedChange = { tempFilter = tempFilter.copy(hideEmptyGroups = it) }
+                            )
+                            BudgetCompactToggleRow(
+                                title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রতীক প্রদর্শন (৳)" else "Display Currency Symbol (৳)",
+                                checked = tempFilter.displayCurrencySymbol,
+                                onCheckedChange = { tempFilter = tempFilter.copy(displayCurrencySymbol = it) }
+                            )
                         }
                     }
                 }
@@ -1327,6 +1218,17 @@ fun ActiveBudgetFilterBar(
 ) {
     if (!filterState.isFilterActive) return
 
+    val consumeHorizontalScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                return Offset(available.x, 0f)
+            }
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return Velocity(available.x, 0f)
+            }
+        }
+    }
+
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
@@ -1342,6 +1244,7 @@ fun ActiveBudgetFilterBar(
             Row(
                 modifier = Modifier
                     .weight(1f)
+                    .nestedScroll(consumeHorizontalScroll)
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
