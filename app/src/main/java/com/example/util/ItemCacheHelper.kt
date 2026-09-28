@@ -81,7 +81,7 @@ object ItemCacheHelper {
         subCategory: Category? = null,
         cacheMap: Map<String, ItemImageCache> = emptyMap()
     ): String {
-        // Priority 1: Custom cached item image
+        // Priority 1: Custom cached item image or user-selected icon
         val cached = findCachedIcon(transaction.payeeOrPayer, cacheMap)
             ?: (if (transaction.payeeOrPayer.isBlank() && transaction.note.isNotBlank()) {
                 val clean = com.example.util.TransactionLinkHelper.getCleanNote(transaction.note)
@@ -92,19 +92,32 @@ object ItemCacheHelper {
             return cached.iconKey
         }
 
-        // Priority 2: Sub-category icon (if valid)
+        // Priority 2: Direct match in the vast in-app icon store for payee or note
+        val rawItem = transaction.payeeOrPayer.takeIf { it.isNotBlank() }
+            ?: (if (transaction.payeeOrPayer.isBlank() && transaction.note.isNotBlank()) {
+                com.example.util.TransactionLinkHelper.getCleanNote(transaction.note)
+            } else null)
+
+        if (!rawItem.isNullOrBlank()) {
+            val matchedInApp = IconHelper.findMatchingInAppIcon(rawItem)
+            if (matchedInApp != null && matchedInApp.isNotBlank() && matchedInApp != "Category") {
+                return matchedInApp
+            }
+        }
+
+        // Priority 3: Sub-category icon (if valid and not default generic)
         val subCatIcon = subCategory?.iconName?.takeIf { it.isNotBlank() && it != "Category" }
         if (subCatIcon != null) {
             return subCatIcon
         }
 
-        // Priority 3: Category / Group icon
+        // Priority 4: Category / Group icon
         val catIcon = category?.iconName?.takeIf { it.isNotBlank() }
         if (catIcon != null) {
             return catIcon
         }
 
-        // Priority 4: Fallback
+        // Priority 5: Fallback default based on transaction type
         return when (transaction.type) {
             TransactionType.EXPENSE -> "Category"
             TransactionType.INCOME -> "Payments"
@@ -125,8 +138,10 @@ object ItemCacheHelper {
     }
 
     /**
-     * Automatic discovery worker: Searches online for a suitable icon/logo/image
-     * and downloads & saves it into the cache.
+     * Searches the vast in-app icon store when an item is added.
+     * If found, saves the in-app icon in cache.
+     * If not found, returns null so the item smoothly uses its Category icon.
+     * Online auto fetching is completely disabled as requested.
      */
     suspend fun discoverAndCacheItemIcon(
         context: Context,
@@ -144,60 +159,23 @@ object ItemCacheHelper {
         if (existing != null) return@withContext existing
 
         try {
-            // Clean search query
-            val cleanedQuery = OnlineIconSearchService.cleanSearchQuery(trimmed)
-            if (cleanedQuery.isBlank()) return@withContext null
-
-            // 1. Search vector icons / brand logos
-            val iconResults = OnlineIconSearchService.searchIcons(cleanedQuery, context, page = 1)
-            val topIcon = iconResults.firstOrNull()
-
-            if (topIcon != null && topIcon.imageUrl.isNotBlank()) {
-                val savedKey = OnlineIconSearchService.downloadAndSaveIcon(
-                    context = context,
-                    imageUrl = topIcon.imageUrl,
-                    name = trimmed
+            // Search the vast in-app icon library
+            val matchedInApp = IconHelper.findMatchingInAppIcon(trimmed)
+            if (matchedInApp != null && matchedInApp.isNotBlank() && matchedInApp != "Category") {
+                val entry = ItemImageCache(
+                    itemName = trimmed,
+                    normalizedItemName = normalized,
+                    iconKey = matchedInApp,
+                    source = ImageCacheSource.AUTO_SELECTED,
+                    sourceTitle = "In-App Library",
+                    originalQuery = trimmed,
+                    lastUpdated = System.currentTimeMillis()
                 )
-                if (savedKey != null) {
-                    val entry = ItemImageCache(
-                        itemName = trimmed,
-                        normalizedItemName = normalized,
-                        iconKey = savedKey,
-                        source = ImageCacheSource.AUTO_SELECTED,
-                        sourceTitle = "Auto (${topIcon.sourceName})",
-                        originalQuery = cleanedQuery,
-                        lastUpdated = System.currentTimeMillis()
-                    )
-                    dao.insertOrUpdate(entry)
-                    return@withContext entry
-                }
+                dao.insertOrUpdate(entry)
+                return@withContext entry
             }
 
-            // 2. If vector icon was not found, fallback to high-quality image search
-            val imageResults = OnlineIconSearchService.searchImages(cleanedQuery, context, page = 1)
-            val topImage = imageResults.firstOrNull()
-
-            if (topImage != null && topImage.thumbUrl.isNotBlank()) {
-                val savedKey = OnlineIconSearchService.downloadAndSaveIcon(
-                    context = context,
-                    imageUrl = topImage.thumbUrl,
-                    name = trimmed
-                )
-                if (savedKey != null) {
-                    val entry = ItemImageCache(
-                        itemName = trimmed,
-                        normalizedItemName = normalized,
-                        iconKey = savedKey,
-                        source = ImageCacheSource.AUTO_SELECTED,
-                        sourceTitle = "Auto (${topImage.source})",
-                        originalQuery = cleanedQuery,
-                        lastUpdated = System.currentTimeMillis()
-                    )
-                    dao.insertOrUpdate(entry)
-                    return@withContext entry
-                }
-            }
-
+            // Not found in in-app library -> return null so it falls back to Category icon
             null
         } catch (e: Exception) {
             e.printStackTrace()

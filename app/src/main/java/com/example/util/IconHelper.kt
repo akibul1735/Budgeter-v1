@@ -45,26 +45,26 @@ data class IconItem(
 object IconHelper {
 
     val CATEGORIES = listOf(
-        "Online Search",
         "All",
         "BD Banks & MFS",
-        "Custom",
-        "Finance",
-        "Food & Drinks",
-        "Shopping",
-        "Transport",
+        "Finance & Accounts",
+        "Income & Earnings",
+        "Food & Groceries",
+        "Shopping & Fashion",
         "Bills & Housing",
-        "Health",
+        "Health & Wellness",
         "Education & Study",
+        "Transport & Travel",
         "Islamic & Charity",
         "Celebrations & Social",
         "Repairs & Maintenance",
         "Life & Work",
-        "Entertainment",
-        "Sports",
+        "Entertainment & Sports",
         "Tech & Tools",
         "Nature & Weather",
-        "Symbols"
+        "Symbols",
+        "Custom",
+        "Online Search"
     )
 
     val BUILTIN_ICONS: List<IconItem> = listOf(
@@ -119,646 +119,253 @@ object IconHelper {
         IconItem("BankAB", "BD Banks & MFS", listOf("ab bank", "এবি ব্যাংক", "arab bangladesh bank", "navy", "red", "bank", "bangladesh"), false),
         IconItem("BankABAlt", "BD Banks & MFS", listOf("ab bank", "এবি ব্যাংক", "badge", "bank", "bangladesh"), false),
 
-        IconItem("AccountBalance", "Finance", listOf("bank", "central bank", "institution", "governor", "finance"), false),
-        IconItem("AccountBalanceWallet", "Finance", listOf("wallet", "money", "cash", "funds", "pocket"), false),
-        IconItem("Wallet", "Finance", listOf("purse", "pocket", "money", "leather"), false),
-        IconItem("Payments", "Finance", listOf("cash", "bills", "currency", "transfer", "remittance"), false),
-        IconItem("CreditCard", "Finance", listOf("card", "debit", "visa", "mastercard", "amex"), false),
-        IconItem("Savings", "Finance", listOf("piggy bank", "invest", "deposit", "savings"), false),
-        IconItem("Paid", "Finance", listOf("coin", "dollar", "taka", "payment", "received"), false),
-        IconItem("Toll", "Finance", listOf("fee", "tax", "charge", "toll bridge"), false),
-        IconItem("Receipt", "Finance", listOf("bill", "invoice", "slip", "voucher"), false),
-        IconItem("ReceiptLong", "Finance", listOf("statement", "long bill", "invoice"), true),
-        IconItem("AttachMoney", "Finance", listOf("dollar", "cash", "salary", "wage", "income"), false),
-        IconItem("CurrencyExchange", "Finance", listOf("convert", "forex", "trading", "exchange"), false),
-        IconItem("MonetizationOn", "Finance", listOf("gold", "coin", "earnings", "revenue"), false),
-        IconItem("ShowChart", "Finance", listOf("stock", "growth", "graph", "market", "trend"), true),
-        IconItem("Timeline", "Finance", listOf("history", "trend", "tracking", "timeline"), false),
-        IconItem("TrendingUp", "Finance", listOf("gain", "profit", "bullish", "increase"), true),
-        IconItem("TrendingDown", "Finance", listOf("loss", "drop", "bearish", "decrease"), true),
-        IconItem("Analytics", "Finance", listOf("report", "metrics", "stats", "analysis"), false),
-        IconItem("LocalAtm", "Finance", listOf("atm", "cashout", "withdraw", "machine"), false),
-        IconItem("QrCode", "Finance", listOf("scan", "bkash", "nagad", "payment", "qr"), false),
-        IconItem("QrCode2", "Finance", listOf("barcode", "scan", "pay", "qr code"), false),
-        IconItem("QrCodeScanner", "Finance", listOf("scanner", "camera", "pay", "scanner"), false),
-        IconItem("Sell", "Finance", listOf("sale", "discount", "offer", "tag"), false),
-        IconItem("PriceCheck", "Finance", listOf("cost", "audit", "verify", "price check"), false),
-        IconItem("PriceChange", "Finance", listOf("rate", "fluctuation", "market", "change"), false),
-        IconItem("AccountTree", "Finance", listOf("structure", "hierarchy", "nodes", "branches"), false),
-        IconItem("Inventory", "Finance", listOf("stock", "warehouse", "assets", "supplies"), false),
-        IconItem("PointOfSale", "Finance", listOf("pos", "terminal", "register", "billing"), false),
-        IconItem("CardGiftcard", "Finance", listOf("voucher", "gift", "bonus", "reward", "coupon"), false),
-        IconItem("Redeem", "Finance", listOf("claim", "coupon", "gift", "redeem"), false),
-        IconItem("Percent", "Finance", listOf("interest", "percentage", "rate", "discount"), false),
-        IconItem("Calculate", "Finance", listOf("calculator", "math", "accounting", "sum"), false),
-        IconItem("CreditScore", "Finance", listOf("score", "rating", "cibil", "credit history"), false),
-        IconItem("RequestQuote", "Finance", listOf("quote", "estimate", "bid", "proposal"), false),
-        IconItem("AssuredWorkload", "Finance", listOf("security", "audit", "compliance", "bank"), false),
-        IconItem("CurrencyBitcoin", "Finance", listOf("crypto", "btc", "blockchain", "coin"), false),
-        IconItem("CurrencyYen", "Finance", listOf("yen", "jpy", "japan", "currency"), false),
-        IconItem("CurrencyPound", "Finance", listOf("pound", "gbp", "uk", "sterling"), false),
-        IconItem("CurrencyRuble", "Finance", listOf("ruble", "rub", "russia", "currency"), false),
-        IconItem("CurrencyFranc", "Finance", listOf("franc", "chf", "swiss", "currency"), false),
-        IconItem("CurrencyLira", "Finance", listOf("lira", "try", "turkey", "currency"), false),
-        IconItem("CurrencyRupee", "Finance", listOf("rupee", "inr", "india", "currency"), false),
-        IconItem("CurrencyYuan", "Finance", listOf("yuan", "cny", "china", "currency"), false),
-        IconItem("Euro", "Finance", listOf("euro", "eur", "europe", "currency"), false),
-        IconItem("Money", "Finance", listOf("cash", "notes", "paper", "currency"), false),
-        IconItem("MoneyOff", "Finance", listOf("free", "no cost", "discount", "waived"), false),
-        IconItem("AddCard", "Finance", listOf("new card", "link card", "credit card"), false),
-        IconItem("CreditCardOff", "Finance", listOf("block card", "disable card", "expired"), false),
-        IconItem("Payment", "Finance", listOf("checkout", "online pay", "gateway"), false),
-        IconItem("Contactless", "Finance", listOf("nfc", "tap", "wave", "contactless pay"), false),
-        IconItem("RequestPage", "Finance", listOf("request", "invoice page", "billing doc"), false),
-        IconItem("Balance", "Finance", listOf("scale", "justice", "equity", "balance sheet"), false),
-        IconItem("PieChart", "Finance", listOf("pie", "chart", "breakdown", "distribution"), false),
-        IconItem("QueryStats", "Finance", listOf("analytics", "search", "metrics", "stats"), false),
-        IconItem("BarChart", "Finance", listOf("bars", "graph", "histogram", "comparison"), false),
-        IconItem("DonutSmall", "Finance", listOf("donut", "chart", "portion", "share"), false),
-        IconItem("DonutLarge", "Finance", listOf("ring", "donut", "budget split", "graph"), false),
-        IconItem("InsertChart", "Finance", listOf("chart", "insert", "graph", "records"), false),
-        IconItem("RealEstateAgent", "Finance", listOf("broker", "agent", "real estate", "property fee", "lease", "rent"), false),
-        IconItem("Subscriptions", "Finance", listOf("streaming", "ott", "subscription", "recurring", "membership"), false),
-        IconItem("LocalShipping", "Finance", listOf("delivery charge", "courier", "parcel", "freight", "shipping"), false),
-        IconItem("Restaurant", "Food & Drinks", listOf("dine", "eating", "meal", "food"), false),
-        IconItem("DinnerDining", "Food & Drinks", listOf("dinner", "night", "food", "evening meal"), false),
-        IconItem("LunchDining", "Food & Drinks", listOf("lunch", "meal", "burger", "afternoon"), false),
-        IconItem("BreakfastDining", "Food & Drinks", listOf("breakfast", "morning", "egg", "toast"), false),
-        IconItem("LocalCafe", "Food & Drinks", listOf("tea", "coffee", "cappuccino", "cafe"), false),
-        IconItem("Coffee", "Food & Drinks", listOf("espresso", "cafe", "latte", "mocha"), false),
-        IconItem("CoffeeMaker", "Food & Drinks", listOf("brewing", "machine", "coffee pot"), false),
-        IconItem("Fastfood", "Food & Drinks", listOf("burger", "fries", "junk food", "snack"), false),
-        IconItem("LocalPizza", "Food & Drinks", listOf("pizza", "slice", "cheese", "crust"), false),
-        IconItem("BakeryDining", "Food & Drinks", listOf("bread", "biscuit", "toast", "bakery"), false),
-        IconItem("RamenDining", "Food & Drinks", listOf("noodles", "pasta", "soup", "ramen"), false),
-        IconItem("Icecream", "Food & Drinks", listOf("dessert", "cone", "sweet", "gelato"), false),
-        IconItem("Cake", "Food & Drinks", listOf("birthday", "party", "celebrate", "pastry"), false),
-        IconItem("LocalBar", "Food & Drinks", listOf("drinks", "juice", "beverage", "mocktail"), false),
-        IconItem("Liquor", "Food & Drinks", listOf("bottle", "wine", "spirits", "drink"), false),
-        IconItem("WineBar", "Food & Drinks", listOf("cocktail", "bar", "glass", "wine"), false),
-        IconItem("SetMeal", "Food & Drinks", listOf("fish", "thali", "dish", "platter"), false),
-        IconItem("TakeoutDining", "Food & Drinks", listOf("parcel", "delivery", "pack", "takeout"), false),
-        IconItem("BrunchDining", "Food & Drinks", listOf("brunch", "snacks", "midday food"), false),
-        IconItem("SoupKitchen", "Food & Drinks", listOf("cooking", "curry", "pot", "stew"), false),
-        IconItem("Kitchen", "Food & Drinks", listOf("fridge", "home food", "grocery", "cooking"), false),
-        IconItem("LocalGroceryStore", "Food & Drinks", listOf("raw food", "market", "bazaar", "groceries"), false),
-        IconItem("FoodBank", "Food & Drinks", listOf("charity", "food ration", "relief"), false),
-        IconItem("LocalDining", "Food & Drinks", listOf("eat", "plate", "fork", "restaurant"), false),
-        IconItem("MenuBook", "Food & Drinks", listOf("menu", "recipe", "dishes", "cookbook"), true),
-        IconItem("Bento", "Food & Drinks", listOf("box", "japanese", "lunchbox", "meal pack"), false),
-        IconItem("Tapas", "Food & Drinks", listOf("appetizer", "finger food", "starter"), false),
-        IconItem("LocalDrink", "Food & Drinks", listOf("water", "juice", "glass", "beverage"), false),
-        IconItem("Flatware", "Food & Drinks", listOf("fork", "spoon", "cutlery", "utensils"), false),
-        IconItem("Dining", "Food & Drinks", listOf("table", "meal", "dine in"), false),
-        IconItem("Egg", "Food & Drinks", listOf("poultry", "breakfast", "protein", "eggs"), false),
-        IconItem("EggAlt", "Food & Drinks", listOf("fried egg", "omelette", "poached"), false),
-        IconItem("KebabDining", "Food & Drinks", listOf("grill", "bbq", "kebab", "skewer"), false),
-        IconItem("RiceBowl", "Food & Drinks", listOf("rice", "curry", "biryani", "bowl"), false),
-        IconItem("OutdoorGrill", "Food & Drinks", listOf("barbecue", "steak", "roast", "grill"), false),
-        IconItem("EmojiFoodBeverage", "Food & Drinks", listOf("hot tea", "cup", "herbal tea", "mug"), false),
-        IconItem("RoomService", "Food & Drinks", listOf("hotel food", "tray", "service"), false),
-        IconItem("Cookie", "Food & Drinks", listOf("biscuit", "cookie", "bakery", "sweet"), false),
-        IconItem("RestaurantMenu", "Food & Drinks", listOf("menu card", "list", "bill of fare"), false),
-        IconItem("FreeBreakfast", "Food & Drinks", listOf("complimentary", "morning tea", "breakfast"), false),
-        IconItem("DeliveryDining", "Food & Drinks", listOf("food delivery", "rider", "courier"), false),
-        IconItem("SportsBar", "Food & Drinks", listOf("pub", "drinks", "match viewing"), false),
-        IconItem("Nightlife", "Food & Drinks", listOf("club", "party", "drinks", "evening"), false),
-        IconItem("ShoppingCart", "Shopping", listOf("cart", "buy", "supermarket", "store"), false),
-        IconItem("ShoppingCartCheckout", "Shopping", listOf("checkout", "order", "purchase"), false),
-        IconItem("ShoppingBag", "Shopping", listOf("mall", "haul", "store", "shopping"), false),
-        IconItem("ShoppingBasket", "Shopping", listOf("basket", "goods", "shop", "market"), false),
-        IconItem("Store", "Shopping", listOf("shop", "vendor", "outlet", "retail"), false),
-        IconItem("Storefront", "Shopping", listOf("boutique", "showroom", "shop front"), false),
-        IconItem("LocalMall", "Shopping", listOf("shopping mall", "plaza", "center"), false),
-        IconItem("Checkroom", "Shopping", listOf("clothes", "wardrobe", "dress", "fashion"), false),
-        IconItem("Diamond", "Shopping", listOf("jewelry", "gem", "gold", "luxury", "ring"), false),
-        IconItem("Watch", "Shopping", listOf("wrist watch", "time", "clock", "accessory"), false),
-        IconItem("FitnessCenter", "Shopping", listOf("gym", "workout", "weights", "fitness gear"), false),
-        IconItem("Toys", "Shopping", listOf("kids toys", "play", "doll", "action figure"), false),
-        IconItem("Backpack", "Shopping", listOf("bag", "travel bag", "hiking", "school bag"), false),
-        IconItem("Style", "Shopping", listOf("tag", "fashion", "brand", "style"), false),
-        IconItem("Loyalty", "Shopping", listOf("membership", "points", "club", "reward card"), false),
-        IconItem("LocalOffer", "Shopping", listOf("deal", "discount", "coupon", "promo"), false),
-        IconItem("Discount", "Shopping", listOf("voucher", "percent off", "markdown"), false),
-        IconItem("Inventory2", "Shopping", listOf("box", "package", "parcel", "shipment"), false),
-        IconItem("ProductionQuantityLimits", "Shopping", listOf("cart limit", "stock limit"), false),
-        IconItem("AddShoppingCart", "Shopping", listOf("add to cart", "buy item", "wishlist"), false),
-        IconItem("RemoveShoppingCart", "Shopping", listOf("empty cart", "remove item"), false),
-        IconItem("Shop", "Shopping", listOf("bag", "store item", "boutique"), false),
-        IconItem("Shop2", "Shopping", listOf("outlet", "retail store"), false),
-        IconItem("ShopTwo", "Shopping", listOf("brand store", "fashion shop"), false),
-        IconItem("CardMembership", "Shopping", listOf("vip card", "loyalty badge"), false),
-        IconItem("Outbox", "Shopping", listOf("sent goods", "dispatch", "outbound"), false),
-        IconItem("Inbox", "Shopping", listOf("received goods", "orders received"), false),
-        IconItem("AllInbox", "Shopping", listOf("all orders", "deliveries", "inbox"), false),
-        IconItem("AutoFixHigh", "Shopping", listOf("cosmetics", "glow", "beauty", "makeup"), false),
-        IconItem("DryCleaning", "Shopping", listOf("laundry", "dry wash", "iron", "cleaning"), false),
-        IconItem("AddBusiness", "Shopping", listOf("new store", "merchant", "vendor"), false),
-        IconItem("LocalFlorist", "Shopping", listOf("flower", "bouquet", "gift", "plants"), false),
-        IconItem("LocalConvenienceStore", "Shopping", listOf("corner shop", "kiosk", "convenience"), false),
-        IconItem("LocalLaundryService", "Shopping", listOf("washing machine", "laundry"), false),
-        IconItem("DirectionsCar", "Transport", listOf("car", "auto", "vehicle", "cab", "ride"), false),
-        IconItem("Train", "Transport", listOf("railway", "metro", "commute", "train"), false),
-        IconItem("TwoWheeler", "Transport", listOf("bike", "motorcycle", "scooter", "ride"), false),
-        IconItem("DirectionsBike", "Transport", listOf("bicycle", "cycle", "ride", "cycling"), true),
-        IconItem("DirectionsBus", "Transport", listOf("bus", "public transit", "coach"), false),
-        IconItem("DirectionsWalk", "Transport", listOf("foot", "walking", "pedestrian", "walk"), true),
-        IconItem("DirectionsRun", "Transport", listOf("running", "jog", "sprint", "run"), true),
-        IconItem("Flight", "Transport", listOf("plane", "airplane", "air ticket", "flight"), false),
-        IconItem("FlightTakeoff", "Transport", listOf("departure", "trip", "tour", "takeoff"), false),
-        IconItem("FlightLand", "Transport", listOf("arrival", "return", "landing"), false),
-        IconItem("LocalTaxi", "Transport", listOf("uber", "pathao", "cab", "taxi fare"), false),
-        IconItem("LocalGasStation", "Transport", listOf("fuel", "petrol", "octane", "cng", "diesel"), false),
-        IconItem("ElectricCar", "Transport", listOf("ev", "tesla", "charging", "green car"), false),
-        IconItem("EvStation", "Transport", listOf("charging station", "battery charge"), false),
-        IconItem("Commute", "Transport", listOf("routine", "journey", "ride", "commute"), false),
-        IconItem("Subway", "Transport", listOf("underground", "tube", "metro transit"), false),
-        IconItem("Tram", "Transport", listOf("rail", "tramway", "streetcar"), false),
-        IconItem("DirectionsBoat", "Transport", listOf("ship", "launch", "ferry", "boat"), false),
-        IconItem("Sailing", "Transport", listOf("boat", "cruise", "yacht", "sail"), false),
-        IconItem("Hotel", "Transport", listOf("stay", "resort", "motel", "room", "lodging"), false),
-        IconItem("Luggage", "Transport", listOf("baggage", "suitcase", "vacation", "luggage"), false),
-        IconItem("Map", "Transport", listOf("location", "route", "gps", "navigation"), false),
-        IconItem("Navigation", "Transport", listOf("direction", "compass", "turn by turn"), false),
-        IconItem("Explore", "Transport", listOf("adventure", "safari", "trip", "explore"), false),
-        IconItem("DirectionsSubway", "Transport", listOf("metro train", "transit station"), false),
-        IconItem("DirectionsRailway", "Transport", listOf("intercity rail", "track", "train station"), false),
-        IconItem("DirectionsTransit", "Transport", listOf("public transport", "city transit"), false),
-        IconItem("ElectricBike", "Transport", listOf("ebike", "battery cycle", "electric bike"), false),
-        IconItem("ElectricMoped", "Transport", listOf("electric scooter", "moped"), false),
-        IconItem("ElectricScooter", "Transport", listOf("escooter", "kick scooter"), false),
-        IconItem("PedalBike", "Transport", listOf("bicycle", "cycling", "pedal"), false),
-        IconItem("Moped", "Transport", listOf("scooter", "vespa", "moped"), false),
-        IconItem("Motorcycle", "Transport", listOf("biker", "motorbike", "two wheeler"), false),
-        IconItem("AirportShuttle", "Transport", listOf("microbus", "pickup van", "shuttle"), false),
-        IconItem("CarRental", "Transport", listOf("rent a car", "hire car", "leasing"), false),
-        IconItem("CarRepair", "Transport", listOf("garage", "mechanic", "servicing", "repair"), false),
-        IconItem("CarCrash", "Transport", listOf("accident", "insurance claim", "crash"), false),
-        IconItem("TireRepair", "Transport", listOf("wheel", "puncture", "alignment", "tire"), false),
-        IconItem("LocalParking", "Transport", listOf("parking fee", "garage", "park car"), false),
-        IconItem("Traffic", "Transport", listOf("signal", "congestion", "traffic jam"), false),
-        IconItem("Speed", "Transport", listOf("speedometer", "toll road", "fast"), false),
-        IconItem("CompassCalibration", "Transport", listOf("gps calibration", "sensor"), false),
-        IconItem("PinDrop", "Transport", listOf("destination", "pin", "drop off"), false),
-        IconItem("LocationOn", "Transport", listOf("place", "geo marker", "current location"), false),
-        IconItem("LocationSearching", "Transport", listOf("find location", "searching"), false),
-        IconItem("NearMe", "Transport", listOf("nearby places", "distance", "near"), false),
-        IconItem("ShareLocation", "Transport", listOf("live tracking", "share gps"), false),
-        IconItem("TransferWithinAStation", "Transport", listOf("transfer", "interchange", "connection"), false),
-        IconItem("FlightClass", "Transport", listOf("business class", "seat", "first class"), false),
-        IconItem("Airlines", "Transport", listOf("airline", "ticket", "carrier"), false),
-        IconItem("ConnectingAirports", "Transport", listOf("layover", "transit airport", "connecting flight"), false),
-        IconItem("Home", "Bills & Housing", listOf("house", "rent", "residence", "home sweet home"), false),
-        IconItem("Apartment", "Bills & Housing", listOf("flat", "building", "society", "condo"), false),
-        IconItem("Cottage", "Bills & Housing", listOf("village", "bungalow", "cottage"), false),
-        IconItem("Villa", "Bills & Housing", listOf("mansion", "estate", "resort", "villa"), false),
-        IconItem("LocationCity", "Bills & Housing", listOf("city", "property", "holding", "municipality"), false),
-        IconItem("ElectricBolt", "Bills & Housing", listOf("electricity", "current", "power", "desco", "dpdc"), false),
-        IconItem("Power", "Bills & Housing", listOf("plug", "socket", "charge", "power"), false),
-        IconItem("WaterDrop", "Bills & Housing", listOf("water bill", "wasa", "utility", "water"), false),
-        IconItem("Plumbing", "Bills & Housing", listOf("pipe", "sanitary", "faucet", "plumber"), false),
-        IconItem("Wifi", "Bills & Housing", listOf("internet", "broadband", "fiber", "wifi bill"), false),
-        IconItem("Router", "Bills & Housing", listOf("modem", "network", "lan", "router"), false),
-        IconItem("Tv", "Bills & Housing", listOf("television", "dish bill", "cable", "screen"), false),
-        IconItem("DesktopWindows", "Bills & Housing", listOf("pc", "computer", "desktop setup"), false),
-        IconItem("Laptop", "Bills & Housing", listOf("notebook", "macbook", "laptop"), false),
-        IconItem("Chair", "Bills & Housing", listOf("furniture", "interior", "chair"), false),
-        IconItem("Bed", "Bills & Housing", listOf("mattress", "sleep", "decor", "bedroom"), false),
-        IconItem("Lightbulb", "Bills & Housing", listOf("lighting", "lamp", "idea", "bulb"), false),
-        IconItem("Build", "Bills & Housing", listOf("repair", "tools", "fix", "renovation"), false),
-        IconItem("Handyman", "Bills & Housing", listOf("carpenter", "technician", "worker"), false),
-        IconItem("Hardware", "Bills & Housing", listOf("screw", "wrench", "hardware store"), false),
-        IconItem("Construction", "Bills & Housing", listOf("building", "cement", "renovation", "construction"), false),
-        IconItem("Security", "Bills & Housing", listOf("guard", "cctv", "safe", "security bill"), false),
-        IconItem("CleaningServices", "Bills & Housing", listOf("maid", "sweep", "dusting", "cleaner"), false),
-        IconItem("House", "Bills & Housing", listOf("home", "building", "dwelling"), false),
-        IconItem("HomeWork", "Bills & Housing", listOf("wfh", "office building", "remote work"), false),
-        IconItem("HolidayVillage", "Bills & Housing", listOf("vacation home", "village"), false),
-        IconItem("Cabin", "Bills & Housing", listOf("wooden cabin", "retreat", "resort"), false),
-        IconItem("Balcony", "Bills & Housing", listOf("veranda", "terrace", "balcony"), false),
-        IconItem("Deck", "Bills & Housing", listOf("patio", "outdoor deck"), false),
-        IconItem("Yard", "Bills & Housing", listOf("lawn", "garden", "backyard"), false),
-        IconItem("Garage", "Bills & Housing", listOf("carport", "parking lot", "garage"), false),
-        IconItem("Roofing", "Bills & Housing", listOf("shed", "roof repair", "tiles"), false),
-        IconItem("DoorFront", "Bills & Housing", listOf("entrance", "front door"), false),
-        IconItem("DoorSliding", "Bills & Housing", listOf("sliding door", "patio door"), false),
-        IconItem("Window", "Bills & Housing", listOf("ventilation", "glass window", "curtains"), false),
-        IconItem("Bathtub", "Bills & Housing", listOf("bath", "tub", "washroom"), false),
-        IconItem("Shower", "Bills & Housing", listOf("hot shower", "bath", "water"), false),
-        IconItem("HotTub", "Bills & Housing", listOf("jacuzzi", "spa tub", "bath"), false),
-        IconItem("Iron", "Bills & Housing", listOf("press", "laundry iron", "clothes"), false),
-        IconItem("Microwave", "Bills & Housing", listOf("oven", "heater", "kitchen appliance"), false),
-        IconItem("Blender", "Bills & Housing", listOf("mixer", "grinder", "juice machine"), false),
-        IconItem("Air", "Bills & Housing", listOf("purifier", "ventilation", "fresh air"), false),
-        IconItem("AcUnit", "Bills & Housing", listOf("ac", "air conditioner", "cooling"), false),
-        IconItem("Thermostat", "Bills & Housing", listOf("climate control", "temperature"), false),
-        IconItem("Fireplace", "Bills & Housing", listOf("heater", "cozy", "fire"), false),
-        IconItem("GasMeter", "Bills & Housing", listOf("gas bill", "titas", "lpg", "gas cylinder"), false),
-        IconItem("HeatPump", "Bills & Housing", listOf("water heater", "geyser"), false),
-        IconItem("WaterDamage", "Bills & Housing", listOf("leakage", "water problem", "repair"), false),
-        IconItem("SolarPower", "Bills & Housing", listOf("solar panel", "green energy", "solar"), false),
-        IconItem("Propane", "Bills & Housing", listOf("gas cylinder", "cylinder", "propane gas"), false),
-        IconItem("ElectricalServices", "Bills & Housing", listOf("electrician", "wiring", "power repair"), false),
-        IconItem("Sensors", "Bills & Housing", listOf("iot", "smart home sensor", "alarm"), false),
-        IconItem("CellTower", "Bills & Housing", listOf("mobile network", "telecom", "recharge", "broadband", "tower", "cell"), false),
-        IconItem("LocalHospital", "Health", listOf("hospital", "clinic", "doctor", "emergency"), false),
-        IconItem("Medication", "Health", listOf("medicine", "tablet", "pharma", "prescription"), false),
-        IconItem("MedicalServices", "Health", listOf("first aid", "emergency", "medical kit"), false),
-        IconItem("Healing", "Health", listOf("bandage", "treatment", "recovery"), false),
-        IconItem("LocalPharmacy", "Health", listOf("drugstore", "chemist", "pharmacy"), false),
-        IconItem("Vaccines", "Health", listOf("injection", "dose", "syringe", "vaccine"), false),
-        IconItem("Psychology", "Health", listOf("mental health", "counseling", "mind", "therapy"), false),
-        IconItem("Favorite", "Health", listOf("heart", "cardio", "life", "love"), false),
-        IconItem("FavoriteBorder", "Health", listOf("wellness", "care", "heart outline"), false),
-        IconItem("MonitorHeart", "Health", listOf("pulse", "ecg", "pressure", "heart rate"), false),
-        IconItem("Spa", "Health", listOf("massage", "relax", "salon", "wellness"), false),
-        IconItem("SelfImprovement", "Health", listOf("yoga", "meditation", "mindfulness"), false),
-        IconItem("HealthAndSafety", "Health", listOf("protection", "insurance", "safety"), false),
-        IconItem("MedicalInformation", "Health", listOf("prescription", "record", "health card"), false),
-        IconItem("Emergency", "Health", listOf("ambulance", "urgent care", "sos"), false),
-        IconItem("MonitorWeight", "Health", listOf("weighing scale", "diet", "weight track"), false),
-        IconItem("Bloodtype", "Health", listOf("blood donation", "test", "blood group"), false),
-        IconItem("Blind", "Health", listOf("eye care", "optical", "vision"), false),
-        IconItem("Accessible", "Health", listOf("wheelchair", "special care", "accessible"), true),
-        IconItem("AccessibleForward", "Health", listOf("mobility", "rehab", "forward"), true),
-        IconItem("CleanHands", "Health", listOf("hygiene", "wash hands", "sanitation"), false),
-        IconItem("Sanitizer", "Health", listOf("hand sanitizer", "antiseptic", "clean"), false),
-        IconItem("Masks", "Health", listOf("surgical mask", "n95", "protection"), false),
-        IconItem("PersonalInjury", "Health", listOf("injury", "claim", "accident"), false),
-        IconItem("Elderly", "Health", listOf("senior citizen", "grandparent", "elderly"), false),
-        IconItem("ElderlyWoman", "Health", listOf("grandma", "senior care", "elderly woman"), false),
-        IconItem("PregnantWoman", "Health", listOf("maternity", "prenatal", "pregnancy"), false),
-        IconItem("Coronavirus", "Health", listOf("virus", "infection", "epidemic"), false),
-        IconItem("Sick", "Health", listOf("fever", "illness", "cold", "sick"), false),
-        IconItem("Mood", "Health", listOf("happy", "mental health", "good mood"), false),
-        IconItem("MoodBad", "Health", listOf("sad", "depression", "stress", "bad mood"), false),
-        IconItem("SentimentSatisfied", "Health", listOf("content", "calm", "satisfied"), false),
-        IconItem("SentimentVerySatisfied", "Health", listOf("joy", "wellness", "ecstatic"), false),
-        IconItem("SentimentDissatisfied", "Health", listOf("unwell", "gloomy", "unhappy"), false),
-        IconItem("ShieldMoon", "Health", listOf("night health", "sleep security"), false),
-        IconItem("Bedtime", "Health", listOf("sleep", "insomnia care", "bedtime"), false),
-        IconItem("Nightlight", "Health", listOf("night rest", "soothing", "sleep light"), false),
-        IconItem("SportsGymnastics", "Health", listOf("stretching", "flexibility", "aerobics"), false),
-        IconItem("Biotech", "Health", listOf("diagnostics", "lab test", "biotech"), false),
-        IconItem("Science", "Health", listOf("pathology", "test report", "science"), false),
-        IconItem("School", "Life & Work", listOf("college", "university", "tuition", "school"), false),
-        IconItem("Work", "Life & Work", listOf("job", "office", "career", "salary"), false),
-        IconItem("WorkOutline", "Life & Work", listOf("business", "contract", "freelance"), false),
-        IconItem("BusinessCenter", "Life & Work", listOf("briefcase", "corporate", "portfolio"), false),
-        IconItem("Handshake", "Life & Work", listOf("deal", "loan", "agreement", "borrow", "lending"), false),
-        IconItem("FamilyRestroom", "Life & Work", listOf("family", "parents", "home", "kids"), false),
-        IconItem("ChildCare", "Life & Work", listOf("baby", "kids", "daycare", "child care"), false),
-        IconItem("ChildFriendly", "Life & Work", listOf("stroller", "infant", "toddler"), false),
-        IconItem("Pets", "Life & Work", listOf("cat", "dog", "veterinary", "animal", "pet food"), false),
-        IconItem("AutoStories", "Life & Work", listOf("novel", "learning", "story book"), false),
-        IconItem("DesignServices", "Life & Work", listOf("creative", "graphic", "art", "design"), false),
-        IconItem("Groups", "Life & Work", listOf("team", "meeting", "colleagues", "group"), false),
-        IconItem("Person", "Life & Work", listOf("profile", "individual", "user", "me"), false),
-        IconItem("People", "Life & Work", listOf("friends", "crowd", "community", "buddies"), false),
-        IconItem("Celebration", "Life & Work", listOf("event", "party", "anniversary", "eid", "puja"), false),
-        IconItem("Badge", "Life & Work", listOf("id card", "employee badge", "credentials"), false),
-        IconItem("CardTravel", "Life & Work", listOf("business trip", "luggage", "travel"), false),
-        IconItem("Business", "Life & Work", listOf("company", "firm", "enterprise", "business"), false),
-        IconItem("CorporateFare", "Life & Work", listOf("headquarters", "building", "corporate"), false),
-        IconItem("Domain", "Life & Work", listOf("institution", "organization", "domain"), false),
-        IconItem("Hub", "Life & Work", listOf("network", "connections", "branch", "hub"), false),
-        IconItem("Engineering", "Life & Work", listOf("engineer", "factory", "machinery", "tech"), false),
-        IconItem("FactCheck", "Life & Work", listOf("audit", "inspection", "review", "fact check"), true),
-        IconItem("Assignment", "Life & Work", listOf("task", "homework", "contract", "assignment"), true),
-        IconItem("AssignmentTurnedIn", "Life & Work", listOf("completed work", "project done"), false),
-        IconItem("AssignmentInd", "Life & Work", listOf("assigned lead", "delegate", "assignee"), false),
-        IconItem("Task", "Life & Work", listOf("to do", "action item", "task"), false),
-        IconItem("TaskAlt", "Life & Work", listOf("finished task", "tick mark", "done"), false),
-        IconItem("PendingActions", "Life & Work", listOf("waiting approval", "queue", "pending"), false),
-        IconItem("HistoryEdu", "Life & Work", listOf("certificate", "diploma", "degree", "education"), false),
-        IconItem("Grade", "Life & Work", listOf("score", "grade sheet", "marks", "star"), false),
-        IconItem("WorkspacePremium", "Life & Work", listOf("award", "distinction", "trophy", "premium"), false),
-        IconItem("Class", "Life & Work", listOf("classroom", "lesson", "batch", "lecture"), false),
-        IconItem("CastForEducation", "Life & Work", listOf("online course", "elearning", "webinar"), false),
-        IconItem("ImportContacts", "Life & Work", listOf("open book", "syllabus", "contacts"), false),
-        IconItem("Create", "Life & Work", listOf("write", "pen", "compose", "draft"), false),
-        IconItem("Edit", "Life & Work", listOf("modify", "draft", "author", "pencil"), false),
-        IconItem("DriveFileRenameOutline", "Life & Work", listOf("signature", "sign doc", "rename"), false),
-        IconItem("Draw", "Life & Work", listOf("sketch", "drawing", "illustration", "art"), false),
-        IconItem("CoPresent", "Life & Work", listOf("presentation", "slides", "meeting", "pitch"), false),
-        IconItem("ContactPhone", "Life & Work", listOf("phonebook", "directory", "call"), false),
-        IconItem("ContactMail", "Life & Work", listOf("email address", "contacts", "mail"), false),
-        IconItem("Mail", "Life & Work", listOf("postal", "inbox", "correspondence", "letter"), false),
-        IconItem("Email", "Life & Work", listOf("electronic mail", "letter", "email"), false),
-        IconItem("Drafts", "Life & Work", listOf("draft email", "notes", "draft"), false),
-        IconItem("MarkEmailRead", "Life & Work", listOf("cleared inbox", "read mail"), false),
-        IconItem("SupervisedUserCircle", "Life & Work", listOf("mentor", "supervisor", "lead"), false),
-        IconItem("Crib", "Life & Work", listOf("baby crib", "cot", "nursery", "infant"), false),
-        IconItem("BabyChangingStation", "Life & Work", listOf("diaper change", "baby room"), false),
-        IconItem("Stroller", "Life & Work", listOf("pram", "baby walk", "stroller"), false),
-        IconItem("Woman", "Life & Work", listOf("female", "mother", "sister", "lady"), false),
-        IconItem("Man", "Life & Work", listOf("male", "father", "brother", "gentleman"), false),
-        IconItem("Boy", "Life & Work", listOf("son", "little boy", "child"), false),
-        IconItem("Girl", "Life & Work", listOf("daughter", "little girl", "child"), false),
-        IconItem("EmojiEmotions", "Life & Work", listOf("smileys", "reactions", "emojis"), false),
-        IconItem("Face", "Life & Work", listOf("avatar", "user profile", "face"), false),
-        IconItem("Diversity1", "Life & Work", listOf("inclusive community", "diversity"), false),
-        IconItem("Diversity2", "Life & Work", listOf("unity", "gathering", "team"), false),
-        IconItem("Diversity3", "Life & Work", listOf("global team", "international"), false),
-        IconItem("PeopleAlt", "Life & Work", listOf("users", "family members", "people"), false),
-        IconItem("PersonAdd", "Life & Work", listOf("add contact", "new member", "invite"), false),
-        IconItem("GroupAdd", "Life & Work", listOf("create group", "add buddies"), false),
-        IconItem("Wc", "Life & Work", listOf("restroom", "toilet washroom", "wc"), false),
-        IconItem("Wash", "Life & Work", listOf("handwash", "cleanliness", "wash"), false),
-        IconItem("Dry", "Life & Work", listOf("towel dry", "hand dryer", "dry"), false),
-        IconItem("Soap", "Life & Work", listOf("bath soap", "shampoo", "cleaning"), false),
-        IconItem("Stairs", "Life & Work", listOf("steps", "climb", "stairs"), false),
-        IconItem("Elevator", "Life & Work", listOf("lift", "elevator fee", "elevator"), false),
-        IconItem("ChairAlt", "Life & Work", listOf("desk chair", "ergonomic chair"), false),
-        IconItem("Desk", "Life & Work", listOf("study table", "office desk", "workstation"), false),
-        IconItem("TableRestaurant", "Life & Work", listOf("dining table", "restaurant table"), false),
-        IconItem("TableBar", "Life & Work", listOf("high table", "bar stool", "counter"), false),
-        IconItem("Living", "Life & Work", listOf("living room", "sofa set", "hall"), false),
-        IconItem("KingBed", "Life & Work", listOf("master bed", "luxury suite", "king bed"), false),
-        IconItem("SingleBed", "Life & Work", listOf("single bed", "guest bed", "cot"), false),
-        IconItem("SupportAgent", "Life & Work", listOf("customer care", "support", "call center", "agent", "helpdesk"), false),
-        IconItem("PhoneAndroid", "Entertainment", listOf("mobile", "smartphone", "recharge", "phone"), false),
-        IconItem("PhoneIphone", "Entertainment", listOf("apple", "iphone", "ios", "iphone"), false),
-        IconItem("SmartDisplay", "Entertainment", listOf("screen", "streaming", "ott", "display"), false),
-        IconItem("Movie", "Entertainment", listOf("cinema", "film", "netflix", "hall", "movie"), false),
-        IconItem("Theaters", "Entertainment", listOf("show", "play", "stage", "theater"), false),
-        IconItem("MusicNote", "Entertainment", listOf("audio", "song", "spotify", "music"), false),
-        IconItem("Headphones", "Entertainment", listOf("earphones", "headset", "headphones"), false),
-        IconItem("Podcasts", "Entertainment", listOf("talk", "broadcast", "podcast", "radio"), false),
-        IconItem("Radio", "Entertainment", listOf("fm", "wireless", "broadcasting", "radio"), false),
-        IconItem("CameraAlt", "Entertainment", listOf("dslr", "photography", "photos", "camera"), false),
-        IconItem("Videocam", "Entertainment", listOf("video", "recording", "vlog", "video camera"), false),
-        IconItem("LiveTv", "Entertainment", listOf("cable", "broadcasting", "live tv", "stream"), false),
-        IconItem("Casino", "Entertainment", listOf("gaming", "bet", "lottery", "dice"), false),
-        IconItem("EmojiEvents", "Entertainment", listOf("trophy", "award", "prize", "winner"), false),
-        IconItem("MilitaryTech", "Entertainment", listOf("medal", "honor", "military"), false),
-        IconItem("SportsEsports", "Entertainment", listOf("gaming", "playstation", "xbox", "esports"), false),
-        IconItem("Gamepad", "Entertainment", listOf("controller", "joystick", "gamepad"), false),
-        IconItem("Piano", "Entertainment", listOf("keyboard", "synthesizer", "music", "piano"), false),
-        IconItem("QueueMusic", "Entertainment", listOf("playlist", "queue", "songs"), true),
-        IconItem("Album", "Entertainment", listOf("vinyl", "record", "cd", "album"), false),
-        IconItem("LibraryMusic", "Entertainment", listOf("tracks", "music store", "songs library"), false),
-        IconItem("Mic", "Entertainment", listOf("microphone", "singing", "karaoke", "mic"), false),
-        IconItem("MicExternalOn", "Entertainment", listOf("recording mic", "studio mic"), false),
-        IconItem("VolumeUp", "Entertainment", listOf("loudspeaker", "speaker", "audio", "volume"), true),
-        IconItem("SurroundSound", "Entertainment", listOf("dolby", "home theater", "surround"), false),
-        IconItem("Equalizer", "Entertainment", listOf("sound mixer", "dj", "equalizer"), false),
-        IconItem("GraphicEq", "Entertainment", listOf("audio wave", "sound bar", "frequencies"), false),
-        IconItem("MovieCreation", "Entertainment", listOf("clapperboard", "film shoot", "production"), false),
-        IconItem("TheaterComedy", "Entertainment", listOf("drama", "comedy", "mask", "play"), false),
-        IconItem("Camera", "Entertainment", listOf("photo capture", "lens", "camera"), false),
-        IconItem("Photo", "Entertainment", listOf("picture", "gallery item", "photo"), false),
-        IconItem("PhotoLibrary", "Entertainment", listOf("albums", "snapshots", "gallery"), false),
-        IconItem("Collections", "Entertainment", listOf("photo gallery", "memories", "photos"), false),
-        IconItem("VideoLibrary", "Entertainment", listOf("video archive", "movies collection"), false),
-        IconItem("SlowMotionVideo", "Entertainment", listOf("slow mo", "effects", "video clip"), false),
-        IconItem("Audiotrack", "Entertainment", listOf("music file", "soundtrack", "audio"), false),
-        IconItem("PianoOff", "Entertainment", listOf("mute music", "quiet"), false),
-        IconItem("Attractions", "Entertainment", listOf("amusement park", "fair", "ride", "ferris wheel"), false),
-        IconItem("Festival", "Entertainment", listOf("carnival", "concert", "fair", "festival"), false),
-        IconItem("ConfirmationNumber", "Entertainment", listOf("cinema ticket", "coupon", "entry pass"), false),
-        IconItem("AirplaneTicket", "Entertainment", listOf("boarding pass", "entry", "flight ticket"), true),
-        IconItem("SportsScore", "Entertainment", listOf("scoreboard", "match points", "result"), false),
-        IconItem("StrikethroughS", "Entertainment", listOf("special price", "sale tag"), false),
-        IconItem("SportsSoccer", "Sports", listOf("football", "fifa", "match", "soccer"), false),
-        IconItem("SportsBasketball", "Sports", listOf("nba", "basketball", "hoop", "ball"), false),
-        IconItem("SportsTennis", "Sports", listOf("tennis", "court", "racket", "lawn tennis"), false),
-        IconItem("SportsCricket", "Sports", listOf("cricket", "bat", "ipl", "bpl", "world cup"), false),
-        IconItem("SportsBaseball", "Sports", listOf("baseball", "mlb", "softball"), false),
-        IconItem("SportsFootball", "Sports", listOf("american football", "nfl", "rugby"), false),
-        IconItem("SportsVolleyball", "Sports", listOf("volleyball", "beach match"), false),
-        IconItem("SportsGolf", "Sports", listOf("golf", "club", "putt", "course"), false),
-        IconItem("SportsRugby", "Sports", listOf("rugby", "scrum", "try"), false),
-        IconItem("SportsHandball", "Sports", listOf("handball match", "indoor sport"), false),
-        IconItem("SportsHockey", "Sports", listOf("ice hockey", "field hockey", "puck"), false),
-        IconItem("SportsMotorsports", "Sports", listOf("f1", "racing", "motogp", "car race"), false),
-        IconItem("SportsMartialArts", "Sports", listOf("karate", "judo", "taekwondo", "martial arts"), false),
-        IconItem("SportsMma", "Sports", listOf("ufc", "boxing", "cage fight", "mma"), false),
-        IconItem("Kayaking", "Sports", listOf("canoe", "river kayak", "paddle"), false),
-        IconItem("Rowing", "Sports", listOf("boat rowing", "crew", "oar"), false),
-        IconItem("Surfing", "Sports", listOf("wave surf", "beach sport", "surfboard"), false),
-        IconItem("Snowboarding", "Sports", listOf("snow", "winter sports", "snowboard"), false),
-        IconItem("Skateboarding", "Sports", listOf("skateboard", "skating", "deck"), false),
-        IconItem("Pool", "Sports", listOf("swimming pool", "swim lap", "swimming"), false),
-        IconItem("Kitesurfing", "Sports", listOf("kite", "water sport", "kitesurf"), false),
-        IconItem("Hiking", "Sports", listOf("trekking", "mountain walk", "hiking trail"), false),
-        IconItem("DownhillSkiing", "Sports", listOf("ski resort", "snow", "downhill"), false),
-        IconItem("NordicWalking", "Sports", listOf("hiking sticks", "outdoor walking"), false),
-        IconItem("Paragliding", "Sports", listOf("skydiving", "glider", "flying", "parachute"), false),
-        IconItem("ScubaDiving", "Sports", listOf("deep dive", "ocean sport", "scuba"), false),
-        IconItem("Scoreboard", "Sports", listOf("scores", "match scoreboard", "tally"), false),
-        IconItem("Sports", "Sports", listOf("whistle", "referee", "game", "match"), false),
-        IconItem("Timer", "Sports", listOf("stopwatch", "lap time", "interval"), false),
-        IconItem("Alarm", "Sports", listOf("morning bell", "workout timer", "alarm"), false),
-        IconItem("HourglassBottom", "Sports", listOf("countdown", "duration", "timer"), false),
-        IconItem("Computer", "Tech & Tools", listOf("pc", "workstation", "rig", "computer", "technology", "tech", "laptop", "desktop"), false),
-        IconItem("Smartphone", "Tech & Tools", listOf("cellphone", "android phone", "smartphone", "technology", "tech", "mobile"), false),
-        IconItem("Tablet", "Tech & Tools", listOf("ipad", "android tablet", "tab", "technology", "tech"), false),
-        IconItem("TabletMac", "Tech & Tools", listOf("ipad pro", "apple tablet", "tablet", "technology", "tech"), false),
-        IconItem("SmartToy", "Tech & Tools", listOf("robot", "ai bot", "gadget", "toy", "technology", "tech", "ai", "artificial intelligence"), false),
-        IconItem("Devices", "Tech & Tools", listOf("gadgets", "hardware collection", "devices", "technology", "tech", "electronics"), false),
-        IconItem("Phonelink", "Tech & Tools", listOf("sync phone", "bluetooth device", "link", "technology", "tech"), false),
-        IconItem("DeveloperBoard", "Tech & Tools", listOf("raspberry pi", "arduino", "chip", "hardware", "technology", "tech", "motherboard"), false),
-        IconItem("Memory", "Tech & Tools", listOf("cpu", "processor", "ram", "microchip", "technology", "tech", "chip", "hardware"), false),
-        IconItem("SimCard", "Tech & Tools", listOf("mobile sim", "esim", "network", "sim card", "technology", "tech"), false),
-        IconItem("SdCard", "Tech & Tools", listOf("micro sd", "storage card", "memory card", "technology", "tech"), false),
-        IconItem("Storage", "Tech & Tools", listOf("hard drive", "ssd", "nas", "storage", "technology", "tech", "server"), false),
-        IconItem("Cloud", "Tech & Tools", listOf("cloud storage", "gdrive", "backup", "cloud", "technology", "tech", "aws"), false),
-        IconItem("CloudDownload", "Tech & Tools", listOf("download file", "fetch cloud", "download", "technology", "tech"), false),
-        IconItem("CloudUpload", "Tech & Tools", listOf("upload file", "cloud backup", "upload", "technology", "tech"), false),
-        IconItem("CloudDone", "Tech & Tools", listOf("synced", "cloud completed", "cloud ok", "technology", "tech"), false),
-        IconItem("CloudSync", "Tech & Tools", listOf("syncing cloud data", "cloud refresh", "technology", "tech"), false),
-        IconItem("Usb", "Tech & Tools", listOf("flash drive", "pen drive", "cable", "usb", "technology", "tech", "hardware"), false),
-        IconItem("Bluetooth", "Tech & Tools", listOf("wireless", "pairing", "bluetooth", "technology", "tech"), false),
-        IconItem("BluetoothConnected", "Tech & Tools", listOf("paired device", "connected bluetooth", "technology", "tech"), false),
-        IconItem("Wifi", "Tech & Tools", listOf("wifi", "wireless", "internet", "network", "technology", "tech", "broadband"), false),
-        IconItem("Router", "Tech & Tools", listOf("router", "modem", "network", "technology", "tech", "gateway", "wifi router"), false),
-        IconItem("WifiTethering", "Tech & Tools", listOf("hotspot", "mobile hotspot", "tethering", "technology", "tech"), false),
-        IconItem("Cast", "Tech & Tools", listOf("chromecast", "screen mirror", "cast", "technology", "tech"), false),
-        IconItem("CastConnected", "Tech & Tools", listOf("tv casting", "mirroring display", "technology", "tech"), false),
-        IconItem("Headphones", "Tech & Tools", listOf("headphones", "audio", "headset", "earphones", "technology", "tech", "gadget"), false),
-        IconItem("Gamepad", "Tech & Tools", listOf("gamepad", "gaming", "console", "controller", "technology", "tech", "video game"), false),
-        IconItem("Security", "Tech & Tools", listOf("security", "cybersecurity", "firewall", "shield", "safety", "technology", "tech"), false),
-        IconItem("Speed", "Tech & Tools", listOf("speed", "performance", "bandwidth", "benchmark", "technology", "tech", "fast"), false),
-        IconItem("Hub", "Tech & Tools", listOf("hub", "network", "node", "infrastructure", "technology", "tech"), false),
-        IconItem("Key", "Tech & Tools", listOf("access key", "secret key", "passkey", "technology", "tech"), false),
-        IconItem("VpnKey", "Tech & Tools", listOf("encryption key", "vpn", "security key", "technology", "tech"), false),
-        IconItem("Lock", "Tech & Tools", listOf("lock screen", "secured", "lock", "technology", "tech"), false),
-        IconItem("LockOpen", "Tech & Tools", listOf("unlocked", "access granted", "open lock", "technology", "tech"), false),
-        IconItem("EnhancedEncryption", "Tech & Tools", listOf("2fa", "security safe", "shield lock", "technology", "tech", "crypto"), false),
-        IconItem("Fingerprint", "Tech & Tools", listOf("biometric", "touch id", "fingerprint", "technology", "tech", "sensor"), false),
-        IconItem("Terminal", "Tech & Tools", listOf("console", "command line", "bash", "terminal", "technology", "tech", "coding"), false),
-        IconItem("Code", "Tech & Tools", listOf("software", "programming", "script", "coding", "technology", "tech", "developer"), false),
-        IconItem("BugReport", "Tech & Tools", listOf("debug", "software fix", "bug", "technology", "tech"), false),
-        IconItem("IntegrationInstructions", "Tech & Tools", listOf("api", "integration", "docs", "code sample", "technology", "tech"), false),
-        IconItem("Biotech", "Tech & Tools", listOf("biotech", "science", "dna", "future", "lab", "technology", "tech"), false),
-        IconItem("Eco", "Nature & Weather", listOf("green", "nature", "organic", "ecology", "leaf"), false),
-        IconItem("Forest", "Nature & Weather", listOf("trees", "plants", "garden", "jungle", "forest"), false),
-        IconItem("Nature", "Nature & Weather", listOf("tree", "environment", "park", "nature"), false),
-        IconItem("NaturePeople", "Nature & Weather", listOf("gardener", "plantation", "nature lovers"), false),
-        IconItem("Grass", "Nature & Weather", listOf("lawn", "grass field", "meadow", "grass"), false),
-        IconItem("Park", "Nature & Weather", listOf("public park", "botanical", "park"), false),
-        IconItem("WbSunny", "Nature & Weather", listOf("sun", "sunny", "daylight", "bright sun"), false),
-        IconItem("DarkMode", "Nature & Weather", listOf("night theme", "moon", "crescent"), false),
-        IconItem("LightMode", "Nature & Weather", listOf("day theme", "bright", "sunlight"), false),
-        IconItem("CloudQueue", "Nature & Weather", listOf("cloudy", "overcast", "weather"), false),
-        IconItem("Thunderstorm", "Nature & Weather", listOf("storm", "lightning", "heavy rain", "thunder"), false),
-        IconItem("Tsunami", "Nature & Weather", listOf("wave", "disaster care", "flood"), false),
-        IconItem("Volcano", "Nature & Weather", listOf("lava", "eruption", "mountain"), false),
-        IconItem("Landscape", "Nature & Weather", listOf("scenery", "hills", "mountains", "view"), false),
-        IconItem("Terrain", "Nature & Weather", listOf("mountains", "peaks", "hiking range", "terrain"), false),
-        IconItem("Flare", "Nature & Weather", listOf("sun flare", "spark", "light flare"), false),
-        IconItem("Whatshot", "Nature & Weather", listOf("fire", "hot trend", "flame", "hot"), false),
-        IconItem("EnergySavingsLeaf", "Nature & Weather", listOf("energy saver", "green leaf", "solar eco"), false),
-        IconItem("Recycling", "Nature & Weather", listOf("recycle", "waste management", "green recycling"), false),
-        IconItem("Compost", "Nature & Weather", listOf("organic fertilizer", "soil", "compost"), false),
-        IconItem("CrueltyFree", "Nature & Weather", listOf("bunny", "animal care", "cruelty free"), false),
-        IconItem("PestControl", "Nature & Weather", listOf("insect repellent", "pest spray", "fumigation"), false),
-        IconItem("Category", "Symbols", listOf("general", "group", "folder", "all categories"), false),
-        IconItem("MoreHoriz", "Symbols", listOf("misc", "others", "extra", "dots", "ellipsis"), false),
-        IconItem("MoreVert", "Symbols", listOf("options", "more actions", "vertical menu"), false),
-        IconItem("Star", "Symbols", listOf("favorite", "important", "vip", "star", "bookmark"), false),
-        IconItem("StarBorder", "Symbols", listOf("unfilled star", "watchlist", "rate"), false),
-        IconItem("StarHalf", "Symbols", listOf("half star", "rating", "score"), true),
-        IconItem("Bookmark", "Symbols", listOf("save", "pinned", "bookmark", "favorite"), false),
-        IconItem("BookmarkBorder", "Symbols", listOf("save for later", "outline", "bookmark"), false),
-        IconItem("BookmarkAdded", "Symbols", listOf("bookmarked", "saved item", "flagged"), false),
-        IconItem("Label", "Symbols", listOf("tag", "badge", "label", "category tag"), true),
-        IconItem("LabelImportant", "Symbols", listOf("high priority label", "important badge"), true),
-        IconItem("Flag", "Symbols", listOf("priority", "target", "milestone", "flag"), false),
-        IconItem("OutlinedFlag", "Symbols", listOf("flag marker", "milestone goal"), false),
-        IconItem("FlagCircle", "Symbols", listOf("country flag", "badge", "round flag"), false),
-        IconItem("Shield", "Symbols", listOf("security", "safe", "lock", "guarantee", "protection"), false),
-        IconItem("Notifications", "Symbols", listOf("alert", "reminder", "bell", "notifications"), false),
-        IconItem("NotificationsActive", "Symbols", listOf("ringing bell", "urgent alert", "alarm"), false),
-        IconItem("NotificationsPaused", "Symbols", listOf("snoozed alert", "mute bell", "paused"), false),
-        IconItem("NotificationsOff", "Symbols", listOf("silent mode", "dnd", "mute notifications"), false),
-        IconItem("Send", "Symbols", listOf("remit", "transfer", "dispatch", "paper plane", "send"), true),
-        IconItem("Archive", "Symbols", listOf("storage", "history", "archive box", "archive"), false),
-        IconItem("Unarchive", "Symbols", listOf("restore from archive", "unarchive"), false),
-        IconItem("Folder", "Symbols", listOf("directory", "files", "folder", "documents"), false),
-        IconItem("FolderSpecial", "Symbols", listOf("starred folder", "key folder", "favorite files"), false),
-        IconItem("FolderShared", "Symbols", listOf("shared directory", "collaborate", "shared drive"), false),
-        IconItem("CreateNewFolder", "Symbols", listOf("new category folder", "create folder"), false),
-        IconItem("ThumbUp", "Symbols", listOf("like", "approval", "thumbs up", "agree"), false),
-        IconItem("ThumbDown", "Symbols", listOf("dislike", "thumbs down", "disagree"), false),
-        IconItem("Verified", "Symbols", listOf("certified", "official", "verified", "blue tick"), false),
-        IconItem("VerifiedUser", "Symbols", listOf("verified profile", "security tick", "trusted"), false),
-        IconItem("Policy", "Symbols", listOf("terms", "privacy policy", "legal badge"), false),
-        IconItem("Gavel", "Symbols", listOf("court", "lawyer", "legal fee", "judge"), false),
-        IconItem("AllInclusive", "Symbols", listOf("infinity", "unlimited", "forever", "endless"), false),
-        IconItem("AutoAwesome", "Symbols", listOf("magic", "ai", "smart feature", "sparkle", "stars"), false),
-        IconItem("Bolt", "Symbols", listOf("flash", "lightning fast", "bolt"), false),
-        IconItem("FlashOn", "Symbols", listOf("camera flash", "power on", "active"), false),
-        IconItem("FlashOff", "Symbols", listOf("no flash", "power off", "disabled"), false),
-        IconItem("Check", "Symbols", listOf("check", "confirm", "done", "tick"), false),
-        IconItem("CheckCircle", "Symbols", listOf("completed", "success tick", "circle check"), false),
-        IconItem("CheckCircleOutline", "Symbols", listOf("success outline", "ready"), false),
-        IconItem("Done", "Symbols", listOf("finished", "checked", "done"), false),
-        IconItem("DoneAll", "Symbols", listOf("double tick", "all cleared", "double check"), false),
-        IconItem("Close", "Symbols", listOf("cancel", "dismiss", "exit", "cross"), false),
-        IconItem("Cancel", "Symbols", listOf("reject", "abort", "cross", "cancel"), false),
-        IconItem("Error", "Symbols", listOf("alert", "warning issue", "error mark"), false),
-        IconItem("Warning", "Symbols", listOf("caution", "danger alert", "triangle warning"), false),
-        IconItem("Info", "Symbols", listOf("information", "details note", "info circle"), false),
-        IconItem("Help", "Symbols", listOf("question", "info", "faq", "help circle"), true),
-        IconItem("HelpOutline", "Symbols", listOf("help circle", "support guide", "question"), true),
-        IconItem("Sync", "Symbols", listOf("synchronize", "sync data", "refresh"), false),
-        IconItem("Update", "Symbols", listOf("latest version", "refresh update", "clock arrow"), false),
-        IconItem("Refresh", "Symbols", listOf("reload", "fetch latest", "refresh page"), false),
-        IconItem("Cached", "Symbols", listOf("cached data", "circular refresh", "cache"), false),
-        IconItem("Autorenew", "Symbols", listOf("auto subscription", "recurring cycle", "renew"), false),
-        IconItem("Schedule", "Symbols", listOf("clock", "timing", "due date", "schedule"), false),
-        IconItem("Event", "Symbols", listOf("calendar event", "appointment", "date"), false),
-        IconItem("CalendarToday", "Symbols", listOf("today date", "daily log", "calendar"), false),
-        IconItem("CalendarMonth", "Symbols", listOf("monthly planner", "month view", "calendar"), false),
-        IconItem("Visibility", "Symbols", listOf("show", "eye view", "visible"), false),
-        IconItem("VisibilityOff", "Symbols", listOf("hide", "eye conceal", "invisible"), false),
-        IconItem("Tune", "Symbols", listOf("adjust", "settings filter", "sliders"), false),
-        IconItem("FilterList", "Symbols", listOf("filter criteria", "funnel", "sort filter"), false),
-        IconItem("Sort", "Symbols", listOf("sorting order", "asc desc", "sort"), true),
-        IconItem("Search", "Symbols", listOf("lookup", "find item", "search lens"), false),
-        IconItem("Share", "Symbols", listOf("share with friends", "export link", "share"), false),
-        IconItem("Brush", "Symbols", listOf("paint", "decor", "drawing", "brush"), false),
-        IconItem("Palette", "Symbols", listOf("colors", "theme", "art", "palette"), false),
+        // Finance & Accounts
+        IconItem("AccountBalance", "Finance & Accounts", listOf("bank", "central bank", "institution", "governor", "finance", "ব্যাংক", "হিসাব"), false),
+        IconItem("AccountBalanceWallet", "Finance & Accounts", listOf("wallet", "money", "cash", "funds", "pocket", "মানিব্যাগ", "নগদ"), false),
+        IconItem("Wallet", "Finance & Accounts", listOf("purse", "pocket", "money", "leather", "মানিব্যাগ"), false),
+        IconItem("Payments", "Finance & Accounts", listOf("cash", "bills", "currency", "transfer", "remittance", "টাকা", "ক্যাশ", "প্রদান"), false),
+        IconItem("CreditCard", "Finance & Accounts", listOf("card", "debit", "visa", "mastercard", "amex", "কার্ড", "ক্রেডিট কার্ড"), false),
+        IconItem("Savings", "Finance & Accounts", listOf("piggy bank", "invest", "deposit", "savings", "সঞ্চয়", "ডিপিএস"), false),
+        IconItem("Paid", "Finance & Accounts", listOf("coin", "dollar", "taka", "payment", "received", "পেইড", "টাকা"), false),
+        IconItem("Toll", "Finance & Accounts", listOf("fee", "tax", "charge", "toll bridge", "টোল", "ফি"), false),
+        IconItem("Receipt", "Finance & Accounts", listOf("bill", "invoice", "slip", "voucher", "bank charge", "রিসিপ্ট", "বিল", "চার্জ"), false),
+        IconItem("ReceiptLong", "Finance & Accounts", listOf("statement", "long bill", "invoice", "cheque", "চেক", "স্টেটমেন্ট"), true),
+        IconItem("AttachMoney", "Finance & Accounts", listOf("dollar", "cash", "funds", "টাকা", "অর্থ"), false),
+        IconItem("CurrencyExchange", "Finance & Accounts", listOf("convert", "forex", "trading", "exchange", "মুদ্রা বিনিময়"), false),
+        IconItem("MonetizationOn", "Finance & Accounts", listOf("gold", "coin", "earnings", "revenue", "কমিশন", "টাকা"), false),
+        IconItem("ShowChart", "Finance & Accounts", listOf("stock", "growth", "graph", "market", "trend", "investment", "শেয়ার", "বিনিয়োগ"), true),
+        IconItem("Timeline", "Finance & Accounts", listOf("history", "trend", "tracking", "timeline", "রেকর্ড"), false),
+        IconItem("TrendingUp", "Finance & Accounts", listOf("gain", "profit", "bullish", "increase", "dividend", "লাভ", "মুনাফা"), true),
+        IconItem("TrendingDown", "Finance & Accounts", listOf("loss", "drop", "bearish", "decrease", "ক্ষতি", "লোকসান"), true),
+        IconItem("Analytics", "Finance & Accounts", listOf("report", "metrics", "stats", "analysis", "অ্যানালিটিক্স"), false),
+        IconItem("LocalAtm", "Finance & Accounts", listOf("atm", "cashout", "withdraw", "machine", "এটিএম", "ক্যাশ আউট"), false),
+        IconItem("QrCode", "Finance & Accounts", listOf("scan", "bkash", "nagad", "payment", "qr", "কিউআর কোড"), false),
+        IconItem("QrCode2", "Finance & Accounts", listOf("barcode", "scan", "pay", "qr code", "স্ক্যান"), false),
+        IconItem("QrCodeScanner", "Finance & Accounts", listOf("scanner", "camera", "pay", "scanner", "স্ক্যানার"), false),
+        IconItem("Sell", "Finance & Accounts", listOf("sale", "discount", "offer", "tag", "বিক্রি"), false),
+        IconItem("PriceCheck", "Finance & Accounts", listOf("cost", "audit", "verify", "price check", "মূল্য যাচাই"), false),
+        IconItem("PriceChange", "Finance & Accounts", listOf("rate", "fluctuation", "market", "change", "দর পরিবর্তন"), false),
+        IconItem("AccountTree", "Finance & Accounts", listOf("structure", "hierarchy", "nodes", "branches", "হিসাবের তালিকা"), false),
+        IconItem("Inventory", "Finance & Accounts", listOf("stock", "warehouse", "assets", "supplies", "মজুদ"), false),
+        IconItem("PointOfSale", "Finance & Accounts", listOf("pos", "terminal", "register", "billing", "পস মেশিন"), false),
+        IconItem("CardGiftcard", "Finance & Accounts", listOf("voucher", "gift", "bonus", "reward", "coupon", "উপহার", "ভাউচার"), false),
+        IconItem("Redeem", "Finance & Accounts", listOf("claim", "coupon", "gift", "redeem", "রিডিম"), false),
+        IconItem("Percent", "Finance & Accounts", listOf("interest", "percentage", "rate", "discount", "vat", "tax", "সুদ", "ভ্যাট", "ট্যাক্স"), false),
+        IconItem("Calculate", "Finance & Accounts", listOf("calculator", "math", "accounting", "sum", "হিসাব", "গণনা"), false),
+        IconItem("CreditScore", "Finance & Accounts", listOf("score", "rating", "cibil", "credit history", "ক্রেডিট স্কোর"), false),
+        IconItem("RequestQuote", "Finance & Accounts", listOf("quote", "estimate", "bid", "proposal", "কোটেশন"), false),
+        IconItem("AssuredWorkload", "Finance & Accounts", listOf("security", "audit", "compliance", "bank", "নিরীক্ষা"), false),
+        IconItem("CurrencyBitcoin", "Finance & Accounts", listOf("crypto", "btc", "blockchain", "coin", "ক্রিপ্টো"), false),
+        IconItem("Money", "Finance & Accounts", listOf("cash", "notes", "paper", "currency", "নগদ টাকা"), false),
+        IconItem("MoneyOff", "Finance & Accounts", listOf("bad debt", "loss", "waived", "discount", "মন্দ ঋণ", "অনাদায়ী"), false),
+        IconItem("AddCard", "Finance & Accounts", listOf("new card", "link card", "credit card", "কার্ড যুক্ত"), false),
+        IconItem("CreditCardOff", "Finance & Accounts", listOf("block card", "disable card", "expired", "কার্ড ব্লক"), false),
+        IconItem("Payment", "Finance & Accounts", listOf("checkout", "online pay", "gateway", "পেমেন্ট"), false),
+        IconItem("Contactless", "Finance & Accounts", listOf("nfc", "tap", "wave", "contactless pay", "ট্যাপ পে"), false),
+        IconItem("RequestPage", "Finance & Accounts", listOf("request", "invoice page", "billing doc", "চালান"), false),
+        IconItem("Balance", "Finance & Accounts", listOf("scale", "justice", "equity", "balance sheet", "উদ্বৃত্ত"), false),
+        IconItem("PieChart", "Finance & Accounts", listOf("pie", "chart", "breakdown", "distribution", "পাই চার্ট"), false),
+        IconItem("BarChart", "Finance & Accounts", listOf("bars", "graph", "histogram", "comparison", "বার চার্ট"), false),
+        IconItem("Sms", "Finance & Accounts", listOf("sms charges (bank)", "bank sms", "text message", "মেসেজ চার্জ"), false),
+        IconItem("SwapHoriz", "Finance & Accounts", listOf("transfer charges", "fund transfer", "send money", "ট্রান্সফার চার্জ", "টাকা পাঠানো"), false),
+        IconItem("Handshake", "Finance & Accounts", listOf("loan repayment", "parental debt", "deal", "debt", "ঋণ পরিশোধ", "কর্জ", "হাওলাত"), false),
+
+        // Income & Earnings
+        IconItem("Work", "Income & Earnings", listOf("salary", "wages", "office salary", "job", "বেতন", "চাকরি", "মাসিক বেতন"), false),
+        IconItem("Stars", "Income & Earnings", listOf("bonus", "eid bonus", "performance bonus", "incentive", "বোনাস", "ঈদের বোনাস", "ইনসেনটিভ"), false),
+        IconItem("Laptop", "Income & Earnings", listOf("freelancing", "upwork", "fiverr", "remote work", "client project", "ফ্রিল্যান্সিং", "প্রজেক্ট আয়"), false),
+        IconItem("BusinessCenter", "Income & Earnings", listOf("business", "profit", "sales", "shop revenue", "ব্যবসা", "বিক্রয়", "মুনাফা"), false),
+        IconItem("HomeWork", "Income & Earnings", listOf("rent received", "rental income", "house rent", "বাড়ি ভাড়া প্রাপ্তি", "ভাড়া আয়"), false),
+        IconItem("MonetizationOn", "Income & Earnings", listOf("commission", "brokerage", "reward", "কমিশন", "দালালি"), false),
+        IconItem("Replay", "Income & Earnings", listOf("refund", "cashback", "return money", "রিফান্ড", "ক্যাশব্যাক"), false),
+        IconItem("School", "Income & Earnings", listOf("tuition", "scholarship", "teaching income", "টিউশনি", "বৃত্তি"), false),
+
+        // Food & Groceries (including booster foods, staples, meat, fish, snacks)
+        IconItem("ElectricBolt", "Food & Groceries", listOf("booster food", "booster", "energy food", "chia seed", "nuts", "peanuts", "nut mix", "superfood", "boost", "পুষ্টি", "বুস্টার ফুড", "চিয়া সিড", "বাদাম", "ছোলা"), false),
+        IconItem("EnergySavingsLeaf", "Food & Groceries", listOf("honey", "garlic honey", "pure honey", "raw honey", "organic", "মধু", "রসুন মধু", "খাঁটি মধু"), false),
+        IconItem("Egg", "Food & Groceries", listOf("egg", "duck egg", "farm egg", "poultry", "breakfast", "protein", "ডিম", "হাঁসের ডিম", "ফার্মের ডিম"), false),
+        IconItem("EggAlt", "Food & Groceries", listOf("fried egg", "omelette", "poached egg", "ডিম ভাজা", "অমলেট"), false),
+        IconItem("LocalGroceryStore", "Food & Groceries", listOf("groceries", "fixed mkt exp", "raw bazaar", "spices", "rice", "dal", "flour", "sugar", "salt", "মুদি", "কাঁচাবাজার", "চাল", "ডাল", "আটা", "লবণ", "চিনি", "মশলা"), false),
+        IconItem("Phishing", "Food & Groceries", listOf("fish", "shrimp", "prawn", "hilsa", "rui", "dry fish", "shutki", "মাছ", "চিংড়ি", "চিংড়ি", "ইলিশ", "রুই", "শুটকি"), false),
+        IconItem("Restaurant", "Food & Groceries", listOf("meat", "beef", "chicken", "mutton", "poultry", "dine", "eating", "meal", "food", "মাংস", "গরুর মাংস", "মুরগি", "খাসির মাংস"), false),
+        IconItem("LocalGasStation", "Food & Groceries", listOf("cooking oil", "mustard oil", "soybean oil", "oil", "সরিষার তেল", "সয়াবিন তেল", "তৈল"), false),
+        IconItem("SoupKitchen", "Food & Groceries", listOf("ghee", "butter", "cooking", "curry", "pot", "stew", "ঘি", "মাখন", "রান্না"), false),
+        IconItem("RiceBowl", "Food & Groceries", listOf("polao rice", "biryani", "rice bowl", "cooked rice", "পোলাও চাল", "বাসমতি", "ভাত", "বিরিয়ানি"), false),
+        IconItem("Eco", "Food & Groceries", listOf("fruits", "apple", "banana", "mango", "dates", "khejur", "isabgol", "tokma", "organic", "ফলমূল", "ফল", "আপেল", "কলা", "আম", "খেজুর", "ইসবগুল"), false),
+        IconItem("Grass", "Food & Groceries", listOf("vegetables", "spinach", "potato", "onion", "garlic", "ginger", "fresh veggies", "সবজি", "শাক", "আলু", "পেঁয়াজ", "রসুন"), false),
+        IconItem("BakeryDining", "Food & Groceries", listOf("semai", "vermicelli", "bread", "biscuit", "toast", "bakery", "powder milk", "curd", "দুধ", "দই", "সেমাই", "পাউরুটি"), false),
+        IconItem("LocalCafe", "Food & Groceries", listOf("coffee", "coffee mate", "espresso", "cappuccino", "cafe", "কফি"), false),
+        IconItem("EmojiFoodBeverage", "Food & Groceries", listOf("tea", "milk tea", "green tea", "hot tea", "cha", "চা", "দুধ চা", "লাল চা"), false),
+        IconItem("LocalDrink", "Food & Groceries", listOf("water", "mineral water", "bottled water", "juice", "beverage", "soft drink", "coke", "পানি", "জুস", "পানীয়"), false),
+        IconItem("DinnerDining", "Food & Groceries", listOf("dinner", "restaurant", "kacchi", "biryani", "evening meal", "রাতের খাবার", "রেস্তোরাঁ", "কাচ্চি"), false),
+        IconItem("LunchDining", "Food & Groceries", listOf("lunch", "meal", "burger", "afternoon", "দুপুরের খাবার"), false),
+        IconItem("BreakfastDining", "Food & Groceries", listOf("breakfast", "morning food", "egg", "toast", "সকালের নাস্তা"), false),
+        IconItem("Fastfood", "Food & Groceries", listOf("burger", "fries", "junk food", "snack", "singara", "samucha", "fuchka", "chotpoti", "বার্গার", "সিংগারা", "ফুচকা", "চটপটি"), false),
+        IconItem("LocalPizza", "Food & Groceries", listOf("pizza", "slice", "cheese", "crust", "পিৎজা"), false),
+        IconItem("RamenDining", "Food & Groceries", listOf("noodles", "pasta", "soup", "ramen", "নুডলস", "পাস্তা"), false),
+        IconItem("Icecream", "Food & Groceries", listOf("ice cream", "dessert", "cone", "sweet", "gelato", "আইসক্রিম"), false),
+        IconItem("Cake", "Food & Groceries", listOf("cake", "birthday cake", "pastry", "sweets", "মিষ্টি", "কেক"), false),
+        IconItem("Cookie", "Food & Groceries", listOf("biscuit", "cookie", "chanachur", "chips", "muri", "nuts", "বিস্কুট", "চানাচুর", "চিপস", "মুড়ি"), false),
+        IconItem("KebabDining", "Food & Groceries", listOf("grill", "bbq", "kebab", "skewer", "কাবাব", "গ্রিল"), false),
+        IconItem("OutdoorGrill", "Food & Groceries", listOf("barbecue", "steak", "roast", "grill", "বারবিকিউ"), false),
+        IconItem("TakeoutDining", "Food & Groceries", listOf("parcel", "delivery", "pack", "takeout", "পার্সেল খাবার"), false),
+        IconItem("DeliveryDining", "Food & Groceries", listOf("food delivery", "foodpanda", "rider", "courier", "ফুডপান্ডা"), false),
+        IconItem("Kitchen", "Food & Groceries", listOf("fridge", "home food", "grocery", "cooking", "রান্নাঘর"), false),
+        IconItem("FoodBank", "Food & Groceries", listOf("charity food", "relief ration", "ত্রাণ খাবার"), false),
+        IconItem("LocalDining", "Food & Groceries", listOf("eat", "plate", "fork", "restaurant", "খাবার প্লেট"), false),
+        IconItem("Bento", "Food & Groceries", listOf("box", "lunchbox", "tiffin", "টিফিন বক্স"), false),
+        IconItem("Flatware", "Food & Groceries", listOf("fork", "spoon", "cutlery", "utensils", "চামচ", "কাটাচামচ"), false),
+
+        // Health & Wellness (care essentials, toiletries, medicines, doctors)
+        IconItem("CleanHands", "Health & Wellness", listOf("care essentials", "care essential", "toiletries", "hygiene", "পরিচ্ছন্নতা", "হাত ধোয়া", "যত্ন"), false),
+        IconItem("Sanitizer", "Health & Wellness", listOf("sanitizer", "hand rub", "disinfectant", "জীবাণুনাশক", "স্যানিটাইজার"), false),
+        IconItem("Soap", "Health & Wellness", listOf("soap", "bath soap", "shampoo", "handwash", "toothpaste", "brush", "razor", "সাবান", "শ্যাম্পু", "টুথপেস্ট", "ব্রাশ"), false),
+        IconItem("Spa", "Health & Wellness", listOf("skincare", "facewash", "face wash", "lotion", "body lotion", "cream", "beauty", "cosmetics", "ত্বকের যত্ন", "লোশন", "ফেসওয়াশ", "রূপচর্চা"), false),
+        IconItem("AutoFixHigh", "Health & Wellness", listOf("beauty", "glow", "cosmetics", "মেকআপ", "সৌন্দর্য"), false),
+        IconItem("Medication", "Health & Wellness", listOf("medicine", "medicines & pharmacy", "drugs", "tablets", "syrup", "capsules", "ওষুধ", "ঔষধ", "ফার্মেসি", "ট্যাবলেট", "সিরাপ"), false),
+        IconItem("LocalHospital", "Health & Wellness", listOf("doctor fees", "doctor", "patient visit", "hospital", "clinic", "ডাক্তার ফি", "রোগী দেখা", "হাসপাতাল"), false),
+        IconItem("Biotech", "Health & Wellness", listOf("medical test", "lab test", "pathology", "blood test", "ডায়াগনস্টিক", "রক্ত পরীক্ষা", "ল্যাব"), false),
+        IconItem("HealthAndSafety", "Health & Wellness", listOf("sanitary pad", "pad", "first aid", "safety", "প্যাড", "স্যানিটারি প্যাড", "প্রাথমিক চিকিৎসা"), false),
+        IconItem("MedicalServices", "Health & Wellness", listOf("oral saline", "saline", "bandaid", "clinic", "স্যালাইন", "ব্যান্ডেজ"), false),
+        IconItem("MonitorHeart", "Health & Wellness", listOf("heart", "ecg", "cardiology", "pulse", "হৃদযন্ত্র"), false),
+        IconItem("Favorite", "Health & Wellness", listOf("sexual wellness", "wellness", "contraceptive", "family planning", "কনডম", "যৌন স্বাস্থ্য"), false),
+        IconItem("LocalPharmacy", "Health & Wellness", listOf("pharmacy", "drugstore", "chemist", "ফার্মেসি"), false),
+        IconItem("Vaccines", "Health & Wellness", listOf("vaccine", "injection", "dose", "টিকা", "ইনজেকশন"), false),
+        IconItem("Healing", "Health & Wellness", listOf("bandage", "wound care", "recovery", "নিরাময়"), false),
+        IconItem("FitnessCenter", "Health & Wellness", listOf("gym", "workout", "weights", "fitness gear", "exercise", "ব্যায়াম", "জিম"), false),
+        IconItem("SelfImprovement", "Health & Wellness", listOf("yoga", "meditation", "mindfulness", "যোগব্যায়াম", "ধ্যান"), false),
+
+        // Shopping & Fashion (clothing, tailoring, shoes, accessories)
+        IconItem("Checkroom", "Shopping & Fashion", listOf("clothes", "shirt", "t-shirt", "pant", "jeans", "punjabi", "sharee", "dress", "fashion", "পোশাক", "কাপড়", "শার্ট", "প্যান্ট", "পাঞ্জাবি", "শাড়ি"), false),
+        IconItem("ShoppingBag", "Shopping & Fashion", listOf("shoes", "sandals", "sneakers", "slippers", "shopping haul", "জুতা", "স্যান্ডেল", "জুতো"), false),
+        IconItem("ContentCut", "Shopping & Fashion", listOf("hair cuts", "haircut", "tailoring", "tailor", "barber", "scissors", "salon", "চুল কাটা", "টেইলারিং", "দর্জি", "সেলাই মজুরি"), false),
+        IconItem("Watch", "Shopping & Fashion", listOf("wrist watch", "watch", "smartwatch", "clock", "ঘড়ি", "হাতঘড়ি"), false),
+        IconItem("Diamond", "Shopping & Fashion", listOf("jewelry", "gold", "silver", "ring", "bangle", "earring", "গহনা", "স্বর্ণ", "চুড়ি", "অলঙ্কার"), false),
+        IconItem("DryCleaning", "Shopping & Fashion", listOf("dry cleaning", "laundry", "tissue", "laundry wash", "ড্রাই ওয়াশ", "লন্ড্রি"), false),
+        IconItem("ShoppingCart", "Shopping & Fashion", listOf("cart", "buy", "supermarket", "store", "shopping", "কেনাকাটা", "বাজার"), false),
+        IconItem("ShoppingCartCheckout", "Shopping & Fashion", listOf("checkout", "order", "purchase", "অর্ডার"), false),
+        IconItem("ShoppingBasket", "Shopping & Fashion", listOf("basket", "goods", "shop", "market", "ঝুড়ি"), false),
+        IconItem("Store", "Shopping & Fashion", listOf("shop", "vendor", "outlet", "retail", "দোকান"), false),
+        IconItem("Storefront", "Shopping & Fashion", listOf("boutique", "showroom", "shop front", "শোরুম"), false),
+        IconItem("LocalMall", "Shopping & Fashion", listOf("shopping mall", "plaza", "center", "শপিং মল"), false),
+        IconItem("Backpack", "Shopping & Fashion", listOf("bag", "travel bag", "hiking", "school bag", "ব্যাগ"), false),
+        IconItem("Style", "Shopping & Fashion", listOf("socks", "tag", "fashion", "brand", "style", "মোজা", "স্টাইল"), false),
+        IconItem("LocalOffer", "Shopping & Fashion", listOf("deal", "discount", "coupon", "promo", "অফার"), false),
+        IconItem("Discount", "Shopping & Fashion", listOf("voucher", "percent off", "markdown", "ডিসকাউন্ট"), false),
+
+        // Bills, Housing & Utilities
+        IconItem("Home", "Bills & Housing", listOf("house rent", "home rent", "flat rent", "apartment rent", "বাড়ি ভাড়া", "বাসা ভাড়া"), false),
+        IconItem("ElectricBolt", "Bills & Housing", listOf("electricity", "power bill", "current bill", "prepaid meter", "desco", "dpdc", "reb", "বিদ্যুৎ বিল", "কারেন্ট বিল"), false),
+        IconItem("GasMeter", "Bills & Housing", listOf("gas bill", "titas gas", "cylinder", "গ্যাস বিল"), false),
+        IconItem("Propane", "Bills & Housing", listOf("gas cylinder", "lpg", "bashundhara gas", "omera", "সিলিন্ডার", "এলপিজি"), false),
+        IconItem("WaterDrop", "Bills & Housing", listOf("water bill", "wasa", "sewerage", "পানি বিল", "ওয়াসা বিল"), false),
+        IconItem("Wifi", "Bills & Housing", listOf("wifi bill", "broadband", "internet bill", "fiber", "ওয়াইফাই বিল", "ইন্টারনেট বিল"), false),
+        IconItem("Router", "Bills & Housing", listOf("wifi router", "modem", "রাউটার"), false),
+        IconItem("CleaningServices", "Bills & Housing", listOf("clean bill", "cleaning", "waste bill", "garbage", "ময়লা বিল", "পরিষ্কার বিল"), false),
+        IconItem("Lightbulb", "Bills & Housing", listOf("bulb", "led light", "lighting", "torch", "বাল্ব", "বাতি"), false),
+        IconItem("BatteryChargingFull", "Bills & Housing", listOf("ips battery", "solar battery", "battery", "আইপিএস ব্যাটারি", "ব্যাটারি"), false),
+        IconItem("Plumbing", "Bills & Housing", listOf("plumbing", "water filter", "purifier", "pipe repair", "water tap", "পানির ফিল্টার", "প্লাম্বিং"), false),
+        IconItem("Lock", "Bills & Housing", listOf("door lock", "padlock", "lock", "তালা"), false),
+        IconItem("Chair", "Bills & Housing", listOf("furniture", "sofa", "table", "chair", "bed", "almirah", "ফার্নিচার", "আসবাবপত্র"), false),
+        IconItem("Palette", "Bills & Housing", listOf("home decor", "paint", "wall decor", "ঘর সাজানো", "রং"), false),
+        IconItem("Kitchen", "Bills & Housing", listOf("household items", "kitchen items", "গৃহস্থালি"), false),
+        IconItem("PestControl", "Bills & Housing", listOf("mosquito coil", "pest control", "insect spray", "মশার কয়েল", "কীটনাশক"), false),
+        IconItem("Power", "Bills & Housing", listOf("utility bill", "power socket", "বিদ্যুৎ সংযোগ"), false),
+        IconItem("Apartment", "Bills & Housing", listOf("building", "flat", "apartment", "অ্যাপার্টমেন্ট"), false),
 
         // Education & Study
-        IconItem("School", "Education & Study", listOf("students", "study", "exam travel", "study essentials", "school", "college", "university", "আবেদন ফি", "ছাত্র", "শিক্ষার্থী"), false),
-        IconItem("AutoStories", "Education & Study", listOf("books", "story", "teaching materials", "reading", "বই", "শিক্ষা"), false),
-        IconItem("MenuBook", "Education & Study", listOf("books", "study", "cookbook", "syllabus", "বই"), true),
+        IconItem("School", "Education & Study", listOf("students", "study", "exam", "school", "college", "university", "tuition", "স্কুল বেতন", "টিউশন ফি", "শিক্ষার্থী"), false),
+        IconItem("AutoStories", "Education & Study", listOf("books", "story", "teaching materials", "reading", "textbook", "বই", "শিক্ষা উপকরণ"), false),
+        IconItem("MenuBook", "Education & Study", listOf("books", "study", "syllabus", "guide", "গাইড বই"), true),
         IconItem("Class", "Education & Study", listOf("classroom", "lecture", "course", "ক্লাস"), false),
-        IconItem("CastForEducation", "Education & Study", listOf("online class", "study", "learning", "ই-লার্নিং"), false),
-        IconItem("HistoryEdu", "Education & Study", listOf("certificate", "study", "degree", "শিক্ষা"), false),
-        IconItem("Draw", "Education & Study", listOf("drawing", "study essentials", "art", "আঁকা"), false),
-        IconItem("Create", "Education & Study", listOf("write", "study essentials", "draft", "লেখা"), false),
-        IconItem("Edit", "Education & Study", listOf("pencil", "study essentials", "notes", "নোট"), false),
-        IconItem("DriveFileRenameOutline", "Education & Study", listOf("pen", "study essentials", "signature", "কলম"), false),
-        IconItem("Assignment", "Education & Study", listOf("application fees", "exam", "assignment", "homework", "আবেদন"), true),
-        IconItem("FactCheck", "Education & Study", listOf("test", "medical test", "exam", "verification", "পরীক্ষা"), true),
+        IconItem("CastForEducation", "Education & Study", listOf("online class", "study", "e-learning", "অনলাইন ক্লাস"), false),
+        IconItem("HistoryEdu", "Education & Study", listOf("certificate", "degree", "diploma", "সার্টিফিকেট"), false),
+        IconItem("DriveFileRenameOutline", "Education & Study", listOf("pen", "study essentials", "signature", "stationery", "কলম", "খাতা", "স্টেশনারি"), false),
+        IconItem("Edit", "Education & Study", listOf("pencil", "notes", "নোট", "পেন্সিল"), false),
+        IconItem("Assignment", "Education & Study", listOf("application fees", "exam fee", "admission form", "আবেদন ফি", "ভর্তি ফরম"), true),
+        IconItem("FactCheck", "Education & Study", listOf("test", "exam test", "verification", "পরীক্ষা"), true),
+        IconItem("Badge", "Education & Study", listOf("id card", "teacher id", "student id", "আইডি কার্ড"), false),
+
+        // Transport & Travel
+        IconItem("DirectionsBus", "Transport & Travel", listOf("bus fare", "local bus", "intercity bus", "বাস ভাড়া"), false),
+        IconItem("Commute", "Transport & Travel", listOf("train ticket", "metro rail", "rickshaw", "cng", "ভাড়া", "ট্রেন", "মেট্রোরেল", "রিকশা", "সিএনজি"), false),
+        IconItem("DirectionsCar", "Transport & Travel", listOf("taxi", "car rental", "uber", "pathao car", "গাড়ি", "উবার", "ট্যাক্সি"), false),
+        IconItem("TwoWheeler", "Transport & Travel", listOf("motorcycle", "bike", "pathao ride", "ride sharing", "মোটরসাইকেল", "বাইক", "পাঠাও"), false),
+        IconItem("LocalGasStation", "Transport & Travel", listOf("fuel", "petrol", "octane", "diesel", "mobil", "engine oil", "জ্বালানি", "পেট্রোল", "অকটেন", "ডিজেল", "মবিল"), false),
+        IconItem("TireRepair", "Transport & Travel", listOf("tire repair", "puncture", "bike servicing", "car repair", "টায়ার মেরামত", "পাংচার"), false),
+        IconItem("Flight", "Transport & Travel", listOf("flight ticket", "airplane", "airfare", "বিমান টিকিট"), false),
+        IconItem("FlightTakeoff", "Transport & Travel", listOf("tour", "vacation travel", "trip", "ট্যুর", "ভ্রমণ"), false),
+        IconItem("Hotel", "Transport & Travel", listOf("hotel booking", "resort", "lodge", "হোটেল"), false),
+        IconItem("Luggage", "Transport & Travel", listOf("luggage", "travel suitcase", "লাগেজ"), false),
+        IconItem("CarRepair", "Transport & Travel", listOf("vehicle servicing", "mechanic", "গাড়ি সার্ভিসিং"), false),
 
         // Islamic & Charity
-        IconItem("VolunteerActivism", "Islamic & Charity", listOf("charity", "zakat", "mosque donation", "salami", "others (charity)", "imam's remuneration", "দান", "যাকাত", "মসজিদ", "অনুদান", "সালামি"), false),
-        IconItem("CardGiftcard", "Islamic & Charity", listOf("gifts & presents", "salami", "presents", "উপহার", "সালামি"), false),
-        IconItem("Pets", "Islamic & Charity", listOf("qurbani", "sacrificial animal", "গরু", "খাসি", "কুরবানি", "কোরবানি"), false),
-        IconItem("Handshake", "Islamic & Charity", listOf("loan repayment", "parental debt", "deal", "ঋণ", "কর্জ"), false),
+        IconItem("VolunteerActivism", "Islamic & Charity", listOf("charity", "zakat", "sadqah", "fitra", "mosque donation", "relief", "দান", "যাকাত", "সদকা", "ফিতরা", "অনুদান"), false),
+        IconItem("AccountBalance", "Islamic & Charity", listOf("mosque donation", "madrasha", "imam hadiya", "muazzin", "মসজিদ", "ইমাম হাদিয়া"), false),
+        IconItem("Pets", "Islamic & Charity", listOf("qurbani", "sacrificial cow", "goat", "কোরবানি গরু", "খাসি"), false),
+        IconItem("Paid", "Islamic & Charity", listOf("salami", "eid salami", "eidi", "সালামি", "ঈদি"), false),
+        IconItem("Handshake", "Islamic & Charity", listOf("loan repayment", "karz hasana", "parental debt", "ঋণ পরিশোধ", "কর্জ"), false),
+        IconItem("VolumeUp", "Islamic & Charity", listOf("mahfil", "waz", "islamic lecture", "মাহফিল", "ওয়াজ"), true),
 
         // Celebrations & Social
-        IconItem("Cake", "Celebrations & Social", listOf("birthday", "party", "home snacks & sweets", "sweets", "জন্মদিন", "মিষ্টি"), false),
-        IconItem("Celebration", "Celebrations & Social", listOf("celebrations", "farewell ceremony", "party", "eid", "fest", "অনুষ্ঠান", "বিদায়"), false),
-        IconItem("Festival", "Celebrations & Social", listOf("festival", "celebrations", "fair", "উৎসব"), false),
-        IconItem("Attractions", "Celebrations & Social", listOf("picnic", "fair", "amusement", "পিকনিক"), false),
-        IconItem("Park", "Celebrations & Social", listOf("picnic", "park", "garden", "nature", "বনভোজন", "পিকনিক"), false),
-        IconItem("Groups", "Celebrations & Social", listOf("farewell ceremony", "others (social)", "others (friends)", "meeting", "বন্ধু", "আড্ডা", "সামাজিক"), false),
-        IconItem("Diversity1", "Celebrations & Social", listOf("mkt expenses (visits)", "visit treats", "family visit", "দেখা করা", "সাক্ষাৎ"), false),
-        IconItem("Diversity2", "Celebrations & Social", listOf("others (friends)", "social gathering", "friends", "বন্ধু"), false),
-        IconItem("VolumeUp", "Celebrations & Social", listOf("mahfil", "waz", "speaker", "announcement", "মাহফিল", "ওয়াজ"), true),
-        IconItem("EmojiEmotions", "Celebrations & Social", listOf("visit treats", "happiness", "joy", "আনন্দ"), false),
+        IconItem("CardGiftcard", "Celebrations & Social", listOf("gifts & presents", "treat", "presents", "wedding gift", "উপহার", "ট্রিট"), false),
+        IconItem("Cake", "Celebrations & Social", listOf("birthday", "anniversary", "sweets", "জন্মদিন", "কেক"), false),
+        IconItem("Celebration", "Celebrations & Social", listOf("celebrations", "farewell ceremony", "eid fest", "party", "অনুষ্ঠান", "উৎসব", "বিদায়"), false),
+        IconItem("Festival", "Celebrations & Social", listOf("festival", "fair", "উৎসব", "মেলা"), false),
+        IconItem("Park", "Celebrations & Social", listOf("picnic", "outing", "family park", "বনভোজন", "পিকনিক"), false),
+        IconItem("Diversity2", "Celebrations & Social", listOf("friends hangout", "adda", "social meetup", "বন্ধু", "আড্ডা"), false),
+        IconItem("FamilyRestroom", "Celebrations & Social", listOf("parental debt", "family support", "parents", "পিতামাতা", "পরিবার"), false),
+        IconItem("Payments", "Celebrations & Social", listOf("cash given", "pocket money", "allowance", "হাত খরচ", "পকেট মানি"), false),
 
         // Repairs & Maintenance
-        IconItem("Build", "Repairs & Maintenance", listOf("others (repairs)", "household items (m&r)", "maintenance", "tool", "মেরামত"), false),
-        IconItem("Handyman", "Repairs & Maintenance", listOf("shoe repair", "household items (m&r)", "repairman", "মিস্ত্রি", "জুতা মেরামত"), false),
+        IconItem("Build", "Repairs & Maintenance", listOf("repairs", "maintenance", "tool", "servicing", "মেরামত", "সার্ভিসিং"), false),
+        IconItem("Handyman", "Repairs & Maintenance", listOf("shoe repair", "repairman", "মিস্ত্রি", "জুতা মেরামত"), false),
         IconItem("Hardware", "Repairs & Maintenance", listOf("hardware", "tools", "screws", "যন্ত্রপাতি"), false),
-        IconItem("Construction", "Repairs & Maintenance", listOf("repairs", "construction", "building", "সংস্কার"), false),
-        IconItem("PhoneAndroid", "Repairs & Maintenance", listOf("mobile (m&r)", "mobile recharge", "smartphone", "মোবাইল মেরামত", "রিচার্জ"), false),
-        IconItem("TwoWheeler", "Repairs & Maintenance", listOf("motorcycle (m&r)", "bike", "motorcycle", "মোটরসাইকেল", "বাইক"), false),
-        IconItem("Motorcycle", "Repairs & Maintenance", listOf("motorcycle (m&r)", "bike repair", "বাইক মেরামত"), false),
-        IconItem("Watch", "Repairs & Maintenance", listOf("watch (m&r)", "wrist watch", "clock", "ঘড়ি মেরামত"), false),
-        IconItem("TireRepair", "Repairs & Maintenance", listOf("puncture", "tire repair", "motorcycle (m&r)", "টায়ার"), false),
-        IconItem("CarRepair", "Repairs & Maintenance", listOf("vehicle repair", "servicing", "গাড়ি মেরামত"), false),
-        IconItem("Plumbing", "Repairs & Maintenance", listOf("plumbing", "pipe repair", "water repair", "প্লাম্বিং"), false),
-        IconItem("ElectricalServices", "Repairs & Maintenance", listOf("electrician", "wiring", "electrical repair", "ইলেকট্রিক"), false),
+        IconItem("PhoneAndroid", "Repairs & Maintenance", listOf("mobile repair", "mobile screen", "display change", "মোবাইল মেরামত"), false),
+        IconItem("TwoWheeler", "Repairs & Maintenance", listOf("motorcycle repair", "bike servicing", "বাইক মেরামত"), false),
+        IconItem("Plumbing", "Repairs & Maintenance", listOf("plumbing", "pipe fix", "water tap repair", "প্লাম্বিং মেরামত"), false),
+        IconItem("ElectricalServices", "Repairs & Maintenance", listOf("electrician", "wiring fix", "electrical repair", "ইলেকট্রিক মেরামত"), false),
 
-        // Personal Care & Lifestyle
-        IconItem("ContentCut", "Shopping", listOf("hair cuts", "tailoring", "barber", "scissors", "salon", "চুল কাটা", "টেইলারিং", "দর্জি"), false),
-        IconItem("CleanHands", "Health", listOf("care essentials", "toiletries", "hygiene", "পরিচ্ছন্নতা", "হাত ধোয়া"), false),
-        IconItem("Sanitizer", "Health", listOf("care essentials", "toiletries", "sanitizer", "জীবাণুনাশক"), false),
-        IconItem("Soap", "Bills & Housing", listOf("toiletries", "care essentials", "soap", "bath", "সাবান"), false),
-        IconItem("Spa", "Health", listOf("skincare", "lifestyle maintenance", "others (care)", "wellness", "ত্বকের যত্ন", "স্পা"), false),
-        IconItem("AutoFixHigh", "Health", listOf("skincare", "beauty", "cosmetics", "গ্লো"), false),
-        IconItem("LocalHospital", "Health", listOf("doctor fees", "patient visit", "hospital", "clinic", "ডাক্তার ফি", "রোগী দেখা"), false),
-        IconItem("Biotech", "Health", listOf("medical test", "lab test", "pathology", "রক্ত পরীক্ষা"), false),
-        IconItem("Medication", "Health", listOf("medicine", "medicines & pharmacy", "drugs", "ওষুধ", "ঔষধ"), false),
-        IconItem("Science", "Health", listOf("medical test", "research", "lab", "বিজ্ঞান"), false),
-        IconItem("MonitorHeart", "Health", listOf("medical test", "heart", "ecg", "হৃদযন্ত্র"), false),
-        IconItem("Favorite", "Health", listOf("sexual wellness", "heart", "care", "wellness", "ভালোবাসা"), false),
+        // Tech, Gadgets & Tools
+        IconItem("PhoneAndroid", "Tech & Tools", listOf("smartphone", "android phone", "mobile recharge", "মোবাইল", "স্মার্টফোন", "রিচার্জ"), false),
+        IconItem("PhoneIphone", "Tech & Tools", listOf("apple", "iphone", "ios", "আইফোন"), false),
+        IconItem("Computer", "Tech & Tools", listOf("pc", "computer", "desktop", "laptop", "কম্পিউটার", "পিসি"), false),
+        IconItem("Tablet", "Tech & Tools", listOf("ipad", "android tablet", "ট্যাবলেট"), false),
+        IconItem("Devices", "Tech & Tools", listOf("devices", "gadgets", "charger", "earbuds", "accessories", "গ্যাজেট", "যন্ত্রপাতি"), false),
+        IconItem("Subscriptions", "Tech & Tools", listOf("apps & subscriptions", "netflix", "youtube", "software", "সাবস্ক্রিপশন"), false),
+        IconItem("Headphones", "Tech & Tools", listOf("headphones", "earphones", "headset", "হেডফোন"), false),
+        IconItem("Bluetooth", "Tech & Tools", listOf("wireless", "bluetooth", "ব্লুটুথ"), false),
+        IconItem("SimCard", "Tech & Tools", listOf("sim card", "esim", "সিম কার্ড"), false),
+        IconItem("SdCard", "Tech & Tools", listOf("memory card", "storage", "মেমোরি কার্ড"), false),
+        IconItem("Usb", "Tech & Tools", listOf("pen drive", "usb cable", "পেন ড্রাইভ"), false),
+        IconItem("Security", "Tech & Tools", listOf("security", "antivirus", "নিরাপত্তা"), false),
+        IconItem("Code", "Tech & Tools", listOf("programming", "coding", "software", "প্রোগ্রামিং"), false),
 
-        // Tech, Gadgets & Subscriptions
-        IconItem("Subscriptions", "Finance", listOf("apps & subscriptions", "apps subscriptions", "netflix", "youtube", "সাবস্ক্রিপশন"), false),
-        IconItem("Devices", "Tech & Tools", listOf("devices & gadgets", "electronics", "gadgets", "যন্ত্রপাতি", "গ্যাজেট"), false),
-        IconItem("Sms", "Finance", listOf("sms charges (bank)", "bank sms", "text message", "মেসেজ চার্জ"), false),
-        IconItem("SwapHoriz", "Finance", listOf("transfer charges", "fund transfer", "send money", "ট্রান্সফার চার্জ"), false),
-        IconItem("MoneyOff", "Finance", listOf("bad debt exp", "debt loss", "waived", "মন্দ ঋণ", "অনাদায়ী"), false),
-        IconItem("FamilyRestroom", "Life & Work", listOf("parental debt", "family", "parents", "পিতামাতা", "পরিবার"), false),
+        // Life & Work
+        IconItem("Work", "Life & Work", listOf("office", "job", "workplace", "চাকরি", "অফিস"), false),
+        IconItem("People", "Life & Work", listOf("colleagues", "team", "people", "সহকর্মী"), false),
+        IconItem("SupportAgent", "Life & Work", listOf("customer care", "helpdesk", "সাপোর্ট"), false),
+        IconItem("Desk", "Life & Work", listOf("office desk", "workstation", "ডেস্ক"), false),
 
-        // Market & Groceries
-        IconItem("LocalGroceryStore", "Food & Drinks", listOf("fixed mkt exp", "groceries", "others (market)", "raw bazar", "কাঁচাবাজার", "মুদি"), false),
-        IconItem("Eco", "Food & Drinks", listOf("fruits", "fresh organic", "nature", "ফলমূল", "ফল"), false),
-        IconItem("CleaningServices", "Bills & Housing", listOf("clean bill", "cleaning", "housekeeping", "পরিষ্কার"), false),
-        IconItem("GasMeter", "Bills & Housing", listOf("gas bill", "titas gas", "cylinder", "গ্যাস বিল"), false),
-        IconItem("Propane", "Bills & Housing", listOf("gas cylinder", "lpg", "gas bill", "সিলিন্ডার"), false),
-        IconItem("ElectricBolt", "Bills & Housing", listOf("electricity", "power bill", "current", "বিদ্যুৎ বিল"), false),
-        IconItem("Wifi", "Bills & Housing", listOf("wifi bill", "broadband", "internet", "ওয়াইফাই বিল"), false),
-        IconItem("Router", "Bills & Housing", listOf("wifi bill", "router", "modem", "রাউটার"), false),
+        // Entertainment & Sports
+        IconItem("Movie", "Entertainment & Sports", listOf("cinema", "hall", "movie", "film", "সিনেমা"), false),
+        IconItem("MusicNote", "Entertainment & Sports", listOf("song", "music", "audio", "গান"), false),
+        IconItem("SportsEsports", "Entertainment & Sports", listOf("gaming", "video games", "গেমিং"), false),
+        IconItem("SportsCricket", "Entertainment & Sports", listOf("cricket", "bat", "ball", "ক্রিকেট"), false),
+        IconItem("SportsSoccer", "Entertainment & Sports", listOf("football", "soccer", "ফুটবল"), false),
+        IconItem("SportsTennis", "Entertainment & Sports", listOf("badminton", "tennis", "টেনিস", "ব্যাডমিন্টন"), false),
+
+        // Nature & Weather
+        IconItem("Eco", "Nature & Weather", listOf("plants", "gardening", "green", "গাছপালা", "বাগান"), false),
+        IconItem("Forest", "Nature & Weather", listOf("trees", "forest", "বন"), false),
+        IconItem("WbSunny", "Nature & Weather", listOf("sun", "day", "রোদ"), false),
+
+        // Symbols
+        IconItem("Category", "Symbols", listOf("category", "group", "folder", "বিভাগ"), false),
+        IconItem("Star", "Symbols", listOf("favorite", "important", "স্টার"), false),
+        IconItem("CheckCircle", "Symbols", listOf("completed", "done", "সম্পন্ন"), false),
+        IconItem("Warning", "Symbols", listOf("warning", "alert", "সতর্কতা"), false),
+        IconItem("Notifications", "Symbols", listOf("notification", "bell", "নোটিফিকেশন"), false)
     )
 
     /**
@@ -1335,6 +942,11 @@ object IconHelper {
             "Propane" -> Icons.Default.Propane
             "FamilyRestroom" -> Icons.Default.FamilyRestroom
             "CleaningServices" -> Icons.Default.CleaningServices
+            "Phishing" -> Icons.Default.Phishing
+            "BatteryChargingFull" -> Icons.Default.BatteryChargingFull
+            "Stars" -> Icons.Default.Stars
+            "Replay" -> Icons.Default.Replay
+            "LaptopMac" -> Icons.Default.LaptopMac
             "BankBkash", "BankBkashAlt", "BankNagad", "BankNagadAlt", "BankRocket", "BankRocketAlt",
             "BankUpay", "BankUpayAlt", "BankCellfin", "BankCellfinAlt" -> Icons.Default.Payments
             "BankDBBL", "BankDBBLAlt", "BankIBBL", "BankIBBLAlt", "BankBRAC", "BankAstha",
@@ -1344,121 +956,213 @@ object IconHelper {
     }
 
     /**
-     * Intelligently suggests an icon name based on category/subcategory title keywords in English or Bengali.
+     * Searches the vast in-app icon store for a suitable icon matching the given query name or tags.
+     * Returns the icon name if found, or null if no specific in-app match exists.
+     */
+    fun findMatchingInAppIcon(name: String?): String? {
+        if (name.isNullOrBlank()) return null
+        val clean = name.trim().lowercase()
+        if (clean.isBlank()) return null
+
+        // 1. Direct match with built-in icon names or tags
+        val directMatch = BUILTIN_ICONS.firstOrNull { icon ->
+            icon.name.equals(clean, ignoreCase = true) ||
+            icon.tags.any { tag -> tag.equals(clean, ignoreCase = true) }
+        }
+        if (directMatch != null) return directMatch.name
+
+        // 2. Keyword-based matching in vast in-app icon library
+        val suggested = suggestIconForName(name)
+        return if (suggested != "Category") suggested else null
+    }
+
+    /**
+     * Intelligently suggests an icon name based on category/subcategory/item title keywords in English or Bengali.
      */
     fun suggestIconForName(name: String?): String {
         if (name.isNullOrBlank()) return "Category"
         val clean = name.trim().lowercase()
 
         return when {
+            // MFS & Banks
+            clean.contains("bkash") || clean.contains("বিকাশ") -> "BankBkash"
+            clean.contains("nagad") || clean.contains("নগদ") -> "BankNagad"
+            clean.contains("rocket") || clean.contains("রকেট") -> "BankRocket"
+            clean.contains("upay") || clean.contains("উপায়") -> "BankUpay"
+            clean.contains("cellfin") || clean.contains("সেলফিন") -> "BankCellfin"
+            clean.contains("dbbl") || clean.contains("ডাচ বাংলা") -> "BankDBBL"
+            clean.contains("ibbl") || clean.contains("ইসলামী ব্যাংক") -> "BankIBBL"
+            clean.contains("brac") || clean.contains("ব্র্যাক") -> "BankBRAC"
+            clean.contains("city bank") || clean.contains("সিটি ব্যাংক") -> "BankCity"
+            clean.contains("sonali") || clean.contains("সোনালী") -> "BankSonali"
+            clean.contains("ebl") || clean.contains("ইস্টার্ন") -> "BankEBL"
+            clean.contains("scb") || clean.contains("standard chartered") -> "BankSCB"
+            clean.contains("hsbc") -> "BankHSBC"
+
             // Apps & Subscriptions
-            clean.contains("app") || clean.contains("subscription") || clean.contains("সাবস্ক্রিপশন") -> "Subscriptions"
+            clean.contains("app") || clean.contains("subscription") || clean.contains("সাবস্ক্রিপশন") || clean.contains("live mcq") || clean.contains("software") -> "Subscriptions"
+            
             // Devices & Gadgets
-            clean.contains("device") || clean.contains("gadget") || clean.contains("গ্যাজেট") || clean.contains("ইলেকট্রনিক্স") -> "Devices"
-            // Booster Foods / Energy / Gym snacks
-            clean.contains("booster") || clean.contains("energy") || clean.contains("পুষ্টি") -> "ElectricBolt"
-            // Hair Cuts / Grooming
-            clean.contains("hair") || clean.contains("cut") || clean.contains("বার্বার") || clean.contains("চুল") || clean.contains("সেলুন") -> "ContentCut"
-            // Skincare / Beauty
-            clean.contains("skin") || clean.contains("skincare") || clean.contains("স্কিন") || clean.contains("ত্বক") || clean.contains("সৌন্দর্য") -> "Spa"
-            // Care Essentials / Care / Hygiene
-            clean.contains("care essential") || clean.contains("যত্ন") -> "CleanHands"
-            clean.contains("care") || clean.contains("লাইফস্টাইল") -> "Spa"
-            // Bad Debt Exp
-            clean.contains("bad debt") || clean.contains("মন্দ ঋণ") || clean.contains("অনাদায়ী") || clean.contains("ক্ষতি") -> "MoneyOff"
-            // Loan Repayment
-            clean.contains("loan") || clean.contains("repayment") || clean.contains("ঋণ পরিশোধ") || clean.contains("কর্জ") -> "Handshake"
-            // Parental debt
-            clean.contains("parent") || clean.contains("পিতামাতা") || clean.contains("বাবার ঋণ") || clean.contains("মায়ের ঋণ") -> "FamilyRestroom"
-            // Cash Given
-            clean.contains("cash given") || clean.contains("নগদ প্রদান") || clean.contains("টাকা দেওয়া") || clean.contains("নগদ দান") -> "Payments"
-            // Street Foods
-            clean.contains("street") || clean.contains("ফুচকা") || clean.contains("চটপটি") || clean.contains("স্ট্রিট ফুড") -> "Fastfood"
-            // Training Snacks
-            clean.contains("training") || clean.contains("workout") || clean.contains("ব্যায়াম") || clean.contains("জিম") -> "FitnessCenter"
-            // Dining Out / Restaurant
-            clean.contains("dining") || clean.contains("restaurant") || clean.contains("রেস্তোরাঁ") || clean.contains("হোটেল") || clean.contains("খাবার") -> "DinnerDining"
-            // Friends
-            clean.contains("friend") || clean.contains("বন্ধু") || clean.contains("আড্ডা") -> "Diversity2"
-            // Doctor Fees
-            clean.contains("doctor") || clean.contains("fees") || clean.contains("ডাক্তার") || clean.contains("ফি") -> "LocalHospital"
-            // Medical Test
-            clean.contains("medical test") || clean.contains("test") || clean.contains("ল্যাব") || clean.contains("পরীক্ষা") -> "Biotech"
-            // Medicine
-            clean.contains("med") || clean.contains("medicine") || clean.contains("ওষুধ") || clean.contains("ঔষধ") || clean.contains("ফার্মেসি") -> "Medication"
-            // Sexual Wellness
-            clean.contains("sexual") || clean.contains("wellness") || clean.contains("যৌন") -> "Favorite"
-            // Health general
-            clean.contains("health") || clean.contains("স্বাস্থ্য") || clean.contains("চিকিৎসা") -> "MedicalServices"
-            // Furnitures
-            clean.contains("furniture") || clean.contains("ফার্নিচার") || clean.contains("আসবাবপত্র") || clean.contains("চেয়ার") || clean.contains("সোফা") -> "Chair"
-            // Home Decor
-            clean.contains("decor") || clean.contains("সাজসজ্জা") || clean.contains("ঘর সাজানো") -> "Palette"
-            // Household Items
+            clean.contains("display") || clean.contains("screen") || clean.contains("ডিসপ্লে") -> "PhoneAndroid"
+            clean.contains("glass") || clean.contains("গ্লাস") || clean.contains("screen protector") -> "PhoneAndroid"
+            clean.contains("device") || clean.contains("gadget") || clean.contains("গ্যাজেট") || clean.contains("ইলেকট্রনিক্স") || clean.contains("charger") || clean.contains("headphone") || clean.contains("earbuds") -> "Devices"
+            clean.contains("laptop") || clean.contains("computer") || clean.contains("কম্পিউটার") || clean.contains("পিসি") -> "Computer"
+
+            // Booster Foods / Nutrition / Energy / Gym snacks
+            clean.contains("booster") || clean.contains("energy") || clean.contains("পুষ্টি") || clean.contains("ছোলা") -> "ElectricBolt"
+            clean.contains("honey") || clean.contains("মধু") || clean.contains("garlic honey") || clean.contains("রসুন") -> "EnergySavingsLeaf"
+            clean.contains("egg") || clean.contains("duck egg") || clean.contains("ডিম") || clean.contains("হাঁসের ডিম") -> "Egg"
+
+            // Groceries, Fish, Meat, Poultry, Cooking Essentials
+            clean.contains("fish") || clean.contains("চিংড়ি") || clean.contains("চিংড়ি") || clean.contains("শুটকি") || clean.contains("মাছ") -> "Phishing"
+            clean.contains("chicken") || clean.contains("মুরগি") || clean.contains("মুরগী") || clean.contains("beef") || clean.contains("গরু") || clean.contains("খাসি") || clean.contains("মাংস") || clean.contains("গোশত") -> "Restaurant"
+            clean.contains("polao") || clean.contains("পোলাও") || clean.contains("rice") || clean.contains("চাল") || clean.contains("ভাত") -> "LocalGroceryStore"
+            clean.contains("mustard") || clean.contains("সরিষা") || clean.contains("soybean") || clean.contains("সয়াবিন") || clean.contains("oil") || clean.contains("তৈল") -> "LocalGasStation"
+            clean.contains("ghee") || clean.contains("ঘি") || clean.contains("butter") || clean.contains("মাখন") -> "SoupKitchen"
+            clean.contains("semai") || clean.contains("সেমাই") || clean.contains("vermicelli") -> "BakeryDining"
+            clean.contains("sugar") || clean.contains("চিনি") || clean.contains("গুড়") || clean.contains("gur") -> "LocalGroceryStore"
+            clean.contains("salt") || clean.contains("লবণ") || clean.contains("নুনের") -> "LocalGroceryStore"
+            clean.contains("flour") || clean.contains("আটা") || clean.contains("ময়দা") || clean.contains("সুজি") -> "LocalGroceryStore"
+            clean.contains("turmeric") || clean.contains("হলুদ") || clean.contains("মরিচ") || clean.contains("জিরা") || clean.contains("দারচিনি") || clean.contains("এলাচ") || clean.contains("মশলা") || clean.contains("spice") -> "LocalGroceryStore"
+            clean.contains("vegetable") || clean.contains("সবজি") || clean.contains("শাক") || clean.contains("বেগুন") || clean.contains("করলা") || clean.contains("শশা") || clean.contains("শসা") || clean.contains("তেঁতুল") -> "Grass"
+            clean.contains("ইসবগুল") || clean.contains("তোকমা") || clean.contains("isabgol") -> "Eco"
+            clean.contains("grocer") || clean.contains("মুদি") || clean.contains("ডাল") || clean.contains("মটর") -> "LocalGroceryStore"
+
+            // Fruits & Dates
+            clean.contains("date") || clean.contains("খেজুর") -> "Eco"
+            clean.contains("banana") || clean.contains("কলা") || clean.contains("apple") || clean.contains("আপেল") || clean.contains("আম") || clean.contains("কমলা") || clean.contains("ফল") || clean.contains("fruit") -> "Eco"
+
+            // Drinks, Beverages & Water
+            clean.contains("bottled water") || clean.contains("water bottle") || clean.contains("পানি") || clean.contains("ড্রিংক") -> "LocalDrink"
+            clean.contains("beverage") || clean.contains("juice") || clean.contains("জুস") || clean.contains("coke") || clean.contains("পানীয়") -> "LocalDrink"
+            clean.contains("coffee mate") || clean.contains("coffee") || clean.contains("কফি") -> "LocalCafe"
+            clean.contains("tea") || clean.contains("চা") || clean.contains("লিকার") -> "EmojiFoodBeverage"
+            clean.contains("ice cream") || clean.contains("icecream") || clean.contains("আইসক্রিম") -> "Icecream"
+            clean.contains("powder milk") || clean.contains("condensed milk") || clean.contains("দুধ") || clean.contains("দই") || clean.contains("curd") -> "BakeryDining"
+
+            // Snacks, Bakery & Fast Food
+            clean.contains("cake") || clean.contains("কেক") -> "Cake"
+            clean.contains("biscuit") || clean.contains("বিস্কুট") || clean.contains("cookie") -> "Cookie"
+            clean.contains("chips") || clean.contains("চিপস") || clean.contains("চানাচুর") || clean.contains("মুড়ি") || clean.contains("মুড়ির") || clean.contains("বাদাম") || clean.contains("nut") || clean.contains("পাউরুটি") || clean.contains("bread") || clean.contains("toast") || clean.contains("sauce") || clean.contains("সস") -> "Fastfood"
+            clean.contains("street food") || clean.contains("ফুচকা") || clean.contains("চটপটি") || clean.contains("স্ট্রিট ফুড") || clean.contains("সিংগারা") || clean.contains("সমুচা") -> "Fastfood"
+            clean.contains("dining") || clean.contains("restaurant") || clean.contains("রেস্তোরাঁ") || clean.contains("হোটেল") || clean.contains("বিরিয়ানি") -> "DinnerDining"
+            clean.contains("home snacks") || clean.contains("sweet") || clean.contains("মিষ্টি") || clean.contains("নাস্তা") || clean.contains("স্ন্যাক্স") -> "BakeryDining"
+            clean.contains("training snacks") || clean.contains("workout") || clean.contains("ব্যায়াম") || clean.contains("জিম") -> "FitnessCenter"
+
+            // Hardware, Home & Appliances
+            clean.contains("ips") || clean.contains("battery") || clean.contains("ব্যাটারি") || clean.contains("solar") || clean.contains("সোলার") -> "BatteryChargingFull"
+            clean.contains("plumbing") || clean.contains("প্লাম্বিং") || clean.contains("pipe") || clean.contains("fittings") || clean.contains("water tap") || clean.contains("কল") || clean.contains("ফিল্টার") || clean.contains("filter") -> "Plumbing"
+            clean.contains("bulb") || clean.contains("বাল্ব") || clean.contains("বাতি") || clean.contains("light") || clean.contains("torch") || clean.contains("টর্চ") -> "Lightbulb"
+            clean.contains("door lock") || clean.contains("তালা") || clean.contains("lock") -> "Lock"
+            clean.contains("furniture") || clean.contains("ফার্নিচার") || clean.contains("আসবাবপত্র") || clean.contains("চেয়ার") || clean.contains("সোফা") || clean.contains("খাট") -> "Chair"
+            clean.contains("decor") || clean.contains("সাজসজ্জা") || clean.contains("ঘর সাজানো") || clean.contains("পেইন্ট") -> "Palette"
             clean.contains("household") || clean.contains("গৃহস্থালি") || clean.contains("ঘরকন্না") -> "Kitchen"
-            // Job / Work Expenses
-            clean.contains("job") || clean.contains("work") || clean.contains("অফিস") || clean.contains("চাকরি") || clean.contains("কর্মক্ষেত্র") -> "Work"
-            // Students
-            clean.contains("student") || clean.contains("ছাত্র") || clean.contains("শিক্ষার্থী") -> "School"
-            // Teaching Materials
-            clean.contains("teaching") || clean.contains("শিক্ষা উপকরণ") || clean.contains("পড়ানো") || clean.contains("শিক্ষক") -> "AutoStories"
-            // Repairs & Maintenance
+            clean.contains("mosquito") || clean.contains("মশা") || clean.contains("কয়েল") || clean.contains("coil") || clean.contains("pest") -> "PestControl"
+
+            // Cleaning, Washing & Toiletries
+            clean.contains("vim") || clean.contains("মাজনি") || clean.contains("dishwash") || clean.contains("washing bar") || clean.contains("washing powder") || clean.contains("হুইল") || clean.contains("সার্ফ") || clean.contains("ডিটারজেন্ট") || clean.contains("detergent") || clean.contains("toilet cleaner") || clean.contains("হারপিক") -> "CleaningServices"
+            clean.contains("tissue") || clean.contains("টিস্যু") || clean.contains("napkin") -> "DryCleaning"
+            clean.contains("clean bill") || clean.contains("পরিষ্কার") || clean.contains("ঝাড়ু") -> "CleaningServices"
+            clean.contains("hair cut") || clean.contains("haircut") || clean.contains("বার্বার") || clean.contains("চুল") || clean.contains("সেলুন") -> "ContentCut"
+            clean.contains("face wash") || clean.contains("facewash") || clean.contains("lotion") || clean.contains("লোশন") || clean.contains("skin") || clean.contains("ত্বক") || clean.contains("সৌন্দর্য") -> "Spa"
+            clean.contains("shampoo") || clean.contains("শ্যাম্পু") || clean.contains("handwash") || clean.contains("সাবান") || clean.contains("soap") || clean.contains("toothpaste") || clean.contains("টুথপেস্ট") || clean.contains("brush") || clean.contains("ব্রাশ") || clean.contains("razor") || clean.contains("রেজর") || clean.contains("শেভ") -> "Soap"
+            clean.contains("care essential") || clean.contains("যত্ন") || clean.contains("hygiene") -> "CleanHands"
+
+            // Medicine & Health
+            clean.contains("saline") || clean.contains("স্যালাইন") || clean.contains("oral saline") -> "MedicalServices"
+            clean.contains("sanitary") || clean.contains("pad") || clean.contains("প্যাড") -> "HealthAndSafety"
+            clean.contains("doctor") || clean.contains("fees") || clean.contains("ডাক্তার") || clean.contains("রোগী") || clean.contains("patient") -> "LocalHospital"
+            clean.contains("medical test") || clean.contains("test") || clean.contains("ল্যাব") || clean.contains("পরীক্ষা") || clean.contains("diagnostic") -> "Biotech"
+            clean.contains("med") || clean.contains("medicine") || clean.contains("ওষুধ") || clean.contains("ঔষধ") || clean.contains("ফার্মেসি") || clean.contains("ট্যাবলেট") || clean.contains("সিরাপ") -> "Medication"
+            clean.contains("sexual") || clean.contains("wellness") || clean.contains("কনডম") || clean.contains("যৌন") -> "Favorite"
+            clean.contains("health") || clean.contains("স্বাস্থ্য") || clean.contains("চিকিৎসা") -> "MedicalServices"
+
+            // Clothing, Shoes & Tailoring
             clean.contains("shoe repair") || clean.contains("জুতা মেরামত") -> "Handyman"
-            clean.contains("mobile (m&r)") || clean.contains("mobile repair") || clean.contains("মোবাইল মেরামত") -> "PhoneAndroid"
+            clean.contains("shoe") || clean.contains("জুতা") || clean.contains("পনচ") || clean.contains("স্যান্ডেল") || clean.contains("জুতো") -> "ShoppingBag"
+            clean.contains("sock") || clean.contains("মোজা") -> "Style"
+            clean.contains("bangle") || clean.contains("চুড়ি") || clean.contains("চুড়ি") || clean.contains("jewelry") || clean.contains("গহনা") || clean.contains("স্বর্ণ") -> "Diamond"
+            clean.contains("tailor") || clean.contains("দর্জি") || clean.contains("সেলাই") || clean.contains("জামা সেলাই") -> "ContentCut"
+            clean.contains("pant") || clean.contains("প্যান্ট") || clean.contains("shirt") || clean.contains("শার্ট") || clean.contains("পাঞ্জাবি") || clean.contains("শাড়ি") || clean.contains("cloth") || clean.contains("পোশাক") || clean.contains("কাপড়") || clean.contains("জামা") -> "Checkroom"
+
+            // Vehicles, Bike, Fuel & Travel
+            clean.contains("mobil") || clean.contains("মবিল") || clean.contains("engine oil") -> "LocalGasStation"
             clean.contains("motorcycle") || clean.contains("bike") || clean.contains("বাইক") || clean.contains("মোটরসাইকেল") -> "TwoWheeler"
-            clean.contains("watch") || clean.contains("ঘড়ি") -> "Watch"
-            clean.contains("m&r") || clean.contains("repair") || clean.contains("মেরামত") || clean.contains("সার্ভিসিং") -> "Build"
-            // Market / Groceries / Fruits
-            clean.contains("fruit") || clean.contains("ফল") || clean.contains("ফলমূল") -> "Eco"
-            clean.contains("grocer") || clean.contains("মুদি") || clean.contains("চাল") || clean.contains("ডাল") -> "LocalGroceryStore"
-            clean.contains("home snacks") || clean.contains("sweet") || clean.contains("মিষ্টি") || clean.contains("নাস্তা") || clean.contains("স্ন্যাক্স") -> "Cake"
-            clean.contains("toilet") || clean.contains("টয়লেট্রিজ") || clean.contains("সাবান") || clean.contains("শ্যাম্পু") -> "Soap"
-            clean.contains("mkt") || clean.contains("market") || clean.contains("বাজার") || clean.contains("সওদা") -> "ShoppingCart"
-            // Charity & Islamic
-            clean.contains("imam") || clean.contains("ইমাম") || clean.contains("মুয়াজ্জিন") -> "AccountBalance"
+            clean.contains("fuel") || clean.contains("জ্বালানি") || clean.contains("তেল") || clean.contains("পেট্রোল") || clean.contains("অকটেন") || clean.contains("সিএনজি") || clean.contains("t oil") -> "LocalGasStation"
+            clean.contains("tour") || clean.contains("ভ্রমণ") || clean.contains("ট্যুর") || clean.contains("ছুটি") -> "FlightTakeoff"
+            clean.contains("travel") || clean.contains("যাতায়াত") || clean.contains("সফর") || clean.contains("ভাড়া") || clean.contains("বাস") || clean.contains("ট্রেন") -> "Commute"
+            clean.contains("transport") || clean.contains("পরিবহন") || clean.contains("গাড়ি") || clean.contains("taxi") || clean.contains("উবার") -> "DirectionsCar"
+
+            // Islamic, Charity & Community
+            clean.contains("imam") || clean.contains("ইমাম") || clean.contains("মুয়াজ্জিন") || clean.contains("হাদিয়া") -> "AccountBalance"
             clean.contains("mosque") || clean.contains("মসজিদ") || clean.contains("মাদ্রাসা") -> "AccountBalance"
+            clean.contains("iftar") || clean.contains("ইফতার") || clean.contains("রমজান") || clean.contains("ramadan") -> "Favorite"
+            clean.contains("mahfil") || clean.contains("মাহফিল") || clean.contains("ওয়াজ") -> "VolumeUp"
             clean.contains("qurbani") || clean.contains("কোরবানি") || clean.contains("কুরবানি") -> "Pets"
             clean.contains("zakat") || clean.contains("যাকাত") || clean.contains("জাকাত") -> "VolunteerActivism"
-            clean.contains("charity") || clean.contains("দান") || clean.contains("সদকা") || clean.contains("অনুদান") -> "VolunteerActivism"
-            // Bank Charges
+            clean.contains("charity") || clean.contains("দান") || clean.contains("সদকা") || clean.contains("অনুদান") || clean.contains("donate") -> "VolunteerActivism"
+
+            // Family, Gifting & Social
+            clean.contains("salami") || clean.contains("সালামি") || clean.contains("সালামী") || clean.contains("ঈদি") -> "Paid"
+            clean.contains("gift") || clean.contains("present") || clean.contains("উপহার") || clean.contains("treat") || clean.contains("ট্রিট") -> "CardGiftcard"
+            clean.contains("birthday") || clean.contains("জন্মদিন") -> "Cake"
+            clean.contains("farewell") || clean.contains("বিদায়") -> "Groups"
+            clean.contains("picnic") || clean.contains("পিকনিক") || clean.contains("বনভোজন") -> "Park"
+            clean.contains("friend") || clean.contains("বন্ধু") || clean.contains("আড্ডা") || clean.contains("toiab") -> "Diversity2"
+            clean.contains("parent") || clean.contains("পিতামাতা") || clean.contains("বাবার ঋণ") || clean.contains("মায়ের ঋণ") || clean.contains("abbu") || clean.contains("ammu") || clean.contains("বাবা") || clean.contains("মা") -> "FamilyRestroom"
+            clean.contains("cash given") || clean.contains("নগদ প্রদান") || clean.contains("টাকা দেওয়া") || clean.contains("নগদ দান") -> "Payments"
+
+            // Study & Education
+            clean.contains("student") || clean.contains("ছাত্র") || clean.contains("শিক্ষার্থী") || clean.contains("টিউশনি") -> "School"
+            clean.contains("teaching") || clean.contains("শিক্ষা উপকরণ") || clean.contains("পড়ানো") || clean.contains("শিক্ষক") -> "AutoStories"
+            clean.contains("teacher id") || clean.contains("id card") || clean.contains("কার্ড") -> "Badge"
+            clean.contains("application fee") || clean.contains("ভর্তি") || clean.contains("আবেদন") -> "Assignment"
+            clean.contains("book") || clean.contains("বই") || clean.contains("গাইড") -> "AutoStories"
+            clean.contains("study") || clean.contains("পড়াশোনা") || clean.contains("লেখাপড়া") || clean.contains("পরীক্ষা") || clean.contains("exam") -> "School"
+
+            // Banking, Transfers, Fees, VAT, Taxes
             clean.contains("cheque") || clean.contains("চেক") -> "ReceiptLong"
             clean.contains("excise") || clean.contains("শুল্ক") || clean.contains("আবগারি") -> "Gavel"
             clean.contains("sms") || clean.contains("মেসেজ") -> "Sms"
-            clean.contains("transfer charge") || clean.contains("ট্রান্সফার") -> "SwapHoriz"
-            clean.contains("vat") || clean.contains("ভ্যাট") || clean.contains("tax") || clean.contains("ট্যাক্স") -> "Percent"
-            clean.contains("bank charge") || clean.contains("চার্জ") || clean.contains("ফি") -> "Receipt"
-            // Celebrations & Social
-            clean.contains("birthday") || clean.contains("জন্মদিন") -> "Cake"
-            clean.contains("farewell") || clean.contains("বিদায়") -> "Groups"
-            clean.contains("gift") || clean.contains("present") || clean.contains("উপহার") -> "CardGiftcard"
-            clean.contains("mahfil") || clean.contains("মাহফিল") || clean.contains("ওয়াজ") -> "VolumeUp"
-            clean.contains("patient visit") || clean.contains("রোগী দেখা") -> "LocalHospital"
-            clean.contains("visit") || clean.contains("দেখা করা") || clean.contains("সাক্ষাৎ") -> "Diversity1"
-            clean.contains("picnic") || clean.contains("পিকনিক") || clean.contains("বনভোজন") -> "Park"
-            clean.contains("salami") || clean.contains("সালামি") || clean.contains("ঈদি") -> "Paid"
-            clean.contains("treat") || clean.contains("ট্রিট") -> "LocalCafe"
-            clean.contains("celebrat") || clean.contains("উৎসব") || clean.contains("অনুষ্ঠান") -> "Celebration"
-            clean.contains("social") || clean.contains("সামাজিক") -> "People"
-            // Study & Books
-            clean.contains("application fee") || clean.contains("ভর্তি") || clean.contains("আবেদন") -> "Assignment"
-            clean.contains("book") || clean.contains("বই") -> "AutoStories"
-            clean.contains("study") || clean.contains("পড়াশোনা") || clean.contains("লেখাপড়া") -> "School"
-            // Travel & Transport
-            clean.contains("fuel") || clean.contains("জ্বালানি") || clean.contains("তেল") || clean.contains("পেট্রোল") || clean.contains("অকটেন") || clean.contains("সিএনজি") -> "LocalGasStation"
-            clean.contains("tour") || clean.contains("ভ্রমণ") || clean.contains("ট্যুর") || clean.contains("ছুটি") -> "FlightTakeoff"
-            clean.contains("travel") || clean.contains("যাতায়াত") || clean.contains("সফর") || clean.contains("ভাড়া") -> "Commute"
-            clean.contains("transport") || clean.contains("পরিবহন") || clean.contains("বাস") || clean.contains("গাড়ি") -> "DirectionsCar"
+            clean.contains("transfer charge") || clean.contains("ট্রান্সফার") || clean.contains("b2c") || clean.contains("s2dbbl") || clean.contains("s2r") || clean.contains("s2c") || clean.contains("send money") || clean.contains("ক্যাশ আউট") -> "SwapHoriz"
+            clean.contains("vat") || clean.contains("ভ্যাট") || clean.contains("tax") || clean.contains("ট্যাক্স") || clean.contains("tds") -> "Percent"
+            clean.contains("bank charge") || clean.contains("চার্জ") || clean.contains("ফি") || clean.contains("maintenance charge") -> "Receipt"
+            clean.contains("bad debt") || clean.contains("মন্দ ঋণ") || clean.contains("অনাদায়ী") || clean.contains("ক্ষতি") || clean.contains("লোকসান") -> "MoneyOff"
+            clean.contains("loan") || clean.contains("repayment") || clean.contains("ঋণ পরিশোধ") || clean.contains("কর্জ") -> "Handshake"
+            clean.contains("bribe") || clean.contains("ঘুষ") -> "PointOfSale"
+
+            // Work, Job & Income
+            clean.contains("salary") || clean.contains("বেতন") -> "Work"
+            clean.contains("bonus") || clean.contains("বোনাস") || clean.contains("incentive") -> "Stars"
+            clean.contains("business") || clean.contains("ব্যবসা") || clean.contains("বিক্রয়") || clean.contains("sales") -> "BusinessCenter"
+            clean.contains("freelance") || clean.contains("ফ্রিল্যান্সিং") || clean.contains("upwork") || clean.contains("fiverr") -> "LaptopMac"
+            clean.contains("investment") || clean.contains("বিনিয়োগ") || clean.contains("শেয়ার") || clean.contains("stock") -> "ShowChart"
+            clean.contains("dividend") || clean.contains("লভ্যাংশ") -> "TrendingUp"
+            clean.contains("rental") || clean.contains("rent") || clean.contains("ভাড়া") || clean.contains("বাড়ি ভাড়া") -> "HomeWork"
+            clean.contains("interest") || clean.contains("মুনাফা") || clean.contains("সুদ") || clean.contains("profit") -> "Percent"
+            clean.contains("commission") || clean.contains("কমিশন") -> "MonetizationOn"
+            clean.contains("refund") || clean.contains("রিফান্ড") || clean.contains("cashback") -> "Replay"
+            clean.contains("pension") || clean.contains("পেনশন") || clean.contains("gratuity") -> "Savings"
+            clean.contains("scholarship") || clean.contains("বৃত্তি") -> "School"
+            clean.contains("pocket money") || clean.contains("হাত খরচ") -> "Wallet"
+            clean.contains("job") || clean.contains("work") || clean.contains("অফিস") || clean.contains("চাকরি") || clean.contains("কর্মক্ষেত্র") -> "Work"
+
             // Utilities & Bills
-            clean.contains("clean bill") || clean.contains("পরিষ্কার") || clean.contains("ঝাড়ু") -> "CleaningServices"
             clean.contains("electric") || clean.contains("বিদ্যুৎ") || clean.contains("কারেন্ট") -> "ElectricBolt"
             clean.contains("gas") || clean.contains("গ্যাস") -> "GasMeter"
             clean.contains("recharge") || clean.contains("রিচার্জ") -> "PhoneAndroid"
             clean.contains("wifi") || clean.contains("ওয়াইফাই") || clean.contains("ইন্টারনেট") -> "Wifi"
             clean.contains("utilit") || clean.contains("ইউটিলিটি") || clean.contains("বিল") -> "Power"
-            // Wearables & Clothes
-            clean.contains("cloth") || clean.contains("পোশাক") || clean.contains("কাপড়") || clean.contains("জামা") -> "Checkroom"
-            clean.contains("tailor") || clean.contains("দর্জি") || clean.contains("টেইলার") -> "ContentCut"
-            clean.contains("wearable") || clean.contains("style") || clean.contains("ফ্যাশন") -> "Style"
+
+            // Market / General Shopping
+            clean.contains("mkt") || clean.contains("market") || clean.contains("বাজার") || clean.contains("সওদা") || clean.contains("shopping") || clean.contains("মার্কেট") -> "ShoppingCart"
+            clean.contains("watch") || clean.contains("ঘড়ি") || clean.contains("ঘড়ি") -> "Watch"
+            clean.contains("mobile (m&r)") || clean.contains("mobile repair") || clean.contains("মোবাইল মেরামত") -> "PhoneAndroid"
+            clean.contains("m&r") || clean.contains("repair") || clean.contains("মেরামত") || clean.contains("সার্ভিসিং") -> "Build"
+            clean.contains("pet") || clean.contains("বিড়াল") || clean.contains("cat") -> "Pets"
+            clean.contains("social") || clean.contains("সামাজিক") -> "People"
+            clean.contains("celebrat") || clean.contains("উৎসব") || clean.contains("অনুষ্ঠান") -> "Celebration"
+
             else -> "Category"
         }
     }

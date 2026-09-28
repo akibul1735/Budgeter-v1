@@ -107,7 +107,7 @@ fun IconPickerModal(
     onIconSelected: (String) -> Unit,
     onDismiss: () -> Unit,
     initialQuery: String = "",
-    initialCategory: String = "Online Search"
+    initialCategory: String = "All"
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
