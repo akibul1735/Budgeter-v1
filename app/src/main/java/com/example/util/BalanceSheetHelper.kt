@@ -35,7 +35,8 @@ data class BalanceSheetAccountRow(
     val isIncludedInCalc: Boolean = true,
     val adjustmentAmount: Double = 0.0,
     val effectiveBaseBalance: Double = baseBalance,
-    val effectiveCurrentBalance: Double = currentBalance
+    val effectiveCurrentBalance: Double = currentBalance,
+    val totalPercentageShare: Double = 0.0
 )
 
 data class BalanceSheetGroup(
@@ -373,8 +374,12 @@ object BalanceSheetHelper {
         val rawMappedAssets = rawAssetGroups.map { group ->
             val groupShare = if (totalAssetsCurrent > 0 && group.isIncludedInCalc) (group.effectiveCurrentBalance / totalAssetsCurrent) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->
-                val subShare = if (group.effectiveCurrentBalance > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / group.effectiveCurrentBalance) * 100.0 else 0.0
-                sub.copy(percentageShare = subShare.coerceAtLeast(0.0))
+                val subShareInGroup = if (group.effectiveCurrentBalance > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / group.effectiveCurrentBalance) * 100.0 else 0.0
+                val subShareInTotal = if (totalAssetsCurrent > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / totalAssetsCurrent) * 100.0 else 0.0
+                sub.copy(
+                    percentageShare = subShareInGroup.coerceAtLeast(0.0),
+                    totalPercentageShare = subShareInTotal.coerceAtLeast(0.0)
+                )
             }
             group.copy(
                 percentageShare = groupShare.coerceAtLeast(0.0),
@@ -383,10 +388,14 @@ object BalanceSheetHelper {
         }
 
         val rawMappedLiabilities = rawLiabilityGroups.map { group ->
-            val groupShare = if (totalLiabilitiesCurrent > 0 && group.isIncludedInCalc) (group.effectiveCurrentBalance / totalLiabilitiesCurrent) * 100.0 else 0.0
+            val groupShare = if (totalLiabilitiesCurrent > 0 && group.isIncludedInCalc) (Math.abs(group.effectiveCurrentBalance) / totalLiabilitiesCurrent) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->
-                val subShare = if (group.effectiveCurrentBalance > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / group.effectiveCurrentBalance) * 100.0 else 0.0
-                sub.copy(percentageShare = subShare.coerceAtLeast(0.0))
+                val subShareInGroup = if (Math.abs(group.effectiveCurrentBalance) > 0 && sub.isIncludedInCalc) (Math.abs(sub.effectiveCurrentBalance) / Math.abs(group.effectiveCurrentBalance)) * 100.0 else 0.0
+                val subShareInTotal = if (totalLiabilitiesCurrent > 0 && sub.isIncludedInCalc) (Math.abs(sub.effectiveCurrentBalance) / totalLiabilitiesCurrent) * 100.0 else 0.0
+                sub.copy(
+                    percentageShare = subShareInGroup.coerceAtLeast(0.0),
+                    totalPercentageShare = subShareInTotal.coerceAtLeast(0.0)
+                )
             }
             group.copy(
                 percentageShare = groupShare.coerceAtLeast(0.0),
