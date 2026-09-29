@@ -2583,23 +2583,15 @@ private fun CategoryGroupSection(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Group Icon Badge (28dp)
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(groupColor.copy(alpha = 0.18f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = groupIcon,
-                                contentDescription = null,
-                                tint = groupColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+                        // Group Icon (Borderless, minimal spacing, no extra box)
+                        Icon(
+                            imageVector = groupIcon,
+                            contentDescription = null,
+                            tint = groupColor,
+                            modifier = Modifier.size(20.dp)
+                        )
 
-                        Spacer(modifier = Modifier.width(9.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
                         Column(
                             modifier = Modifier.weight(1f)
@@ -2878,29 +2870,21 @@ private fun CategoryRow(
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 7.dp)
         ) {
-            // Main Top Row: Left Icon Badge + Title/Percentages + Right Amounts/Status
+            // Main Top Row: Left Icon + Title/Percentages + Right Amounts/Status
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left Icon Badge (32dp)
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(parsedColor.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = IconHelper.getIconByName(item.category.iconName),
-                        contentDescription = null,
-                        tint = parsedColor,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
+                // Category Icon (Borderless, minimal spacing, no extra box)
+                Icon(
+                    imageVector = IconHelper.getIconByName(item.category.iconName),
+                    contentDescription = null,
+                    tint = parsedColor,
+                    modifier = Modifier.size(18.dp)
+                )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Middle Column: Category Name (13sp - 2 sizes smaller than group 15sp) + Percentages (11sp)
                 Column(

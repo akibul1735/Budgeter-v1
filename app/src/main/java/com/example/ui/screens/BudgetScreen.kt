@@ -3580,20 +3580,12 @@ private fun CategoriesBudgetEntryView(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.weight(1f, fill = false)
                                     ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = IconHelper.parseColorHex(groupColor).copy(alpha = 0.16f),
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                IconHelper.AppIcon(
-                                                    iconName = groupIcon,
-                                                    contentDescription = groupName,
-                                                    tint = IconHelper.parseColorHex(groupColor),
-                                                    modifier = Modifier.size(15.dp)
-                                                )
-                                            }
-                                        }
+                                        IconHelper.AppIcon(
+                                            iconName = groupIcon,
+                                            contentDescription = groupName,
+                                            tint = IconHelper.parseColorHex(groupColor),
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                         Text(
                                             text = groupName,
                                             fontSize = 13.5.sp,
@@ -3767,20 +3759,12 @@ private fun BudgetItemRow(
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onItemClick?.invoke(item) }
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = parsedColor.copy(alpha = 0.12f),
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(item.iconName),
-                                contentDescription = null,
-                                tint = parsedColor,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = IconHelper.getIconByName(item.iconName),
+                        contentDescription = null,
+                        tint = parsedColor,
+                        modifier = Modifier.size(18.dp)
+                    )
 
                     Text(
                         text = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),

@@ -3052,22 +3052,15 @@ private fun BalanceSheetGroupItem(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f, fill = false)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(parentAccColor.copy(alpha = 0.18f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconHelper.AppIcon(
-                                iconName = group.parentAccount.iconName,
-                                contentDescription = null,
-                                tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        // Group Icon (Borderless, minimal spacing, no extra box)
+                        IconHelper.AppIcon(
+                            iconName = group.parentAccount.iconName,
+                            contentDescription = null,
+                            tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(20.dp)
+                        )
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
 
                         Column(modifier = Modifier.weight(1f, fill = false)) {
                             // Top Line: Group Name + Show/Hide Chevron right after name
@@ -3302,22 +3295,15 @@ private fun BalanceSheetGroupItem(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f, fill = false)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(parentAccColor.copy(alpha = 0.18f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconHelper.AppIcon(
-                            iconName = group.parentAccount.iconName,
-                            contentDescription = null,
-                            tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    // Standalone Account Icon (Borderless, minimal spacing, no extra box)
+                    IconHelper.AppIcon(
+                        iconName = group.parentAccount.iconName,
+                        contentDescription = null,
+                        tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(19.dp)
+                    )
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     Column(modifier = Modifier.weight(1f, fill = false)) {
                         Row(
@@ -3546,22 +3532,15 @@ private fun SubAccountRowItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f, fill = false)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(subAccColor.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconHelper.AppIcon(
-                        iconName = row.account.iconName,
-                        contentDescription = null,
-                        tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                // Sub-Account Icon (Borderless, minimal spacing, no extra box)
+                IconHelper.AppIcon(
+                    iconName = row.account.iconName,
+                    contentDescription = null,
+                    tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(18.dp)
+                )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 Column(modifier = Modifier.weight(1f, fill = false)) {
                     Row(
