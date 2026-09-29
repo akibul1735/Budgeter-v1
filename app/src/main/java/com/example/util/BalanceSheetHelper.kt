@@ -272,6 +272,7 @@ object BalanceSheetHelper {
                             currentBalance = currBal,
                             percentageShare = 0.0,
                             subAccounts = emptyList(),
+                            delta = effCurr - effBase,
                             isIncludedInCalc = isInc,
                             adjustmentAmount = adj,
                             effectiveBaseBalance = effBase,
@@ -298,6 +299,7 @@ object BalanceSheetHelper {
                         baseBalance = baseBal,
                         currentBalance = currBal,
                         percentageShare = 0.0, // computed below
+                        delta = effCurr - effBase,
                         isIncludedInCalc = isSubInc,
                         adjustmentAmount = subAdj,
                         effectiveBaseBalance = effBase,
@@ -316,6 +318,10 @@ object BalanceSheetHelper {
                 val effectiveGroupBase = if (!isParentInc) (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveBaseBalance } else 0.0) else (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveBaseBalance } + parentAdj else parentBaseBal + parentAdj)
                 val effectiveGroupCurr = if (!isParentInc) (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveCurrentBalance } else 0.0) else (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveCurrentBalance } + parentAdj else parentCurrBal + parentAdj)
 
+                val totalGroupAdj = if (subRows.isNotEmpty()) {
+                    if (parentAdj != 0.0) parentAdj else subRows.sumOf { it.adjustmentAmount }
+                } else parentAdj
+
                 if (!excludeZeroAmounts || Math.abs(parentBaseBal) > 0.001 || Math.abs(parentCurrBal) > 0.001 || subRows.isNotEmpty()) {
                     if (filterNonZeroGroups && Math.abs(effectiveGroupCurr) < 0.001 && Math.abs(effectiveGroupBase) < 0.001) {
                         // Skip non-zero group when filterNonZeroGroups is enabled
@@ -327,8 +333,9 @@ object BalanceSheetHelper {
                                 currentBalance = parentCurrBal,
                                 percentageShare = 0.0, // computed below
                                 subAccounts = subRows,
+                                delta = effectiveGroupCurr - effectiveGroupBase,
                                 isIncludedInCalc = isParentInc,
-                                adjustmentAmount = parentAdj,
+                                adjustmentAmount = totalGroupAdj,
                                 effectiveBaseBalance = effectiveGroupBase,
                                 effectiveCurrentBalance = effectiveGroupCurr
                             )
