@@ -182,6 +182,15 @@ object BalanceSheetHelper {
         val baseDateLabel = DateUtils.formatDate(baseDateEpochMs, languageMode)
         val compareDateLabel = DateUtils.formatDate(compareDateEpochMs, languageMode)
 
+        val cal = DateUtils.getCalendar().apply {
+            timeInMillis = compareDateEpochMs
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        val effectiveCompareDateEpochMs = if (compareDateEpochMs >= System.currentTimeMillis()) System.currentTimeMillis() else cal.timeInMillis
+
         // Filter transactions if status filter is active
         val validTransactions = if (selectedStatusSet.isNotEmpty()) {
             transactions.filter { it.status in selectedStatusSet }
@@ -200,7 +209,7 @@ object BalanceSheetHelper {
                 tx.debitAccountId?.let { baseDebits[it] = (baseDebits[it] ?: 0.0) + tx.amount }
                 tx.creditAccountId?.let { baseCredits[it] = (baseCredits[it] ?: 0.0) + tx.amount }
             }
-            if (tx.dateEpochMs <= compareDateEpochMs) {
+            if (tx.dateEpochMs <= effectiveCompareDateEpochMs) {
                 tx.debitAccountId?.let { currDebits[it] = (currDebits[it] ?: 0.0) + tx.amount }
                 tx.creditAccountId?.let { currCredits[it] = (currCredits[it] ?: 0.0) + tx.amount }
             }
@@ -225,8 +234,9 @@ object BalanceSheetHelper {
             matchesHidden && matchesSearch && matchesSelected
         }
 
-        val parentAccounts = filteredAccounts.filter { it.parentId == null }
-        val subAccountsByParent = filteredAccounts.filter { it.parentId != null }.groupBy { it.parentId!! }
+        val allAccountIds = filteredAccounts.map { it.id }.toSet()
+        val parentAccounts = filteredAccounts.filter { it.parentId == null || it.parentId !in allAccountIds }
+        val subAccountsByParent = filteredAccounts.filter { it.parentId != null && it.parentId in allAccountIds }.groupBy { it.parentId!! }
 
         // Compute balances for all accounts
         val baseBalanceMap = filteredAccounts.associate { it.id to getAccountBalance(it, true) }
@@ -244,15 +254,6 @@ object BalanceSheetHelper {
                     val baseBal = baseBalanceMap[acc.id] ?: 0.0
                     val currBal = currBalanceMap[acc.id] ?: 0.0
 
-                    // If account is a parent with subaccounts, only include it if it has its own direct balance
-                    if (isParentWithSubs && Math.abs(baseBal) < 0.001 && Math.abs(currBal) < 0.001) {
-                        continue
-                    }
-
-                    if (excludeZeroAmounts && Math.abs(baseBal) < 0.001 && Math.abs(currBal) < 0.001) {
-                        continue
-                    }
-
                     val isInc = accountCalcConfig.isIncluded(acc.id)
                     if (!isInc) {
                         continue
@@ -260,6 +261,15 @@ object BalanceSheetHelper {
                     val adj = accountCalcConfig.getAdjustment(acc.id)
                     val effBase = if (!isInc) 0.0 else (baseBal + adj)
                     val effCurr = if (!isInc) 0.0 else (currBal + adj)
+
+                    // If account is a parent with subaccounts, only include it if it has its own direct balance or adjustment
+                    if (isParentWithSubs && Math.abs(effBase) < 0.001 && Math.abs(effCurr) < 0.001 && adj == 0.0) {
+                        continue
+                    }
+
+                    if (excludeZeroAmounts && Math.abs(effBase) < 0.001 && Math.abs(effCurr) < 0.001 && adj == 0.0) {
+                        continue
+                    }
 
                     if (filterNonZeroGroups && Math.abs(effCurr) < 0.001 && Math.abs(effBase) < 0.001) {
                         continue
@@ -305,7 +315,7 @@ object BalanceSheetHelper {
                         effectiveBaseBalance = effBase,
                         effectiveCurrentBalance = effCurr
                     )
-                }.filter { it.isIncludedInCalc && (!excludeZeroAmounts || Math.abs(it.baseBalance) > 0.001 || Math.abs(it.currentBalance) > 0.001) }
+                }.filter { it.isIncludedInCalc && (!excludeZeroAmounts || Math.abs(it.effectiveBaseBalance) > 0.001 || Math.abs(it.effectiveCurrentBalance) > 0.001 || it.adjustmentAmount != 0.0) }
 
                 val isParentInc = accountCalcConfig.isIncluded(parent.id)
                 if (!isParentInc && subRows.isEmpty()) {
@@ -322,7 +332,7 @@ object BalanceSheetHelper {
                     if (parentAdj != 0.0) parentAdj else subRows.sumOf { it.adjustmentAmount }
                 } else parentAdj
 
-                if (!excludeZeroAmounts || Math.abs(parentBaseBal) > 0.001 || Math.abs(parentCurrBal) > 0.001 || subRows.isNotEmpty()) {
+                if (!excludeZeroAmounts || Math.abs(effectiveGroupBase) > 0.001 || Math.abs(effectiveGroupCurr) > 0.001 || totalGroupAdj != 0.0 || subRows.isNotEmpty()) {
                     if (filterNonZeroGroups && Math.abs(effectiveGroupCurr) < 0.001 && Math.abs(effectiveGroupBase) < 0.001) {
                         // Skip non-zero group when filterNonZeroGroups is enabled
                     } else {

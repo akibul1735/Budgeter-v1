@@ -459,8 +459,9 @@ class BudgetRepository(
             }
         }
 
-        val parentAccounts = accounts.filter { it.parentId == null }
-        val subAccountMap = accounts.filter { it.parentId != null }.groupBy { it.parentId!! }
+        val allAccountIds = accounts.map { it.id }.toSet()
+        val parentAccounts = accounts.filter { it.parentId == null || it.parentId !in allAccountIds }
+        val subAccountMap = accounts.filter { it.parentId != null && it.parentId in allAccountIds }.groupBy { it.parentId!! }
 
         parentAccounts.map { parent ->
             val subs = subAccountMap[parent.id] ?: emptyList()

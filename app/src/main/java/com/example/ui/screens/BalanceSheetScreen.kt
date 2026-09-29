@@ -2910,7 +2910,7 @@ private fun SectionHeader(
     ) {
         Text(
             text = title,
-            fontSize = 13.sp,
+            fontSize = 14.5.sp,
             fontWeight = FontWeight.Bold,
             color = headerColor,
             letterSpacing = 0.5.sp
@@ -2923,7 +2923,7 @@ private fun SectionHeader(
             ) {
                 Text(
                     text = formatBalance(currentAmount, displayCurrency, languageMode, displayCurrencySymbol),
-                    fontSize = 13.sp,
+                    fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.End
@@ -2937,7 +2937,7 @@ private fun SectionHeader(
                 ) {
                     Text(
                         text = formatBalance(baseAmount, displayCurrency, languageMode, displayCurrencySymbol),
-                        fontSize = 12.sp,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.End
@@ -2954,7 +2954,7 @@ private fun SectionHeader(
                     ) {
                         Text(
                             text = formatBalance(currentAmount, displayCurrency, languageMode, displayCurrencySymbol),
-                            fontSize = 12.sp,
+                            fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                             textAlign = TextAlign.End
@@ -3034,31 +3034,20 @@ private fun BalanceSheetGroupItem(
                         .padding(vertical = 2.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (isIncluded) parentAccColor.copy(alpha = 0.15f)
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        IconHelper.AppIcon(
-                            iconName = group.parentAccount.iconName,
-                            contentDescription = null,
-                            tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(15.dp)
-                        )
-                    }
+                    IconHelper.AppIcon(
+                        iconName = group.parentAccount.iconName,
+                        contentDescription = null,
+                        tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(24.dp)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn,
-                        fontSize = 13.sp,
+                        fontSize = 14.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                         maxLines = 2,
-                        lineHeight = 16.sp,
+                        lineHeight = 18.sp,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
@@ -3072,7 +3061,7 @@ private fun BalanceSheetGroupItem(
                         ) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
-                                fontSize = 9.5.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SolidExpense,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -3089,35 +3078,9 @@ private fun BalanceSheetGroupItem(
                         ) {
                             Text(
                                 text = "${group.percentageShare.toInt()}%",
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-
-                    // Adjustment badge in header if adjusted & included
-                    if (isAdjusted && isIncluded) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        val sign = if (adjustment > 0) "+" else ""
-                        val adjFormatted = if (displayCurrencySymbol) {
-                            "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
-                        } else {
-                            "${sign}${String.format("%.2f", adjustment)}"
-                        }
-                        val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                        ) {
-                            Text(
-                                text = "$adjLabel: $adjFormatted",
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
                                 softWrap = false,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -3141,7 +3104,7 @@ private fun BalanceSheetGroupItem(
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                    fontSize = 12.5.sp,
+                                    fontSize = 14.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                     textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
@@ -3157,7 +3120,7 @@ private fun BalanceSheetGroupItem(
                                     val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
                                     Text(
                                         text = "$adjLabel: $adjFormatted",
-                                        fontSize = 9.5.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.primary,
                                         textAlign = TextAlign.End,
@@ -3203,7 +3166,7 @@ private fun BalanceSheetGroupItem(
                         ) {
                             Text(
                                 text = formatBalance(group.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                fontSize = 12.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                 textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
@@ -3222,7 +3185,7 @@ private fun BalanceSheetGroupItem(
                                 ) {
                                     Text(
                                         text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                        fontSize = 12.sp,
+                                        fontSize = 14.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                         textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
@@ -3241,7 +3204,7 @@ private fun BalanceSheetGroupItem(
                                     val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
                                     Text(
                                         text = "$adjLabel: $adjFormatted",
-                                        fontSize = 9.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.primary,
                                         textAlign = TextAlign.End,
@@ -3362,31 +3325,20 @@ private fun SubAccountRowItem(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(
-                        if (isIncluded) subAccColor.copy(alpha = 0.12f)
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                IconHelper.AppIcon(
-                    iconName = row.account.iconName,
-                    contentDescription = null,
-                    tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(13.dp)
-                )
-            }
+            IconHelper.AppIcon(
+                iconName = row.account.iconName,
+                contentDescription = null,
+                tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(20.dp)
+            )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = if (languageMode == LanguageMode.BANGLA) row.account.nameBn else row.account.nameEn,
-                fontSize = 12.sp,
+                fontSize = 13.5.sp,
                 fontWeight = FontWeight.Normal,
                 color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                 maxLines = 2,
-                lineHeight = 15.sp,
+                lineHeight = 17.sp,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false)
             )
@@ -3400,7 +3352,7 @@ private fun SubAccountRowItem(
                 ) {
                     Text(
                         text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
-                        fontSize = 8.5.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = SolidExpense,
                         modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
@@ -3416,36 +3368,10 @@ private fun SubAccountRowItem(
                 ) {
                     Text(
                         text = "${row.percentageShare.toInt()}%",
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                    )
-                }
-            }
-
-            // Adjustment badge in header if adjusted & included
-            if (isAdjusted && isIncluded) {
-                Spacer(modifier = Modifier.width(6.dp))
-                val sign = if (adjustment > 0) "+" else ""
-                val adjFormatted = if (displayCurrencySymbol) {
-                    "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
-                } else {
-                    "${sign}${String.format("%.2f", adjustment)}"
-                }
-                val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
-                Surface(
-                    shape = RoundedCornerShape(3.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = "$adjLabel: $adjFormatted",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                     )
                 }
             }
@@ -3466,7 +3392,7 @@ private fun SubAccountRowItem(
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
                             text = formatBalance(row.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                            fontSize = 11.5.sp,
+                            fontSize = 13.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                             textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
@@ -3482,7 +3408,7 @@ private fun SubAccountRowItem(
                             val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
                             Text(
                                 text = "$adjLabel: $adjFormatted",
-                                fontSize = 8.5.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
                                 textAlign = TextAlign.End,
@@ -3528,7 +3454,7 @@ private fun SubAccountRowItem(
                 ) {
                     Text(
                         text = formatBalance(row.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                        fontSize = 11.sp,
+                        fontSize = 12.5.sp,
                         color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
                         textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                         textAlign = TextAlign.End
@@ -3546,7 +3472,7 @@ private fun SubAccountRowItem(
                         ) {
                             Text(
                                 text = formatBalance(row.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                fontSize = 11.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                                 textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
@@ -3565,7 +3491,7 @@ private fun SubAccountRowItem(
                             val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
                             Text(
                                 text = "$adjLabel: $adjFormatted",
-                                fontSize = 8.5.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
                                 textAlign = TextAlign.End,

@@ -171,8 +171,8 @@ fun AccountsScreen(
     }
     var sortFilter by remember { mutableStateOf(tabFilterPrefs.accountsSortFilter) }
     var statusFilter by remember { mutableStateOf(tabFilterPrefs.accountsStatusFilter) }
-    var excludeZeroBalance by remember { mutableStateOf(tabFilterPrefs.accountsExcludeZeroBalance) }
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.accountsSearchQuery) }
+    var excludeZeroBalance by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(selectedTypeFilter, hierarchyFilter, sortFilter, statusFilter, excludeZeroBalance, searchQuery) {
         tabFilterPrefs.accountsTypeFilter = selectedTypeFilter
