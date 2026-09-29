@@ -677,7 +677,7 @@ class TabFilterPreferences private constructor(context: Context) {
             prefs.edit().putString(KEY_BS_SEARCH, value).apply()
         }
 
-    var balanceSheetActiveTab: String = prefs.getString(KEY_BS_ACTIVE_TAB, "ASSETS") ?: "ASSETS"
+    var balanceSheetActiveTab: String = prefs.getString(KEY_BS_ACTIVE_TAB, "ALL") ?: "ALL"
         set(value) {
             field = value
             prefs.edit().putString(KEY_BS_ACTIVE_TAB, value).apply()

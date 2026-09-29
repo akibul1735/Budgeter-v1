@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
@@ -530,9 +531,9 @@ fun BalanceSheetScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Section based on activeTabMode ("ASSETS" or "LIABILITIES")
-                if (activeTabMode == "ASSETS") {
-                    item {
+                // Sections based on activeTabMode ("ALL", "ASSETS", or "LIABILITIES")
+                if (activeTabMode == "ALL" || activeTabMode == "ASSETS") {
+                    item(key = "section_header_assets") {
                         SectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "সম্পদ (ASSETS)" else "ASSETS",
                             baseAmount = balanceSheetData.totalAssetsBase,
@@ -546,13 +547,13 @@ fun BalanceSheetScreen(
                     }
 
                     if (balanceSheetData.assetGroups.isEmpty()) {
-                        item {
+                        item(key = "empty_assets") {
                             EmptySectionPlaceholder(
                                 message = if (languageMode == LanguageMode.BANGLA) "কোন সম্পদ অ্যাকাউন্ট পাওয়া যায়নি" else "No asset accounts found"
                             )
                         }
                     } else {
-                        itemsIndexed(balanceSheetData.assetGroups, key = { _, group -> group.parentAccount.id }) { index, group ->
+                        itemsIndexed(balanceSheetData.assetGroups, key = { _, group -> "asset_${group.parentAccount.id}" }) { index, group ->
                             val isExpanded = expandedMap[group.parentAccount.id] ?: true
                             BalanceSheetGroupItem(
                                 group = group,
@@ -573,18 +574,20 @@ fun BalanceSheetScreen(
                                 onAccountClick = onAccountClick
                             )
                             if (index < balanceSheetData.assetGroups.size - 1) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                                    thickness = 1.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                                )
-                            } else {
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                             }
                         }
                     }
-                } else {
-                    item {
+                }
+
+                if (activeTabMode == "ALL") {
+                    item(key = "assets_liabilities_spacer") {
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                }
+
+                if (activeTabMode == "ALL" || activeTabMode == "LIABILITIES") {
+                    item(key = "section_header_liabilities") {
                         SectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "দায় (LIABILITIES)" else "LIABILITIES",
                             baseAmount = balanceSheetData.totalLiabilitiesBase,
@@ -598,13 +601,13 @@ fun BalanceSheetScreen(
                     }
 
                     if (balanceSheetData.liabilityGroups.isEmpty()) {
-                        item {
+                        item(key = "empty_liabilities") {
                             EmptySectionPlaceholder(
                                 message = if (languageMode == LanguageMode.BANGLA) "কোন দায় অ্যাকাউন্ট পাওয়া যায়নি" else "No liability accounts found"
                             )
                         }
                     } else {
-                        itemsIndexed(balanceSheetData.liabilityGroups, key = { _, group -> group.parentAccount.id }) { index, group ->
+                        itemsIndexed(balanceSheetData.liabilityGroups, key = { _, group -> "liability_${group.parentAccount.id}" }) { index, group ->
                             val isExpanded = expandedMap[group.parentAccount.id] ?: true
                             BalanceSheetGroupItem(
                                 group = group,
@@ -625,13 +628,7 @@ fun BalanceSheetScreen(
                                 onAccountClick = onAccountClick
                             )
                             if (index < balanceSheetData.liabilityGroups.size - 1) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                                    thickness = 1.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                                )
-                            } else {
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                             }
                         }
                     }
@@ -877,7 +874,7 @@ fun BalanceSheetScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Bottom Segmented Toggle: [ Assets (সম্পদ) | Liabilities (দায়) ]
+                // Bottom Segmented Toggle: [ Assets (সম্পদ) | All (সকল) | Liabilities (দায়) ]
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.surface,
@@ -893,7 +890,7 @@ fun BalanceSheetScreen(
                             .padding(3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Assets Button
+                        // 1. Assets Button
                         val isAssets = activeTabMode == "ASSETS"
                         Surface(
                             shape = RoundedCornerShape(20.dp),
@@ -912,19 +909,52 @@ fun BalanceSheetScreen(
                                     imageVector = Icons.Default.AccountBalance,
                                     contentDescription = null,
                                     tint = if (isAssets) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets",
-                                    fontSize = 13.sp,
+                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Assets",
+                                    fontSize = 12.5.sp,
                                     fontWeight = if (isAssets) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isAssets) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    color = if (isAssets) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1
                                 )
                             }
                         }
 
-                        // Liabilities Button
+                        // 2. All Button (Middle - Default)
+                        val isAll = activeTabMode == "ALL"
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isAll) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { activeTabMode = "ALL" }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Dashboard,
+                                    contentDescription = null,
+                                    tint = if (isAll) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সকল" else "All",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isAll) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isAll) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // 3. Liabilities Button
                         val isLiabilities = activeTabMode == "LIABILITIES"
                         Surface(
                             shape = RoundedCornerShape(20.dp),
@@ -943,14 +973,15 @@ fun BalanceSheetScreen(
                                     imageVector = Icons.Default.CreditCard,
                                     contentDescription = null,
                                     tint = if (isLiabilities) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities",
-                                    fontSize = 13.sp,
+                                    text = if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities",
+                                    fontSize = 12.5.sp,
                                     fontWeight = if (isLiabilities) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isLiabilities) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    color = if (isLiabilities) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -2990,209 +3021,157 @@ private fun BalanceSheetGroupItem(
     } else {
         group.adjustmentAmount
     }
+    val defaultPrimaryColor = MaterialTheme.colorScheme.primary
+    val parentAccColor = remember(group.parentAccount.colorHex, defaultPrimaryColor) {
+        IconHelper.parseColorHex(group.parentAccount.colorHex, defaultPrimaryColor)
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Parent Account Row
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = Color.Transparent,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
+        if (group.subAccounts.isNotEmpty()) {
+            // Group Header Card (Matching Budget Tab Group Header: Surface with surfaceContainerHighest, rounded pill total)
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.50f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, bottom = 2.dp)
             ) {
-                // Expand/collapse icon
-                if (group.subAccounts.isNotEmpty()) {
-                    IconButton(
-                        onClick = onToggleExpand,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (isExpanded) "Collapse" else "Expand",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(2.dp))
-                } else {
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-
-                // Account Name with Group Icon Indicator
-                val defaultPrimaryColor = MaterialTheme.colorScheme.primary
-                val parentAccColor = remember(group.parentAccount.colorHex, defaultPrimaryColor) {
-                    IconHelper.parseColorHex(group.parentAccount.colorHex, defaultPrimaryColor)
-                }
-
                 Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { onAccountClick?.invoke(group.parentAccount) }
-                        .padding(vertical = 2.dp, horizontal = 2.dp),
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconHelper.AppIcon(
-                        iconName = group.parentAccount.iconName,
-                        contentDescription = null,
-                        tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                        maxLines = 2,
-                        lineHeight = 18.sp,
-                        overflow = TextOverflow.Ellipsis,
+                    // Left: Expand/collapse icon + Group Icon + Group Name + Badges
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.weight(1f, fill = false)
-                    )
-
-                    // Excluded badge
-                    if (!isIncluded) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = SolidExpense.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidExpense,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-
-                    // % Share badge
-                    if (group.percentageShare > 0) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        ) {
-                            Text(
-                                text = "${group.percentageShare.toInt()}%",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Comparative or Single Amounts
-                if (showOnlyCurrentBalance) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
                     ) {
-                        Box(
-                            modifier = Modifier.widthIn(min = 85.dp),
-                            contentAlignment = Alignment.CenterEnd
+                        IconButton(
+                            onClick = onToggleExpand,
+                            modifier = Modifier.size(22.dp)
                         ) {
-                            Column(horizontalAlignment = Alignment.End) {
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = parentAccColor.copy(alpha = 0.16f),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                IconHelper.AppIcon(
+                                    iconName = group.parentAccount.iconName,
+                                    contentDescription = group.parentAccount.nameEn,
+                                    tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable { onAccountClick?.invoke(group.parentAccount) }
+                        )
+
+                        // Excluded badge
+                        if (!isIncluded) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SolidExpense.copy(alpha = 0.15f)
+                            ) {
                                 Text(
-                                    text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                    fontSize = 14.5.sp,
+                                    text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                                    textAlign = TextAlign.End
+                                    color = SolidExpense,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
-                                if (isAdjusted && isIncluded) {
-                                    val sign = if (adjustment > 0) "+" else ""
-                                    val adjFormatted = if (displayCurrencySymbol) {
-                                        "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
-                                    } else {
-                                        "${sign}${String.format("%.2f", adjustment)}"
-                                    }
-                                    val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
-                                    Text(
-                                        text = "$adjLabel: $adjFormatted",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1
-                                    )
-                                }
                             }
                         }
-                        if (isCalcMode) {
-                            Spacer(modifier = Modifier.width(4.dp))
-                            IconButton(
-                                onClick = { onToggleIncludeStatus?.invoke(group.parentAccount, !isIncluded) },
-                                modifier = Modifier.size(24.dp)
+
+                        // % Share badge
+                        if (group.percentageShare > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                             ) {
-                                Icon(
-                                    imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = if (isIncluded) "Exclude" else "Include",
-                                    tint = if (isIncluded) SolidIncome else SolidExpense,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                            IconButton(
-                                onClick = { onRequestAdjustCalculation(group.parentAccount, group.currentBalance) },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = "Adjust",
-                                    tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(15.dp)
+                                Text(
+                                    text = "${group.percentageShare.toInt()}%",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         }
                     }
-                } else {
+
+                    // Right: Group Total Pill (Matching Budget Tab Surface Pill) + Action Buttons
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Box(
-                            modifier = Modifier.widthIn(min = 75.dp),
-                            contentAlignment = Alignment.CenterEnd
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.padding(vertical = 1.dp)
                         ) {
-                            Text(
-                                text = formatBalance(group.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                                textAlign = TextAlign.End
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Box(
-                            modifier = Modifier.widthIn(min = 85.dp),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.End
-                                ) {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                if (showOnlyCurrentBalance) {
                                     Text(
                                         text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                        fontSize = 14.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
                                         textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                                        textAlign = TextAlign.End
+                                        maxLines = 1
                                     )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    ChangeIndicator(delta = group.delta)
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        Text(
+                                            text = formatBalance(group.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            color = MaterialTheme.colorScheme.outline,
+                                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = " → ",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                        Text(
+                                            text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        ChangeIndicator(delta = group.delta)
+                                    }
                                 }
                                 if (isAdjusted && isIncluded) {
                                     val sign = if (adjustment > 0) "+" else ""
@@ -3204,7 +3183,7 @@ private fun BalanceSheetGroupItem(
                                     val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
                                     Text(
                                         text = "$adjLabel: $adjFormatted",
-                                        fontSize = 10.5.sp,
+                                        fontSize = 9.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.primary,
                                         textAlign = TextAlign.End,
@@ -3215,7 +3194,6 @@ private fun BalanceSheetGroupItem(
                         }
 
                         if (isCalcMode) {
-                            Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
                                 onClick = { onToggleIncludeStatus?.invoke(group.parentAccount, !isIncluded) },
                                 modifier = Modifier.size(24.dp)
@@ -3242,32 +3220,20 @@ private fun BalanceSheetGroupItem(
                     }
                 }
             }
-        }
 
-        // Sub Accounts Nested Card
-        AnimatedVisibility(
-            visible = isExpanded && group.subAccounts.isNotEmpty(),
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, top = 2.dp, bottom = 4.dp)
+            // Sub Accounts List (Each indented as a Card matching Budget Category Item)
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    group.subAccounts.forEachIndexed { index, subRow ->
-                        if (index > 0) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
-                                thickness = 1.dp,
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    group.subAccounts.forEach { subRow ->
                         SubAccountRowItem(
                             row = subRow,
                             isCalcMode = isCalcMode,
@@ -3280,6 +3246,216 @@ private fun BalanceSheetGroupItem(
                             onRequestAdjustCalculation = onRequestAdjustCalculation,
                             onAccountClick = onAccountClick
                         )
+                    }
+                }
+            }
+        } else {
+            // Standalone Account Card (Matching Budget Item Card with border & elevation)
+            Card(
+                shape = RoundedCornerShape(10.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(0.7.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp)
+                    .clickable { onAccountClick?.invoke(group.parentAccount) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Left: Account Icon + Name + Badges
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = parentAccColor.copy(alpha = 0.16f),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                IconHelper.AppIcon(
+                                    iconName = group.parentAccount.iconName,
+                                    contentDescription = null,
+                                    tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        // Excluded badge
+                        if (!isIncluded) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SolidExpense.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidExpense,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+
+                        // % Share badge
+                        if (group.percentageShare > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            ) {
+                                Text(
+                                    text = "${group.percentageShare.toInt()}%",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Right: Amounts
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        if (showOnlyCurrentBalance) {
+                            Box(
+                                modifier = Modifier.widthIn(min = 85.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                        textAlign = TextAlign.End
+                                    )
+                                    if (isAdjusted && isIncluded) {
+                                        val sign = if (adjustment > 0) "+" else ""
+                                        val adjFormatted = if (displayCurrencySymbol) {
+                                            "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
+                                        } else {
+                                            "${sign}${String.format("%.2f", adjustment)}"
+                                        }
+                                        val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
+                                        Text(
+                                            text = "$adjLabel: $adjFormatted",
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            textAlign = TextAlign.End,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Box(
+                                    modifier = Modifier.widthIn(min = 75.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = formatBalance(group.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                        textAlign = TextAlign.End
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Box(
+                                    modifier = Modifier.widthIn(min = 85.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            Text(
+                                                text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                                fontSize = 13.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                                textAlign = TextAlign.End
+                                            )
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            ChangeIndicator(delta = group.delta)
+                                        }
+                                        if (isAdjusted && isIncluded) {
+                                            val sign = if (adjustment > 0) "+" else ""
+                                            val adjFormatted = if (displayCurrencySymbol) {
+                                                "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
+                                            } else {
+                                                "${sign}${String.format("%.2f", adjustment)}"
+                                            }
+                                            val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
+                                            Text(
+                                                text = "$adjLabel: $adjFormatted",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                textAlign = TextAlign.End,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (isCalcMode) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = { onToggleIncludeStatus?.invoke(group.parentAccount, !isIncluded) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (isIncluded) "Exclude" else "Include",
+                                    tint = if (isIncluded) SolidIncome else SolidExpense,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { onRequestAdjustCalculation(group.parentAccount, group.currentBalance) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Adjust",
+                                    tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -3312,191 +3488,181 @@ private fun SubAccountRowItem(
         IconHelper.parseColorHex(row.account.colorHex, defaultPrimaryColor)
     }
 
-    Row(
+    // Sub-Account Card (Indented with padding start 12dp matching Budget Category Item Card)
+    Card(
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(0.7.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
+            .padding(start = 12.dp, top = 2.dp, bottom = 2.dp)
             .clickable { onAccountClick?.invoke(row.account) }
-            .padding(vertical = 4.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Account Name & % badge with Account Icon
         Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconHelper.AppIcon(
-                iconName = row.account.iconName,
-                contentDescription = null,
-                tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = if (languageMode == LanguageMode.BANGLA) row.account.nameBn else row.account.nameEn,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Normal,
-                color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                maxLines = 2,
-                lineHeight = 17.sp,
-                overflow = TextOverflow.Ellipsis,
+            // Left: Account Icon + Name + Tags
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.weight(1f, fill = false)
-            )
-
-            // Excluded badge
-            if (!isIncluded) {
-                Spacer(modifier = Modifier.width(4.dp))
-                Surface(
-                    shape = RoundedCornerShape(3.dp),
-                    color = SolidExpense.copy(alpha = 0.15f)
-                ) {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SolidExpense,
-                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
-                    )
-                }
-            }
-
-            if (row.percentageShare > 0) {
-                Spacer(modifier = Modifier.width(6.dp))
-                Surface(
-                    shape = RoundedCornerShape(3.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                ) {
-                    Text(
-                        text = "${row.percentageShare.toInt()}%",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // Amounts
-        if (showOnlyCurrentBalance) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End
             ) {
-                Box(
-                    modifier = Modifier.widthIn(min = 85.dp),
-                    contentAlignment = Alignment.CenterEnd
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = subAccColor.copy(alpha = 0.16f),
+                    modifier = Modifier.size(22.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.End) {
+                    Box(contentAlignment = Alignment.Center) {
+                        IconHelper.AppIcon(
+                            iconName = row.account.iconName,
+                            contentDescription = null,
+                            tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) row.account.nameBn else row.account.nameEn,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Excluded badge
+                if (!isIncluded) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = SolidExpense.copy(alpha = 0.15f)
+                    ) {
                         Text(
-                            text = formatBalance(row.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                            textAlign = TextAlign.End
+                            text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidExpense,
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                         )
-                        if (isAdjusted && isIncluded) {
-                            val sign = if (adjustment > 0) "+" else ""
-                            val adjFormatted = if (displayCurrencySymbol) {
-                                "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
-                            } else {
-                                "${sign}${String.format("%.2f", adjustment)}"
-                            }
-                            val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
-                            Text(
-                                text = "$adjLabel: $adjFormatted",
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.End,
-                                maxLines = 1
-                            )
-                        }
                     }
                 }
-                if (isCalcMode) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(
-                        onClick = { onToggleIncludeStatus?.invoke(row.account, !isIncluded) },
-                        modifier = Modifier.size(20.dp)
+
+                if (row.percentageShare > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
                     ) {
-                        Icon(
-                            imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (isIncluded) "Exclude" else "Include",
-                            tint = if (isIncluded) SolidIncome else SolidExpense,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = { onRequestAdjustCalculation(row.account, row.currentBalance) },
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Adjust",
-                            tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(13.dp)
+                        Text(
+                            text = "${row.percentageShare.toInt()}%",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                         )
                     }
                 }
             }
-        } else {
+
+            // Right: Balances
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
-                Box(
-                    modifier = Modifier.widthIn(min = 75.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Text(
-                        text = formatBalance(row.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                        fontSize = 12.5.sp,
-                        color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
-                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                        textAlign = TextAlign.End
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Box(
-                    modifier = Modifier.widthIn(min = 85.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End
-                        ) {
+                if (showOnlyCurrentBalance) {
+                    Box(
+                        modifier = Modifier.widthIn(min = 85.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = formatBalance(row.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                fontSize = 13.5.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                                 textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                 textAlign = TextAlign.End
                             )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            ChangeIndicator(delta = row.delta)
-                        }
-                        if (isAdjusted && isIncluded) {
-                            val sign = if (adjustment > 0) "+" else ""
-                            val adjFormatted = if (displayCurrencySymbol) {
-                                "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
-                            } else {
-                                "${sign}${String.format("%.2f", adjustment)}"
+                            if (isAdjusted && isIncluded) {
+                                val sign = if (adjustment > 0) "+" else ""
+                                val adjFormatted = if (displayCurrencySymbol) {
+                                    "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
+                                } else {
+                                    "${sign}${String.format("%.2f", adjustment)}"
+                                }
+                                val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
+                                Text(
+                                    text = "$adjLabel: $adjFormatted",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
                             }
-                            val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
+                        }
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Box(
+                            modifier = Modifier.widthIn(min = 75.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
                             Text(
-                                text = "$adjLabel: $adjFormatted",
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                textAlign = TextAlign.End,
-                                maxLines = 1
+                                text = formatBalance(row.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                fontSize = 12.sp,
+                                color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                textAlign = TextAlign.End
                             )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier.widthIn(min = 85.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.End
+                                ) {
+                                    Text(
+                                        text = formatBalance(row.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                        textAlign = TextAlign.End
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    ChangeIndicator(delta = row.delta)
+                                }
+                                if (isAdjusted && isIncluded) {
+                                    val sign = if (adjustment > 0) "+" else ""
+                                    val adjFormatted = if (displayCurrencySymbol) {
+                                        "${sign}${LanguageHelper.formatCurrency(adjustment, languageMode)}"
+                                    } else {
+                                        "${sign}${String.format("%.2f", adjustment)}"
+                                    }
+                                    val adjLabel = if (languageMode == LanguageMode.BANGLA) "সমন্বয়" else "Adj"
+                                    Text(
+                                        text = "$adjLabel: $adjFormatted",
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     }
                 }
