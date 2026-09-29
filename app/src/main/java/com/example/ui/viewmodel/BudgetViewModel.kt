@@ -254,6 +254,25 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     // Scroll state preservation for SettingsScreen
     var settingsScrollIndex: Int = 0
     var settingsScrollOffset: Int = 0
+    val targetSettingsSubPage = MutableStateFlow<com.example.ui.screens.SettingsSubPage?>(null)
+    val targetSettingsTab = MutableStateFlow<Int?>(null)
+    val targetSettingsHighlight = MutableStateFlow<String?>(null)
+
+    fun navigateToSettingsSubPage(
+        subPage: com.example.ui.screens.SettingsSubPage,
+        tabIndex: Int? = null,
+        highlightKey: String? = null
+    ) {
+        targetSettingsSubPage.value = subPage
+        targetSettingsTab.value = tabIndex
+        targetSettingsHighlight.value = highlightKey
+    }
+
+    fun clearTargetSettingsSubPage() {
+        targetSettingsSubPage.value = null
+        targetSettingsTab.value = null
+        targetSettingsHighlight.value = null
+    }
 
     fun setItemDisplayFormat(format: ItemDisplayFormat) {
         displayFormatPrefs.setItemDisplayFormat(format)

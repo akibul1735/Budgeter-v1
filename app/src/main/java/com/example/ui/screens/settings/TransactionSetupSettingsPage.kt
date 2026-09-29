@@ -120,6 +120,7 @@ fun TransactionSetupSettingsPage(
     accounts: List<Account>,
     categories: List<Category>,
     languageMode: LanguageMode,
+    initialTab: Int = 0,
     onNavigateToAutofill: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -132,7 +133,7 @@ fun TransactionSetupSettingsPage(
     val displayFormatPrefs = remember { DisplayFormatPreferences.getInstance(context) }
     val displayFormatConfig by displayFormatPrefs.config.collectAsStateWithLifecycle()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab.coerceIn(0, 2)) }
     var activePicker by remember { mutableStateOf(TxPickerType.NONE) }
     var customPayeeDraft by remember(txConfig.customDefaultPayee) { mutableStateOf(txConfig.customDefaultPayee) }
 

@@ -183,7 +183,7 @@ fun DashboardScreen(
     onNavigateToCashFlow: () -> Unit = {},
     onAccountClick: (Account) -> Unit = {},
     onNavigate: (AppView) -> Unit = {},
-    onNavigateToSettingsSubPage: (SettingsSubPage) -> Unit = {},
+    onNavigateToSettingsSubPage: (SettingsSubPage, Int?, String?) -> Unit = { _, _, _ -> },
     onToggleCardVisibility: (DashboardCardType, Boolean) -> Unit,
     onReorderCards: (fromIndex: Int, toIndex: Int) -> Unit,
     onUpdateDailySummarySettings: (DailySummaryMode, DailySummaryPeriod, DailyChartType, Boolean, Boolean, DecimalPrecision, Boolean, Boolean) -> Unit,
@@ -2255,9 +2255,9 @@ fun DashboardScreen(
                 showMasterSearchModal = false
                 showStandAloneCalculator = true
             },
-            onNavigateToSettingsSubPage = { subPage ->
+            onNavigateToSettingsSubPage = { subPage, tab, highlight ->
                 showMasterSearchModal = false
-                onNavigateToSettingsSubPage(subPage)
+                onNavigateToSettingsSubPage(subPage, tab, highlight)
             }
         )
     }

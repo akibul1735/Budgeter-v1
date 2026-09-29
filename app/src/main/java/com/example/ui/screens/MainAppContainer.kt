@@ -2717,6 +2717,10 @@ private fun ScreenRouter(
                 if (onAccountClick != null) onAccountClick(acc) else onEditAccount(acc)
             },
             onNavigate = onNavigate,
+            onNavigateToSettingsSubPage = { subPage, tab, highlight ->
+                viewModel.navigateToSettingsSubPage(subPage, tab, highlight)
+                onNavigate(AppView.SETTINGS)
+            },
             onToggleCardVisibility = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
             onReorderCards = { from, to -> viewModel.moveDashboardCard(from, to) },
             onUpdateDailySummarySettings = { m, p, ct, sv, sa, dp, sc, scs -> viewModel.setDailySummarySettings(m, p, ct, sv, sa, dp, sc, scs) },

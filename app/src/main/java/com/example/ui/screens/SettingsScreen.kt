@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Fingerprint
@@ -58,6 +60,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
@@ -152,7 +155,8 @@ enum class SettingsSubPage {
     WIDGETS,
     ICON_IMAGE_CACHE,
     ABOUT,
-    FAQ
+    FAQ,
+    PAYMENT_SOURCES
 }
 
 @Composable
@@ -170,7 +174,17 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
-    var currentSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
+    val targetSubPage by viewModel.targetSettingsSubPage.collectAsStateWithLifecycle()
+    val targetTab by viewModel.targetSettingsTab.collectAsStateWithLifecycle()
+    var currentSubPage by remember { mutableStateOf(targetSubPage ?: SettingsSubPage.ROOT) }
+
+    LaunchedEffect(targetSubPage) {
+        val target = targetSubPage
+        if (target != null && target != SettingsSubPage.ROOT) {
+            currentSubPage = target
+            viewModel.clearTargetSettingsSubPage()
+        }
+    }
     var showSecurityAuthDialog by remember { mutableStateOf(false) }
     var showArchiveAuthDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
@@ -320,6 +334,39 @@ fun SettingsScreen(
             ),
 
             // Transactions & Workflow
+            SettingsSearchItem(
+                id = "default_names",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট নাম / নামহীন লেনদেন মোড" else "Default Payee Names / Unnamed Payee",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যক্তির নামহীন লেনদেনে স্বয়ংক্রিয় ডিফল্ট নাম বসানো (যেমন অন্যান্য বা কাস্টম)" else "Configure default fallback name for transactions without payee",
+                sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
+                icon = Icons.Default.EditNote,
+                keywords = listOf("default", "default names", "default name", "default payee", "unnamed payee", "unnamed", "payee name", "payee", "নাম", "ডিফল্ট নাম", "ডিফল্ট পেয়ি", "নামহীন", "অন্যান্য"),
+                onClick = {
+                    viewModel.navigateToSettingsSubPage(SettingsSubPage.TRANSACTION_SETUP, 1)
+                    currentSubPage = SettingsSubPage.TRANSACTION_SETUP
+                }
+            ),
+            SettingsSearchItem(
+                id = "default_accounts",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট অ্যাকাউন্ট ও ক্যাটাগরি" else "Default Accounts & Categories",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেনে স্বয়ংক্রিয়ভাবে নির্বাচিত অ্যাকাউন্ট ও ক্যাটাগরি" else "Pre-selected default accounts and categories for new entries",
+                sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
+                icon = Icons.Default.AccountBalance,
+                keywords = listOf("default", "defaults", "default account", "default category", "income category", "expense category", "ডিফল্ট", "ডিফল্ট অ্যাকাউন্ট", "ক্যাটাগরি"),
+                onClick = {
+                    viewModel.navigateToSettingsSubPage(SettingsSubPage.TRANSACTION_SETUP, 1)
+                    currentSubPage = SettingsSubPage.TRANSACTION_SETUP
+                }
+            ),
+            SettingsSearchItem(
+                id = "payment_sources",
+                title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম কনফিগারেশন" else "Payment Sources Setup",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাশ, ব্যাংক ও মোবাইল ব্যাংকিং মাধ্যম" else "Customize Cash, Bank, and Mobile Banking accounts",
+                sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
+                icon = Icons.Default.Payments,
+                keywords = listOf("payment sources", "cash", "bank", "mfs", "bkash", "nagad", "পেমেন্ট মাধ্যম", "পেমেন্ট সোর্স", "ক্যাশ", "ব্যাংক"),
+                onClick = { currentSubPage = SettingsSubPage.PAYMENT_SOURCES }
+            ),
             SettingsSearchItem(
                 id = "transaction_setup",
                 title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
@@ -1211,7 +1258,15 @@ fun SettingsScreen(
                             accounts = accounts,
                             categories = categories,
                             languageMode = languageMode,
+                            initialTab = targetTab ?: 0,
                             onNavigateToAutofill = { currentSubPage = SettingsSubPage.SMART_AUTOFILL },
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
+                        )
+                    }
+                    SettingsSubPage.PAYMENT_SOURCES -> {
+                        com.example.ui.screens.settings.PaymentSourcesSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
                             onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
