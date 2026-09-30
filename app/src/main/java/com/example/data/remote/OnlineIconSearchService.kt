@@ -575,6 +575,68 @@ object OnlineIconSearchService {
         "মসজিদ" to listOf("mosque", "islam", "crescent")
     )
 
+    private val GENERIC_QUALIFIER_WORDS = setOf(
+        "mobile", "banking", "bank", "banks", "wallet", "wallets", "account", "accounts",
+        "app", "apps", "application", "pay", "payment", "payments", "card", "cards",
+        "credit", "debit", "online", "digital", "official", "personal", "agent", "merchant",
+        "ltd", "limited", "corp", "inc", "company", "group", "bd", "bangladesh", "international",
+        "global", "express", "care", "center", "centre", "hub", "point", "plus", "pro",
+        "system", "systems", "network", "tech", "technologies", "branch", "plaza",
+        "service", "services", "transfer", "send", "receive", "deposit", "withdraw", "fee", "bill"
+    )
+
+    private val BRAND_ALIAS_MAP: Map<String, List<String>> = mapOf(
+        "nagad" to listOf("nagad", "nagad logo", "nagad mobile banking", "নগদ", "nagad bd", "nagad payment", "nagad app"),
+        "নগদ" to listOf("nagad", "nagad logo", "nagad mobile banking", "নগদ", "nagad bd"),
+        "bkash" to listOf("bkash", "bkash logo", "bkash app", "বিকাশ", "bkash payment", "bkash bd"),
+        "বিকাশ" to listOf("bkash", "bkash logo", "bkash app", "বিকাশ"),
+        "rocket" to listOf("dutch bangla rocket", "rocket mfs", "rocket logo", "dbbl rocket", "রকেট"),
+        "রকেট" to listOf("dutch bangla rocket", "rocket mfs", "rocket logo", "রকেট"),
+        "cellfin" to listOf("cellfin", "cellfin islami bank", "cellfin app", "cellfin logo", "সেলফিন"),
+        "সেলফিন" to listOf("cellfin", "cellfin islami bank", "cellfin app", "সেলফিন"),
+        "upay" to listOf("upay", "upay ucb", "upay mobile banking", "upay logo", "উপায়"),
+        "উপায়" to listOf("upay", "upay ucb", "upay logo"),
+        "উপায়" to listOf("upay", "upay ucb", "upay logo"),
+        "citytouch" to listOf("citytouch", "city touch", "city bank bangladesh", "city bank"),
+        "city touch" to listOf("citytouch", "city touch", "city bank bangladesh", "city bank"),
+        "astha" to listOf("brac astha", "astha app", "brac bank", "আস্থা"),
+        "skybanking" to listOf("ebl skybanking", "eastern bank", "skybanking app"),
+        "mcash" to listOf("mcash", "ibbl mcash", "islami bank mcash"),
+        "surecash" to listOf("surecash", "surecash mfs", "সিওরক্যাশ"),
+        "tap" to listOf("trust axiata pay", "tap bd", "tap mobile banking"),
+        "sonali" to listOf("sonali bank", "sonali sheba", "সোনালী ব্যাংক"),
+        "brac" to listOf("brac bank", "brac astha", "ব্র্যাক ব্যাংক"),
+        "ebl" to listOf("eastern bank", "ebl skybanking", "ইস্টার্ন ব্যাংক"),
+        "dbbl" to listOf("dutch bangla bank", "dbbl", "ডাচ বাংলা"),
+        "ibbl" to listOf("islami bank bangladesh", "ibbl", "ইসলামী ব্যাংক"),
+        "scb" to listOf("standard chartered", "scb bank"),
+        "hsbc" to listOf("hsbc bank", "hsbc bangladesh"),
+        "ucb" to listOf("united commercial bank", "ucb bank"),
+        "mtb" to listOf("mutual trust bank", "mtb bank"),
+        "pathao" to listOf("pathao", "pathao ride", "pathao food", "pathao courier"),
+        "daraz" to listOf("daraz", "daraz bd", "daraz online shopping"),
+        "chaldal" to listOf("chaldal", "chaldal grocery", "চালডাল"),
+        "foodpanda" to listOf("foodpanda", "foodpanda bd"),
+        "shwapno" to listOf("shwapno", "shwapno supershop", "স্বপ্ন"),
+        "meena" to listOf("meena bazar", "meena bazar bd"),
+        "aarong" to listOf("aarong", "aarong brac"),
+        "grameenphone" to listOf("grameenphone", "gp logo", "grameenphone logo"),
+        "gp" to listOf("grameenphone", "gp logo", "grameenphone logo"),
+        "robi" to listOf("robi axiata", "robi logo", "robi bd"),
+        "banglalink" to listOf("banglalink", "banglalink logo", "banglalink digital"),
+        "airtel" to listOf("airtel bangladesh", "airtel bd", "airtel logo"),
+        "teletalk" to listOf("teletalk", "teletalk bangladesh", "teletalk logo"),
+        "paypal" to listOf("paypal", "paypal logo"),
+        "stripe" to listOf("stripe", "stripe payment"),
+        "wise" to listOf("wise transfer", "transferwise", "wise logo"),
+        "revolut" to listOf("revolut", "revolut app"),
+        "binance" to listOf("binance", "binance crypto"),
+        "payoneer" to listOf("payoneer", "payoneer card"),
+        "netflix" to listOf("netflix", "netflix logo"),
+        "spotify" to listOf("spotify", "spotify music"),
+        "uber" to listOf("uber", "uber ride")
+    )
+
     /**
      * Common modifier words in transaction descriptions (family members, personal qualifiers, prefixes)
      * e.g. "Ammu recharge", "Abbu medicine", "purny Medicine", "Bhaiya burger"
@@ -622,7 +684,31 @@ object OnlineIconSearchService {
 
         val cleanLower = clean.lowercase()
 
-        // 1. Check if whole query is in direct typo/transliteration map or fuzzy matches a single canonical word
+        // 1. Direct Brand / Named entity check
+        for ((brandKey, brandExpansions) in BRAND_ALIAS_MAP) {
+            if (cleanLower == brandKey || cleanLower.contains(brandKey)) {
+                val primaryExact = clean
+                val distinctExpansions = brandExpansions.filter { it.lowercase() != cleanLower }
+                val splitList = distinctExpansions.take(3)
+                val synList = distinctExpansions.drop(3)
+                return SearchKeywordTiers(
+                    exactWord = primaryExact,
+                    splitWords = listOf(brandKey) + splitList,
+                    synonyms = synList
+                )
+            }
+        }
+
+        // 2. Direct compound phrase mapping in SYNONYM_MAP (e.g. "electricity bill", "house rent")
+        SYNONYM_MAP[cleanLower]?.let { syns ->
+            return SearchKeywordTiers(
+                exactWord = clean,
+                splitWords = syns.take(3),
+                synonyms = syns.drop(3)
+            )
+        }
+
+        // 3. Typo / Transliteration mapping check
         val wholeQueryCorrection = TYPO_AND_TRANSLITERATION_MAP[cleanLower]
             ?: if (!cleanLower.contains(" ")) fuzzyCorrectToken(cleanLower) else null
 
@@ -630,101 +716,78 @@ object OnlineIconSearchService {
             .map { it.trim().lowercase() }
             .filter { it.isNotBlank() }
 
-        // Detect single-letter prefix (e.g. "T oil", "E bike", "A water")
         val isSingleLetterPrefix = allTokens.size > 1 && allTokens.first().length == 1
         val mainTokens = if (isSingleLetterPrefix) allTokens.drop(1) else allTokens
 
-        // Separate tokens into Anchor domain words vs Modifier / Unknown words, applying typo correction
+        // Token categorization: Distinctive Subject vs Qualifier vs Category Anchor vs Modifier
+        val distinctiveTokens = mutableListOf<String>()
+        val qualifierTokens = mutableListOf<String>()
         val anchorTokens = mutableListOf<String>()
-        val modifierTokens = mutableListOf<String>()
-        val correctedTokens = mutableListOf<String>()
 
         for (t in mainTokens) {
             val corrected = fuzzyCorrectToken(t) ?: t
-            if (corrected != t) {
-                correctedTokens.add(corrected)
+            if (isGenericStopWord(t) || t in MODIFIER_WORDS) {
+                continue
             }
-
-            if (isAnchorKeyword(corrected)) {
+            if (corrected in GENERIC_QUALIFIER_WORDS || t in GENERIC_QUALIFIER_WORDS) {
+                qualifierTokens.add(corrected)
+            } else if (isAnchorKeyword(corrected) && corrected !in GENERIC_QUALIFIER_WORDS) {
                 anchorTokens.add(corrected)
-                if (corrected != t && isAnchorKeyword(t)) {
-                    anchorTokens.add(t)
-                }
-            } else if (!isGenericStopWord(t) && t !in MODIFIER_WORDS) {
-                modifierTokens.add(t)
-                if (corrected != t) modifierTokens.add(corrected)
+            } else {
+                distinctiveTokens.add(corrected)
+                if (corrected != t) distinctiveTokens.add(t)
             }
         }
 
-        // Determine primary anchor keyword (e.g. "recharge" from "Ammu recharge", "medicine" from "purny Medicine", "oil" from "T oil")
+        // Case A: Query has distinctive subject tokens (e.g. brand names, unique items)
+        if (distinctiveTokens.isNotEmpty()) {
+            val primarySubject = distinctiveTokens.first()
+            val subjectPhrase = distinctiveTokens.joinToString(" ")
+            val exactWord = clean
+            val splitList = mutableListOf<String>()
+
+            if (primarySubject != exactWord.lowercase()) {
+                splitList.add(primarySubject)
+            }
+            if (subjectPhrase != exactWord.lowercase() && subjectPhrase != primarySubject) {
+                splitList.add(subjectPhrase)
+            }
+            if (qualifierTokens.isNotEmpty()) {
+                splitList.add("$primarySubject ${qualifierTokens.first()}")
+            }
+            splitList.add("$primarySubject logo")
+
+            return SearchKeywordTiers(
+                exactWord = exactWord,
+                splitWords = splitList.distinct(),
+                synonyms = emptyList() // Do NOT inject random generic synonyms for brand/subject queries!
+            )
+        }
+
+        // Case B: Query is generic category words (e.g. "cooking oil", "vegetable food", "medicine")
         val primaryAnchor = wholeQueryCorrection
             ?: anchorTokens.firstOrNull()
-            ?: correctedTokens.firstOrNull()
-            ?: mainTokens.firstOrNull { it.length >= 2 && it !in MODIFIER_WORDS }
+            ?: qualifierTokens.firstOrNull()
             ?: cleanLower
 
-        // Tier 1 Exact Target:
         val exactWord = if (wholeQueryCorrection != null && wholeQueryCorrection != cleanLower) {
             wholeQueryCorrection
-        } else if (isSingleLetterPrefix && allTokens.first() == "t") {
-            primaryAnchor
-        } else if (allTokens.size > 1 && allTokens.first() in MODIFIER_WORDS && anchorTokens.isNotEmpty()) {
-            primaryAnchor
-        } else if (correctedTokens.size == 1 && allTokens.size == 1) {
-            correctedTokens.first()
         } else {
             clean
         }
 
-        // Tier 2 Split words: Anchor tokens first, then other meaningful words
         val splitList = mutableListOf<String>()
         if (primaryAnchor.isNotBlank() && primaryAnchor != exactWord.lowercase()) {
             splitList.add(primaryAnchor)
         }
-        for (c in correctedTokens) {
-            if (c !in splitList && c != exactWord.lowercase()) splitList.add(c)
-        }
         for (a in anchorTokens) {
             if (a !in splitList && a != exactWord.lowercase()) splitList.add(a)
         }
-        if (clean.lowercase() != exactWord.lowercase() && !isSingleLetterPrefix) {
-            splitList.add(clean)
-        }
-        for (m in modifierTokens) {
-            if (m !in splitList && m != exactWord.lowercase() && m.length >= 2) splitList.add(m)
-        }
 
-        // Also check singular forms for English plurals (e.g. "beverages" -> "beverage", "groceries" -> "grocery")
-        val singularCandidates = mutableListOf<String>()
-        val wordsToCheckForSingular = listOf(cleanLower, exactWord.lowercase()) + splitList.map { it.lowercase() }
-        for (w in wordsToCheckForSingular) {
-            if (w.endsWith("ies") && w.length > 4) {
-                singularCandidates.add(w.removeSuffix("ies") + "y")
-            } else if (w.endsWith("s") && !w.endsWith("ss") && w.length > 3) {
-                singularCandidates.add(w.removeSuffix("s"))
-            }
-        }
-        for (cand in singularCandidates) {
-            if (cand !in splitList && cand != exactWord.lowercase()) {
-                splitList.add(cand)
-            }
-        }
-
-        // Tier 3 Synonyms:
         val synList = mutableListOf<String>()
-        val synonymLookups = mutableListOf(cleanLower, exactWord.lowercase(), primaryAnchor)
-        wholeQueryCorrection?.let { synonymLookups.add(it) }
-        synonymLookups.addAll(correctedTokens)
-        synonymLookups.addAll(anchorTokens)
-        synonymLookups.addAll(modifierTokens)
-        synonymLookups.addAll(singularCandidates)
-
+        val synonymLookups = listOf(cleanLower, exactWord.lowercase(), primaryAnchor) + anchorTokens
         for (key in synonymLookups.distinct()) {
             SYNONYM_MAP[key]?.let { synList.addAll(it) }
-            val correctedKey = fuzzyCorrectToken(key)
-            if (correctedKey != null && correctedKey != key) {
-                SYNONYM_MAP[correctedKey]?.let { synList.addAll(it) }
-            }
         }
 
         val excludeSet = (listOf(cleanLower, exactWord.lowercase()) + splitList.map { it.lowercase() }).toSet()
@@ -1283,7 +1346,32 @@ object OnlineIconSearchService {
             }
         }
 
-        results
+        val queryLower = query.lowercase().trim()
+        val queryTokens = queryLower.split(Regex("[\\s,_\\-]+")).filter { it.length >= 2 }
+        val distinctiveTokens = queryTokens.filter { it !in GENERIC_QUALIFIER_WORDS && it !in GENERIC_STOP_WORDS }
+
+        val filteredResults = if (distinctiveTokens.isNotEmpty()) {
+            results.filter { item ->
+                val titleLower = item.title.lowercase()
+                val urlLower = item.imageUrl.lowercase()
+                val sourceLower = item.sourceName.lowercase()
+                distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
+                        queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
+                        sourceLower in setOf("svgl", "brandfetch", "vectorlogozone")
+            }
+        } else {
+            results
+        }
+
+        filteredResults.sortedWith(
+            compareByDescending<OnlineIconResult> { item ->
+                val titleLower = item.title.lowercase()
+                val urlLower = item.imageUrl.lowercase()
+                if (distinctiveTokens.isNotEmpty() && distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 3
+                else if (queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 2
+                else 1
+            }.thenByDescending { it.isColorful }
+        )
     }
 
     /**
@@ -1690,7 +1778,7 @@ object OnlineIconSearchService {
         try {
             val cleanLower = term.trim().lowercase()
             val corrected = fuzzyCorrectToken(cleanLower) ?: cleanLower
-            val searchQuery = "$corrected icon png -site:blogspot.com -site:wordpress.com"
+            val searchQuery = "$corrected logo icon png transparent -site:blogspot.com -site:wordpress.com"
             val encoded = URLEncoder.encode(searchQuery, "UTF-8")
             val first = ((page - 1) * limit) + 1
             // Use transparent photo filter first for clean isolated icons
@@ -1707,7 +1795,9 @@ object OnlineIconSearchService {
             var matches = executeBingImageQuery(request, limit, term)
             // Fallback without transparent filter if transparent returned too few results
             if (matches.size < 4) {
-                val fallbackUrl = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1&adlt=strict"
+                val fallbackQuery = "$corrected icon vector png -site:blogspot.com -site:wordpress.com"
+                val fallbackEnc = URLEncoder.encode(fallbackQuery, "UTF-8")
+                val fallbackUrl = "https://www.bing.com/images/async?q=$fallbackEnc&first=$first&count=$limit&mmasync=1&adlt=strict"
                 val fallbackReq = request.newBuilder().url(fallbackUrl).build()
                 val fallbackMatches = executeBingImageQuery(fallbackReq, limit, term)
                 matches = (matches + fallbackMatches).distinctBy { it.imageUrl }
@@ -1963,7 +2053,32 @@ object OnlineIconSearchService {
             }
         }
 
-        results
+        val queryLower = query.lowercase().trim()
+        val queryTokens = queryLower.split(Regex("[\\s,_\\-]+")).filter { it.length >= 2 }
+        val distinctiveTokens = queryTokens.filter { it !in GENERIC_QUALIFIER_WORDS && it !in GENERIC_STOP_WORDS }
+
+        val filteredResults = if (distinctiveTokens.isNotEmpty()) {
+            results.filter { item ->
+                val titleLower = item.title.lowercase()
+                val urlLower = item.imageUrl.lowercase()
+                val sourceLower = item.sourceName.lowercase()
+                distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
+                        queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
+                        sourceLower in setOf("wikimedia", "wikipedia", "unsplash", "openverse")
+            }
+        } else {
+            results
+        }
+
+        filteredResults.sortedWith(
+            compareByDescending<OnlineImageResult> { item ->
+                val titleLower = item.title.lowercase()
+                val urlLower = item.imageUrl.lowercase()
+                if (distinctiveTokens.isNotEmpty() && distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 3
+                else if (queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 2
+                else 1
+            }
+        )
     }
 
     /**
