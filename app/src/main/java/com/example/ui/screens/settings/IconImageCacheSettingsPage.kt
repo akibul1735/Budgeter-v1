@@ -118,11 +118,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
+
 enum class ItemsIconTab(val titleEn: String, val titleBn: String, val icon: ImageVector) {
     ITEMS("Items", "আইটেম তালিকা", Icons.Default.Category),
     CUSTOM("My Icons", "আমার আইকন", Icons.Default.PhotoLibrary),
-    ICONS("Icons", "অনলাইন আইকন", Icons.Default.Public),
-    IMAGES("Images", "ছবি ও স্টুডিও", Icons.Default.AddPhotoAlternate)
+    ONLINE("Explore", "অনলাইন সার্চ", Icons.Default.Public)
 }
 
 /**
@@ -175,8 +177,11 @@ fun IconImageCacheSettingsPage(
     var iconCacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
     var isCleaningCache by remember { mutableStateOf(false) }
 
-    // Online Icons tab states
-    var iconSearchQuery by remember { mutableStateOf("") }
+    // Unified Online Search states (shared search query preserved between section switches)
+    var onlineSearchQuery by remember { mutableStateOf("") }
+    var onlineSubSection by remember { mutableIntStateOf(0) } // 0: Left (Icons & Logos), 1: Right (Images)
+
+    // Online Icons results
     var iconSearchResults by remember { mutableStateOf<List<OnlineIconResult>>(emptyList()) }
     var isSearchingIcons by remember { mutableStateOf(false) }
     var iconSearchError by remember { mutableStateOf<String?>(null) }
@@ -184,8 +189,7 @@ fun IconImageCacheSettingsPage(
     var hasMoreIcons by remember { mutableStateOf(false) }
     var isDownloadingIconUrl by remember { mutableStateOf<String?>(null) }
 
-    // Online Images tab states
-    var imageSearchQuery by remember { mutableStateOf("") }
+    // Online Images results
     var imageSearchResults by remember { mutableStateOf<List<OnlineImageResult>>(emptyList()) }
     var isSearchingImages by remember { mutableStateOf(false) }
     var imageSearchError by remember { mutableStateOf<String?>(null) }
@@ -205,8 +209,10 @@ fun IconImageCacheSettingsPage(
 
     fun refreshCustomIconsAndStats() {
         customIconsList = IconHelper.getCustomIcons(context)
-        coroutineScope.launch {
-            iconCacheStats = viewModel.getIconCacheStats()
+        viewModel.viewModelScope.launch {
+            try {
+                iconCacheStats = viewModel.getIconCacheStats()
+            } catch (_: Exception) {}
         }
     }
 
@@ -265,69 +271,60 @@ fun IconImageCacheSettingsPage(
         iconCacheStats = viewModel.getIconCacheStats()
     }
 
-    LaunchedEffect(iconSearchQuery, selectedPageTab) {
-        if (selectedPageTab == ItemsIconTab.ICONS) {
-            refreshCustomIconsAndStats()
-            if (iconSearchQuery.trim().length >= 2) {
-                isSearchingIcons = true
+    // Single unified online search effect with debouncing
+    LaunchedEffect(onlineSearchQuery, onlineSubSection, selectedPageTab) {
+        if (selectedPageTab == ItemsIconTab.ONLINE) {
+            val query = onlineSearchQuery.trim()
+            if (query.length < 2) {
+                // When there is nothing in search bar, do NOT show any results (empty prompt state)
+                iconSearchResults = emptyList()
+                imageSearchResults = emptyList()
+                isSearchingIcons = false
+                isSearchingImages = false
                 iconSearchError = null
-                iconSearchPage = 1
-                try {
-                    val res = withContext(Dispatchers.IO) {
-                        OnlineIconSearchService.searchIcons(iconSearchQuery.trim(), page = 1)
-                    }
-                    iconSearchResults = res
-                    hasMoreIcons = res.isNotEmpty()
-                } catch (e: Exception) {
-                    iconSearchError = e.message ?: "Failed to search icons"
-                } finally {
-                    isSearchingIcons = false
-                }
-            } else if (iconSearchQuery.isBlank()) {
-                isSearchingIcons = true
-                try {
-                    val res = withContext(Dispatchers.IO) {
-                        OnlineIconSearchService.searchIcons("bank payment shopping tech food travel", page = 1)
-                    }
-                    iconSearchResults = res
-                    hasMoreIcons = true
-                } catch (_: Exception) {
-                } finally {
-                    isSearchingIcons = false
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(imageSearchQuery, selectedPageTab) {
-        if (selectedPageTab == ItemsIconTab.IMAGES) {
-            refreshCustomIconsAndStats()
-            if (imageSearchQuery.trim().length >= 2) {
-                isSearchingImages = true
                 imageSearchError = null
-                imageSearchPage = 1
-                try {
-                    val res = withContext(Dispatchers.IO) {
-                        OnlineIconSearchService.searchImages(imageSearchQuery.trim(), page = 1)
+                hasMoreIcons = false
+                hasMoreImages = false
+            } else {
+                // Debounce typing so search triggers after user finishes typing
+                delay(350)
+
+                if (onlineSubSection == 0) {
+                    isSearchingIcons = true
+                    iconSearchError = null
+                    iconSearchPage = 1
+                    try {
+                        val res = withContext(Dispatchers.IO) {
+                            OnlineIconSearchService.searchIcons(context, query, page = 1)
+                        }
+                        iconSearchResults = res
+                        hasMoreIcons = res.size >= 4
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        iconSearchError = e.message ?: "Failed to search icons"
+                        iconSearchResults = emptyList()
+                    } finally {
+                        isSearchingIcons = false
                     }
-                    imageSearchResults = res
-                    hasMoreImages = res.isNotEmpty()
-                } catch (e: Exception) {
-                    imageSearchError = e.message ?: "Failed to search images"
-                } finally {
-                    isSearchingImages = false
-                }
-            } else if (imageSearchQuery.isBlank()) {
-                isSearchingImages = true
-                try {
-                    val res = withContext(Dispatchers.IO) {
-                        OnlineIconSearchService.searchImages("finance grocery restaurant office", page = 1)
+                } else {
+                    isSearchingImages = true
+                    imageSearchError = null
+                    imageSearchPage = 1
+                    try {
+                        val res = withContext(Dispatchers.IO) {
+                            OnlineIconSearchService.searchImages(context, query, page = 1)
+                        }
+                        imageSearchResults = res
+                        hasMoreImages = res.size >= 4
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        imageSearchError = e.message ?: "Failed to search images"
+                        imageSearchResults = emptyList()
+                    } finally {
+                        isSearchingImages = false
                     }
-                    imageSearchResults = res
-                    hasMoreImages = true
-                } catch (_: Exception) {
-                } finally {
-                    isSearchingImages = false
                 }
             }
         }
@@ -1014,423 +1011,7 @@ fun IconImageCacheSettingsPage(
                 }
             }
 
-            ItemsIconTab.ICONS -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    // Header info card
-                    item {
-                        OutlinedCard(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Public,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Column {
-                                    Text(
-                                        text = if (isBangla) "অনলাইন আইকন ও ব্র্যান্ড লাইব্রেরি" else "Online Icon & Brand Library",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = if (isBangla) "ব্র্যান্ডের আসল লোগো ও ভেক্টর আইকন সরাসরি সার্চ ও সেভ করুন" else "Search authentic brand logos, vector symbols & save to custom cache",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Storage & Clean card
-                    item {
-                        val totalKb = (iconCacheStats.totalBytes / 1024).coerceAtLeast(if (iconCacheStats.totalCount > 0) 1 else 0)
-                        val unusedKb = (iconCacheStats.unusedBytes / 1024).coerceAtLeast(if (iconCacheStats.unusedCount > 0) 1 else 0)
-
-                        OutlinedCard(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = if (isBangla) "আইকন ক্যাশ মেমোরি" else "Icon Storage & Cache",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                        Text(
-                                            text = "${iconCacheStats.totalCount} icons (~$totalKb KB) • ${iconCacheStats.activeCount} in-use",
-                                            fontSize = 11.5.sp,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
-                                    }
-
-                                    if (iconCacheStats.unusedCount > 0) {
-                                        Button(
-                                            onClick = {
-                                                isCleaningCache = true
-                                                coroutineScope.launch {
-                                                    val (count, _) = viewModel.clearUnusedIconCache()
-                                                    refreshCustomIconsAndStats()
-                                                    isCleaningCache = false
-                                                    Toast.makeText(
-                                                        context,
-                                                        if (isBangla) "$count টি অব্যবহৃত ক্যাশ আইকন মুছে ফেলা হয়েছে" else "Cleaned $count unused cache items",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
-                                                }
-                                            },
-                                            enabled = !isCleaningCache,
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                        ) {
-                                            Text(
-                                                text = if (isBangla) "ক্যাশ মুছুন ($unusedKb KB)" else "Clear Cache ($unusedKb KB)",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    } else {
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                        ) {
-                                            Text(
-                                                text = if (isBangla) "ক্যাশ ক্লিন" else "Clean",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Search field
-                    item {
-                        OutlinedTextField(
-                            value = iconSearchQuery,
-                            onValueChange = { iconSearchQuery = it },
-                            placeholder = {
-                                Text(
-                                    if (isBangla) "ব্র্যান্ড বা আইকন খুঁজুন (যেমন: Bkash, Netflix, Amazon)..."
-                                    else "Search logo or icon (e.g. Bkash, Netflix, Amazon)...",
-                                    fontSize = 13.5.sp
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            trailingIcon = {
-                                if (iconSearchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { iconSearchQuery = "" }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear")
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    // Preset suggestions chips
-                    item {
-                        val iconPresets = listOf(
-                            "Bkash", "Nagad", "Rocket", "Upay", "Google", "Amazon",
-                            "Netflix", "Spotify", "Uber", "Pathao", "Daraz", "Food",
-                            "Medical", "Salary", "Shopping", "Gym", "Car", "Bank"
-                        )
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(horizontal = 2.dp)
-                        ) {
-                            items(iconPresets) { preset ->
-                                val isCurrent = iconSearchQuery.equals(preset, ignoreCase = true)
-                                FilterChip(
-                                    selected = isCurrent,
-                                    onClick = { iconSearchQuery = preset },
-                                    label = { Text(preset, fontSize = 11.5.sp) },
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Results state
-                    if (isSearchingIcons) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(36.dp))
-                            }
-                        }
-                    } else if (iconSearchError != null) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Clear,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = iconSearchError ?: "Error loading icons",
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        fontSize = 12.5.sp
-                                    )
-                                }
-                            }
-                        }
-                    } else if (iconSearchResults.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.Public,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = if (isBangla) "কোনো আইকন পাওয়া যায়নি" else "No icons found",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // 2 items per row
-                        val chunkedIcons = iconSearchResults.chunked(2)
-                        items(chunkedIcons) { rowIcons ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                for (icon in rowIcons) {
-                                    val isDownloading = isDownloadingIconUrl == icon.imageUrl
-                                    OutlinedCard(
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier
-                                            .weight(1f),
-                                        colors = CardDefaults.outlinedCardColors(
-                                            containerColor = MaterialTheme.colorScheme.surface
-                                        )
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(12.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                                modifier = Modifier.size(54.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    AsyncImage(
-                                                        model = icon.imageUrl,
-                                                        contentDescription = icon.title,
-                                                        modifier = Modifier
-                                                            .size(38.dp)
-                                                            .clip(CircleShape),
-                                                        contentScale = ContentScale.Fit
-                                                    )
-                                                }
-                                            }
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text(
-                                                text = icon.title,
-                                                fontWeight = FontWeight.SemiBold,
-                                                fontSize = 12.5.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = icon.sourceName,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                maxLines = 1
-                                            )
-                                            Spacer(modifier = Modifier.height(10.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                OutlinedButton(
-                                                    onClick = {
-                                                        cropEditorImageUrl = icon.imageUrl
-                                                        cropEditorInitialName = icon.title
-                                                        showCropEditor = true
-                                                    },
-                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                                    modifier = Modifier.weight(1f).height(32.dp),
-                                                    shape = RoundedCornerShape(8.dp)
-                                                ) {
-                                                    Icon(
-                                                        Icons.Default.Crop,
-                                                        contentDescription = "Crop",
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(3.dp))
-                                                    Text(if (isBangla) "ক্রপ" else "Crop", fontSize = 10.5.sp)
-                                                }
-
-                                                FilledTonalButton(
-                                                    onClick = {
-                                                        isDownloadingIconUrl = icon.imageUrl
-                                                        coroutineScope.launch {
-                                                            try {
-                                                                val savedKey = withContext(Dispatchers.IO) {
-                                                                    OnlineIconSearchService.downloadAndSaveIcon(
-                                                                        context = context,
-                                                                        imageUrl = icon.imageUrl,
-                                                                        name = icon.title
-                                                                    )
-                                                                }
-                                                                if (savedKey != null) {
-                                                                    refreshCustomIconsAndStats()
-                                                                    Toast.makeText(
-                                                                        context,
-                                                                        if (isBangla) "আইকন সফলভাবে সেভ করা হয়েছে!" else "Icon saved to custom icons!",
-                                                                        Toast.LENGTH_SHORT
-                                                                    ).show()
-                                                                } else {
-                                                                    Toast.makeText(
-                                                                        context,
-                                                                        if (isBangla) "আইকন সেভ ব্যর্থ হয়েছে" else "Failed to download icon",
-                                                                        Toast.LENGTH_SHORT
-                                                                    ).show()
-                                                                }
-                                                            } catch (e: Exception) {
-                                                                Toast.makeText(context, e.message ?: "Error saving icon", Toast.LENGTH_SHORT).show()
-                                                            } finally {
-                                                                isDownloadingIconUrl = null
-                                                            }
-                                                        }
-                                                    },
-                                                    enabled = !isDownloading,
-                                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                                                    modifier = Modifier.weight(1f).height(32.dp),
-                                                    shape = RoundedCornerShape(8.dp)
-                                                ) {
-                                                    if (isDownloading) {
-                                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
-                                                    } else {
-                                                        Icon(
-                                                            Icons.Default.Download,
-                                                            contentDescription = "Save",
-                                                            modifier = Modifier.size(13.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(3.dp))
-                                                        Text(if (isBangla) "সেভ" else "Save", fontSize = 10.5.sp)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                if (rowIcons.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-
-                        if (hasMoreIcons) {
-                            item {
-                                OutlinedButton(
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            val nextPage = iconSearchPage + 1
-                                            val query = iconSearchQuery.ifBlank { "bank payment shopping tech food travel" }
-                                            try {
-                                                val nextResults = withContext(Dispatchers.IO) {
-                                                    OnlineIconSearchService.searchIcons(query, page = nextPage)
-                                                }
-                                                if (nextResults.isNotEmpty()) {
-                                                    iconSearchResults = iconSearchResults + nextResults
-                                                    iconSearchPage = nextPage
-                                                } else {
-                                                    hasMoreIcons = false
-                                                }
-                                            } catch (_: Exception) {
-                                                hasMoreIcons = false
-                                            }
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp)
-                                ) {
-                                    Text(if (isBangla) "আরো আইকন দেখুন" else "Load More Icons", fontSize = 12.5.sp)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            ItemsIconTab.IMAGES -> {
+            ItemsIconTab.ONLINE -> {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1456,7 +1037,7 @@ fun IconImageCacheSettingsPage(
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
-                                                imageVector = Icons.Default.AddPhotoAlternate,
+                                                imageVector = Icons.Default.Public,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(24.dp)
@@ -1466,12 +1047,12 @@ fun IconImageCacheSettingsPage(
                                     Spacer(modifier = Modifier.width(14.dp))
                                     Column {
                                         Text(
-                                            text = if (isBangla) "অনলাইন ইমেজ সার্চ ও এডিটিং স্টুডিও" else "Online Image Search & Studio",
+                                            text = if (isBangla) "অনলাইন আইকন ও ইমেজ স্টুডিও" else "Online Icons & Images Studio",
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = if (isBangla) "বাস্তবসম্মত ফটো খুঁজুন অথবা ফোন থেকে ছবি ক্রপ করে আইকন বানান" else "Search high-def photos or pick & crop images from your device",
+                                            text = if (isBangla) "ব্র্যান্ড লোগো, ভেক্টর আইকন ও বাস্তবসম্মত ফটো সার্চ ও সেভ করুন" else "Search brand logos, vector symbols & high-def photos",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1528,12 +1109,12 @@ fun IconImageCacheSettingsPage(
                                 ) {
                                     Column {
                                         Text(
-                                            text = if (isBangla) "কাস্টম ইমেজ ও ফটো ক্যাশ" else "Custom Image & Photo Cache",
+                                            text = if (isBangla) "কাস্টম আইকন ও ইমেজ ক্যাশ" else "Custom Icon & Image Cache",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp
                                         )
                                         Text(
-                                            text = "${iconCacheStats.totalCount} cached images (~$totalKb KB)",
+                                            text = "${iconCacheStats.totalCount} saved items (~$totalKb KB) • ${iconCacheStats.activeCount} in-use",
                                             fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.outline
                                         )
@@ -1543,15 +1124,18 @@ fun IconImageCacheSettingsPage(
                                         Button(
                                             onClick = {
                                                 isCleaningCache = true
-                                                coroutineScope.launch {
-                                                    val (count, _) = viewModel.clearUnusedIconCache()
-                                                    refreshCustomIconsAndStats()
-                                                    isCleaningCache = false
-                                                    Toast.makeText(
-                                                        context,
-                                                        if (isBangla) "$count টি অব্যবহৃত ফাইল মুছে ফেলা হয়েছে" else "Cleaned $count unused image files",
-                                                        Toast.LENGTH_SHORT
-                                                    ).show()
+                                                viewModel.viewModelScope.launch {
+                                                    try {
+                                                        val (count, _) = viewModel.clearUnusedIconCache()
+                                                        refreshCustomIconsAndStats()
+                                                        Toast.makeText(
+                                                            context,
+                                                            if (isBangla) "$count টি অব্যবহৃত ফাইল মুছে ফেলা হয়েছে" else "Cleaned $count unused files",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    } finally {
+                                                        isCleaningCache = false
+                                                    }
                                                 }
                                             },
                                             enabled = !isCleaningCache,
@@ -1584,16 +1168,23 @@ fun IconImageCacheSettingsPage(
                         }
                     }
 
-                    // Search field
+                    // Single shared Search field (preserves query across section toggle)
                     item {
                         OutlinedTextField(
-                            value = imageSearchQuery,
-                            onValueChange = { imageSearchQuery = it },
+                            value = onlineSearchQuery,
+                            onValueChange = { onlineSearchQuery = it },
                             placeholder = {
                                 Text(
-                                    if (isBangla) "ফটো খুঁজুন (যেমন: Coffee, Travel, Shopping)..."
-                                    else "Search photos (e.g. Coffee, Travel, Shopping)...",
-                                    fontSize = 13.5.sp
+                                    if (onlineSubSection == 0) {
+                                        if (isBangla) "লোগো বা আইকন খুঁজুন (যেমন: Bkash, Food, Car, Bank)..."
+                                        else "Search logos & icons (e.g. Bkash, Food, Car, Bank)..."
+                                    } else {
+                                        if (isBangla) "ফটো খুঁজুন (যেমন: Vegetables, Coffee, Travel, Shopping)..."
+                                        else "Search real photos (e.g. Vegetables, Coffee, Travel, Shopping)..."
+                                    },
+                                    fontSize = 13.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             },
                             leadingIcon = {
@@ -1604,8 +1195,8 @@ fun IconImageCacheSettingsPage(
                                 )
                             },
                             trailingIcon = {
-                                if (imageSearchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { imageSearchQuery = "" }) {
+                                if (onlineSearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { onlineSearchQuery = "" }) {
                                         Icon(Icons.Default.Clear, contentDescription = "Clear")
                                     }
                                 }
@@ -1616,22 +1207,90 @@ fun IconImageCacheSettingsPage(
                         )
                     }
 
+                    // Two Sections Toggle Switcher: Left Icons | Right Images
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            FilterChip(
+                                selected = onlineSubSection == 0,
+                                onClick = { onlineSubSection = 0 },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Category,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = if (onlineSubSection == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = if (isBangla) "আইকন ও লোগো" else "Icons & Logos",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = if (onlineSubSection == 0) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    selectedLabelColor = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            FilterChip(
+                                selected = onlineSubSection == 1,
+                                onClick = { onlineSubSection = 1 },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.AddPhotoAlternate,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = if (onlineSubSection == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    )
+                                },
+                                label = {
+                                    Text(
+                                        text = if (isBangla) "ফটো ও ইমেজ" else "Photos & Images",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = if (onlineSubSection == 1) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    selectedLabelColor = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
                     // Preset suggestions chips
                     item {
-                        val imagePresets = listOf(
-                            "Coffee", "Burger", "Restaurant", "Groceries", "Shopping",
-                            "Travel", "Flight", "Hotel", "Car", "Office", "Salary",
-                            "Bonus", "Gym", "Medical", "Investment"
-                        )
+                        val presets = if (onlineSubSection == 0) {
+                            listOf(
+                                "Bkash", "Nagad", "Rocket", "Google", "Amazon", "Netflix",
+                                "Spotify", "Uber", "Pathao", "Daraz", "Food", "Medical",
+                                "Salary", "Shopping", "Gym", "Car", "Bank"
+                            )
+                        } else {
+                            listOf(
+                                "Vegetables", "Grocery", "Coffee", "Restaurant", "Burger",
+                                "Fruits", "Travel", "Flight", "Hotel", "Car", "Office",
+                                "Salary", "Shopping", "Medical", "Gym"
+                            )
+                        }
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(horizontal = 2.dp)
                         ) {
-                            items(imagePresets) { preset ->
-                                val isCurrent = imageSearchQuery.equals(preset, ignoreCase = true)
+                            items(presets) { preset ->
+                                val isCurrent = onlineSearchQuery.equals(preset, ignoreCase = true)
                                 FilterChip(
                                     selected = isCurrent,
-                                    onClick = { imageSearchQuery = preset },
+                                    onClick = { onlineSearchQuery = preset },
                                     label = { Text(preset, fontSize = 11.5.sp) },
                                     shape = RoundedCornerShape(8.dp)
                                 )
@@ -1639,186 +1298,487 @@ fun IconImageCacheSettingsPage(
                         }
                     }
 
-                    // Results state
-                    if (isSearchingImages) {
+                    // Empty search bar prompt (when search query is blank)
+                    if (onlineSearchQuery.trim().length < 2) {
                         item {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
+                                    .padding(vertical = 36.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(36.dp))
-                            }
-                        }
-                    } else if (imageSearchError != null) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(horizontal = 24.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.Clear,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = imageSearchError ?: "Error loading images",
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        fontSize = 12.5.sp
-                                    )
-                                }
-                            }
-                        }
-                    } else if (imageSearchResults.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.AddPhotoAlternate,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = if (isBangla) "কোনো ছবি পাওয়া যায়নি" else "No images found",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        // 3 items per row
-                        val chunkedImages = imageSearchResults.chunked(3)
-                        items(chunkedImages) { rowImages ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                for (image in rowImages) {
-                                    OutlinedCard(
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable {
-                                                cropEditorImageUrl = image.thumbUrl.ifBlank { image.imageUrl }
-                                                cropEditorInitialName = image.title
-                                                showCropEditor = true
-                                            },
-                                        colors = CardDefaults.outlinedCardColors(
-                                            containerColor = MaterialTheme.colorScheme.surface
-                                        )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                        modifier = Modifier.size(56.dp)
                                     ) {
-                                        Column(
-                                            modifier = Modifier.padding(6.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .aspectRatio(1f)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                            ) {
-                                                AsyncImage(
-                                                    model = image.thumbUrl.ifBlank { image.imageUrl },
-                                                    contentDescription = image.title,
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = ContentScale.Crop
-                                                )
-                                                Surface(
-                                                    shape = RoundedCornerShape(bottomEnd = 6.dp),
-                                                    color = Color.Black.copy(alpha = 0.65f),
-                                                    modifier = Modifier.align(Alignment.TopStart)
-                                                ) {
-                                                    Text(
-                                                        text = image.sourceName.take(8),
-                                                        fontSize = 8.sp,
-                                                        color = Color.White,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = image.title,
-                                                fontWeight = FontWeight.Medium,
-                                                fontSize = 10.5.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (onlineSubSection == 0) Icons.Default.Category else Icons.Default.AddPhotoAlternate,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(28.dp),
+                                                tint = MaterialTheme.colorScheme.primary
                                             )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            OutlinedButton(
-                                                onClick = {
-                                                    cropEditorImageUrl = image.thumbUrl.ifBlank { image.imageUrl }
-                                                    cropEditorInitialName = image.title
-                                                    showCropEditor = true
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                                modifier = Modifier.fillMaxWidth().height(26.dp),
-                                                shape = RoundedCornerShape(6.dp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = if (onlineSubSection == 0) {
+                                            if (isBangla) "যেকোনো ব্র্যান্ড বা ভেক্টর আইকন খুঁজুন" else "Search Any Brand Logo or Vector Icon"
+                                        } else {
+                                            if (isBangla) "যেকোনো বাস্তবসম্মত ফটো খুঁজুন" else "Search High-Quality Photos Online"
+                                        },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = if (isBangla) {
+                                            "খোঁজার জন্য উপরের বক্সে টাইপ করুন অথবা সাজেস্ট করা চিপসে ক্লিক করুন।"
+                                        } else {
+                                            "Type a keyword in the search box above or tap a suggestion chip to start searching."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    } else if (onlineSubSection == 0) {
+                        // === ICONS SECTION RESULTS ===
+                        if (isSearchingIcons) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = if (isBangla) "আইকন অনুসন্ধান করা হচ্ছে..." else "Searching icons online...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (iconSearchError != null) {
+                            item {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Clear,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = iconSearchError ?: "Error loading icons",
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            fontSize = 12.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (iconSearchResults.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            Icons.Default.Public,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(48.dp),
+                                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = if (isBangla) "কোনো আইকন পাওয়া যায়নি" else "No icons found",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            // 2 items per row
+                            val chunkedIcons = iconSearchResults.chunked(2)
+                            items(chunkedIcons) { rowIcons ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    for (icon in rowIcons) {
+                                        val isDownloading = isDownloadingIconUrl == icon.imageUrl
+                                        OutlinedCard(
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.weight(1f),
+                                            colors = CardDefaults.outlinedCardColors(
+                                                containerColor = MaterialTheme.colorScheme.surface
+                                            )
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(12.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
-                                                Icon(
-                                                    Icons.Default.Crop,
-                                                    contentDescription = "Crop",
-                                                    modifier = Modifier.size(11.dp)
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                    modifier = Modifier.size(54.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        AsyncImage(
+                                                            model = icon.imageUrl,
+                                                            contentDescription = icon.title,
+                                                            modifier = Modifier
+                                                                .size(38.dp)
+                                                                .clip(CircleShape),
+                                                            contentScale = ContentScale.Fit
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    text = icon.title,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 12.5.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
-                                                Spacer(modifier = Modifier.width(2.dp))
-                                                Text(if (isBangla) "ক্রপ ও সেভ" else "Crop & Save", fontSize = 9.sp)
+                                                Text(
+                                                    text = icon.sourceName,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.outline,
+                                                    maxLines = 1
+                                                )
+                                                Spacer(modifier = Modifier.height(10.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            cropEditorImageUrl = icon.imageUrl
+                                                            cropEditorInitialName = icon.title
+                                                            showCropEditor = true
+                                                        },
+                                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                                        modifier = Modifier.weight(1f).height(32.dp),
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.Crop,
+                                                            contentDescription = "Crop",
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text(if (isBangla) "ক্রপ" else "Crop", fontSize = 10.5.sp)
+                                                    }
+
+                                                    FilledTonalButton(
+                                                        onClick = {
+                                                            isDownloadingIconUrl = icon.imageUrl
+                                                            viewModel.viewModelScope.launch {
+                                                                try {
+                                                                    val savedKey = withContext(Dispatchers.IO) {
+                                                                        OnlineIconSearchService.downloadAndSaveIcon(
+                                                                            context = context,
+                                                                            imageUrl = icon.imageUrl,
+                                                                            name = icon.title
+                                                                        )
+                                                                    }
+                                                                    if (savedKey != null) {
+                                                                        refreshCustomIconsAndStats()
+                                                                        Toast.makeText(
+                                                                            context,
+                                                                            if (isBangla) "আইকন সফলভাবে সেভ করা হয়েছে!" else "Icon saved to custom icons!",
+                                                                            Toast.LENGTH_SHORT
+                                                                        ).show()
+                                                                    } else {
+                                                                        Toast.makeText(
+                                                                            context,
+                                                                            if (isBangla) "আইকন সেভ ব্যর্থ হয়েছে" else "Failed to download icon",
+                                                                            Toast.LENGTH_SHORT
+                                                                        ).show()
+                                                                    }
+                                                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                                                    // Coroutine cancelled
+                                                                } catch (e: Exception) {
+                                                                    Toast.makeText(context, e.message ?: "Error saving icon", Toast.LENGTH_SHORT).show()
+                                                                } finally {
+                                                                    isDownloadingIconUrl = null
+                                                                }
+                                                            }
+                                                        },
+                                                        enabled = !isDownloading,
+                                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                                        modifier = Modifier.weight(1f).height(32.dp),
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    ) {
+                                                        if (isDownloading) {
+                                                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                                                        } else {
+                                                            Icon(
+                                                                Icons.Default.Download,
+                                                                contentDescription = "Save",
+                                                                modifier = Modifier.size(13.dp)
+                                                            )
+                                                            Spacer(modifier = Modifier.width(3.dp))
+                                                            Text(if (isBangla) "সেভ" else "Save", fontSize = 10.5.sp)
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
-                                }
-                                if (rowImages.size < 3) {
-                                    for (i in 0 until (3 - rowImages.size)) {
+                                    if (rowIcons.size == 1) {
                                         Spacer(modifier = Modifier.weight(1f))
                                     }
                                 }
                             }
-                        }
 
-                        if (hasMoreImages) {
-                            item {
-                                OutlinedButton(
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            val nextPage = imageSearchPage + 1
-                                            val query = imageSearchQuery.ifBlank { "finance grocery restaurant office" }
-                                            try {
-                                                val nextResults = withContext(Dispatchers.IO) {
-                                                    OnlineIconSearchService.searchImages(query, page = nextPage)
+                            if (hasMoreIcons) {
+                                item {
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.viewModelScope.launch {
+                                                val nextPage = iconSearchPage + 1
+                                                val query = onlineSearchQuery.trim()
+                                                try {
+                                                    val nextResults = withContext(Dispatchers.IO) {
+                                                        OnlineIconSearchService.searchIcons(context, query, page = nextPage)
+                                                    }
+                                                    if (nextResults.isNotEmpty()) {
+                                                        iconSearchResults = iconSearchResults + nextResults
+                                                        iconSearchPage = nextPage
+                                                    } else {
+                                                        hasMoreIcons = false
+                                                    }
+                                                } catch (_: Exception) {
+                                                    hasMoreIcons = false
                                                 }
-                                                if (nextResults.isNotEmpty()) {
-                                                    imageSearchResults = imageSearchResults + nextResults
-                                                    imageSearchPage = nextPage
-                                                } else {
-                                                    hasMoreImages = false
-                                                }
-                                            } catch (_: Exception) {
-                                                hasMoreImages = false
                                             }
-                                        }
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                    ) {
+                                        Text(if (isBangla) "আরো আইকন দেখুন" else "Load More Icons", fontSize = 12.5.sp)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // === IMAGES SECTION RESULTS ===
+                        if (isSearchingImages) {
+                            item {
+                                Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 8.dp)
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text(if (isBangla) "আরো ফটো দেখুন" else "Load More Photos", fontSize = 12.5.sp)
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        CircularProgressIndicator(modifier = Modifier.size(36.dp))
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = if (isBangla) "ফটো অনুসন্ধান করা হচ্ছে..." else "Searching photos online...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (imageSearchError != null) {
+                            item {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Clear,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = imageSearchError ?: "Error loading images",
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            fontSize = 12.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (imageSearchResults.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            Icons.Default.AddPhotoAlternate,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(48.dp),
+                                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = if (isBangla) "কোনো ছবি পাওয়া যায়নি" else "No images found",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            // 3 items per row
+                            val chunkedImages = imageSearchResults.chunked(3)
+                            items(chunkedImages) { rowImages ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    for (image in rowImages) {
+                                        OutlinedCard(
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    cropEditorImageUrl = image.thumbUrl.ifBlank { image.imageUrl }
+                                                    cropEditorInitialName = image.title
+                                                    showCropEditor = true
+                                                },
+                                            colors = CardDefaults.outlinedCardColors(
+                                                containerColor = MaterialTheme.colorScheme.surface
+                                            )
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(6.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .aspectRatio(1f)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                                ) {
+                                                    AsyncImage(
+                                                        model = image.thumbUrl.ifBlank { image.imageUrl },
+                                                        contentDescription = image.title,
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentScale = ContentScale.Crop
+                                                    )
+                                                    Surface(
+                                                        shape = RoundedCornerShape(bottomEnd = 6.dp),
+                                                        color = Color.Black.copy(alpha = 0.65f),
+                                                        modifier = Modifier.align(Alignment.TopStart)
+                                                    ) {
+                                                        Text(
+                                                            text = image.sourceName.take(8),
+                                                            fontSize = 8.sp,
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = image.title,
+                                                    fontWeight = FontWeight.Medium,
+                                                    fontSize = 10.5.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        cropEditorImageUrl = image.thumbUrl.ifBlank { image.imageUrl }
+                                                        cropEditorInitialName = image.title
+                                                        showCropEditor = true
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(26.dp),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Crop,
+                                                        contentDescription = "Crop",
+                                                        modifier = Modifier.size(11.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(2.dp))
+                                                    Text(if (isBangla) "ক্রপ ও সেভ" else "Crop & Save", fontSize = 9.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (rowImages.size < 3) {
+                                        for (i in 0 until (3 - rowImages.size)) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (hasMoreImages) {
+                                item {
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.viewModelScope.launch {
+                                                val nextPage = imageSearchPage + 1
+                                                val query = onlineSearchQuery.trim()
+                                                try {
+                                                    val nextResults = withContext(Dispatchers.IO) {
+                                                        OnlineIconSearchService.searchImages(context, query, page = nextPage)
+                                                    }
+                                                    if (nextResults.isNotEmpty()) {
+                                                        imageSearchResults = imageSearchResults + nextResults
+                                                        imageSearchPage = nextPage
+                                                    } else {
+                                                        hasMoreImages = false
+                                                    }
+                                                } catch (_: Exception) {
+                                                    hasMoreImages = false
+                                                }
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                    ) {
+                                        Text(if (isBangla) "আরো ফটো দেখুন" else "Load More Photos", fontSize = 12.5.sp)
+                                    }
                                 }
                             }
                         }

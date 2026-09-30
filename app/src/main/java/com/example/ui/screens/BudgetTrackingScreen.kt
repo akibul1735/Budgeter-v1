@@ -12,6 +12,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -2578,20 +2579,33 @@ private fun CategoryGroupSection(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Left: Group Icon + Group Name (15sp, Bold) on top, Group Percentages (12sp) under name
+                    // Left: Group Icon Squircle + Group Name (15sp, Bold) on top, Group Percentages (12sp) under name
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Group Icon (Borderless, minimal spacing, no extra box)
-                        Icon(
-                            imageVector = groupIcon,
-                            contentDescription = null,
-                            tint = groupColor,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        // Group Icon (Squircle shaped border, 21dp icon)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(groupColor.copy(alpha = 0.10f))
+                                .border(
+                                    width = 1.dp,
+                                    color = groupColor.copy(alpha = 0.30f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = groupIcon,
+                                contentDescription = null,
+                                tint = groupColor,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Column(
                             modifier = Modifier.weight(1f)
@@ -2876,15 +2890,28 @@ private fun CategoryRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Category Icon (Borderless, minimal spacing, no extra box)
-                Icon(
-                    imageVector = IconHelper.getIconByName(item.category.iconName),
-                    contentDescription = null,
-                    tint = parsedColor,
-                    modifier = Modifier.size(18.dp)
-                )
+                // Category Icon (Squircle shaped border, 19dp icon)
+                Box(
+                    modifier = Modifier
+                        .size(29.dp)
+                        .clip(RoundedCornerShape(7.5.dp))
+                        .background(parsedColor.copy(alpha = 0.10f))
+                        .border(
+                            width = 1.dp,
+                            color = parsedColor.copy(alpha = 0.28f),
+                            shape = RoundedCornerShape(7.5.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = IconHelper.getIconByName(item.category.iconName),
+                        contentDescription = null,
+                        tint = parsedColor,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(7.dp))
 
                 // Middle Column: Category Name (13sp - 2 sizes smaller than group 15sp) + Percentages (11sp)
                 Column(

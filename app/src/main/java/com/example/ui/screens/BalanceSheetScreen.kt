@@ -3047,20 +3047,33 @@ private fun BalanceSheetGroupItem(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Left: Group Icon Badge + Group Name (with Show/Hide Chevron right after name) + Percentage Pill
+                    // Left: Group Icon Squircle + Group Name (with Show/Hide Chevron right after name) + Percentage Pill
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f, fill = false)
                     ) {
-                        // Group Icon (Borderless, minimal spacing, no extra box)
-                        IconHelper.AppIcon(
-                            iconName = group.parentAccount.iconName,
-                            contentDescription = null,
-                            tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        // Group Icon (Squircle shaped border, 21dp icon)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isIncluded) parentAccColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isIncluded) parentAccColor.copy(alpha = 0.30f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconHelper.AppIcon(
+                                iconName = group.parentAccount.iconName,
+                                contentDescription = null,
+                                tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Column(modifier = Modifier.weight(1f, fill = false)) {
                             // Top Line: Group Name + Show/Hide Chevron right after name
@@ -3295,15 +3308,28 @@ private fun BalanceSheetGroupItem(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f, fill = false)
                 ) {
-                    // Standalone Account Icon (Borderless, minimal spacing, no extra box)
-                    IconHelper.AppIcon(
-                        iconName = group.parentAccount.iconName,
-                        contentDescription = null,
-                        tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(19.dp)
-                    )
+                    // Standalone Account Icon (Squircle shaped border, 19dp icon)
+                    Box(
+                        modifier = Modifier
+                            .size(29.dp)
+                            .clip(RoundedCornerShape(7.5.dp))
+                            .background(if (isIncluded) parentAccColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .border(
+                                width = 1.dp,
+                                color = if (isIncluded) parentAccColor.copy(alpha = 0.28f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                shape = RoundedCornerShape(7.5.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconHelper.AppIcon(
+                            iconName = group.parentAccount.iconName,
+                            contentDescription = null,
+                            tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(7.dp))
 
                     Column(modifier = Modifier.weight(1f, fill = false)) {
                         Row(
@@ -3532,15 +3558,28 @@ private fun SubAccountRowItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f, fill = false)
             ) {
-                // Sub-Account Icon (Borderless, minimal spacing, no extra box)
-                IconHelper.AppIcon(
-                    iconName = row.account.iconName,
-                    contentDescription = null,
-                    tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(18.dp)
-                )
+                // Sub-Account Icon (Squircle shaped border, 19dp icon)
+                Box(
+                    modifier = Modifier
+                        .size(29.dp)
+                        .clip(RoundedCornerShape(7.5.dp))
+                        .background(if (isIncluded) subAccColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(
+                            width = 1.dp,
+                            color = if (isIncluded) subAccColor.copy(alpha = 0.28f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(7.5.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconHelper.AppIcon(
+                        iconName = row.account.iconName,
+                        contentDescription = null,
+                        tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(7.dp))
 
                 Column(modifier = Modifier.weight(1f, fill = false)) {
                     Row(

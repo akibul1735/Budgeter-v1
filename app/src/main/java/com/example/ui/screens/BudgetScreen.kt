@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
@@ -3574,18 +3575,31 @@ private fun CategoriesBudgetEntryView(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Left: Group Icon + Group Title + Count
+                                    // Left: Group Icon Squircle + Group Title + Count
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.weight(1f, fill = false)
                                     ) {
-                                        IconHelper.AppIcon(
-                                            iconName = groupIcon,
-                                            contentDescription = groupName,
-                                            tint = IconHelper.parseColorHex(groupColor),
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(IconHelper.parseColorHex(groupColor).copy(alpha = 0.10f))
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = IconHelper.parseColorHex(groupColor).copy(alpha = 0.30f),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            IconHelper.AppIcon(
+                                                iconName = groupIcon,
+                                                contentDescription = groupName,
+                                                tint = IconHelper.parseColorHex(groupColor),
+                                                modifier = Modifier.size(21.dp)
+                                            )
+                                        }
                                         Text(
                                             text = groupName,
                                             fontSize = 13.5.sp,
@@ -3753,18 +3767,31 @@ private fun BudgetItemRow(
                 // Category Icon + Name
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onItemClick?.invoke(item) }
                 ) {
-                    Icon(
-                        imageVector = IconHelper.getIconByName(item.iconName),
-                        contentDescription = null,
-                        tint = parsedColor,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(29.dp)
+                            .clip(RoundedCornerShape(7.5.dp))
+                            .background(parsedColor.copy(alpha = 0.10f))
+                            .border(
+                                width = 1.dp,
+                                color = parsedColor.copy(alpha = 0.28f),
+                                shape = RoundedCornerShape(7.5.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = IconHelper.getIconByName(item.iconName),
+                            contentDescription = null,
+                            tint = parsedColor,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
 
                     Text(
                         text = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),

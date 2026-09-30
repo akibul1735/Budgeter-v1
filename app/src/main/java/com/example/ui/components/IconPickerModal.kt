@@ -778,21 +778,28 @@ fun IconPickerModal(
                                                     if (query.isNotBlank() && !isLoadingMore) {
                                                         isLoadingMore = true
                                                         coroutineScope.launch {
-                                                            val nextPage = currentOnlinePage + 1
-                                                            val moreResults = OnlineIconSearchService.searchImages(context, query, page = nextPage)
-                                                            if (moreResults.isNotEmpty()) {
-                                                                val currentUrls = onlineImageResults.map { it.imageUrl }.toSet()
-                                                                val filteredNew = moreResults.filter { it.imageUrl !in currentUrls }
-                                                                if (filteredNew.isNotEmpty()) {
-                                                                    onlineImageResults = onlineImageResults + filteredNew
-                                                                    currentOnlinePage = nextPage
+                                                            try {
+                                                                val nextPage = currentOnlinePage + 1
+                                                                val moreResults = OnlineIconSearchService.searchImages(context, query, page = nextPage)
+                                                                if (moreResults.isNotEmpty()) {
+                                                                    val currentUrls = onlineImageResults.map { it.imageUrl }.toSet()
+                                                                    val filteredNew = moreResults.filter { it.imageUrl !in currentUrls }
+                                                                    if (filteredNew.isNotEmpty()) {
+                                                                        onlineImageResults = onlineImageResults + filteredNew
+                                                                        currentOnlinePage = nextPage
+                                                                    } else {
+                                                                        hasMoreOnline = false
+                                                                    }
                                                                 } else {
                                                                     hasMoreOnline = false
                                                                 }
-                                                            } else {
+                                                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                                                // Cancelled safely
+                                                            } catch (_: Exception) {
                                                                 hasMoreOnline = false
+                                                            } finally {
+                                                                isLoadingMore = false
                                                             }
-                                                            isLoadingMore = false
                                                         }
                                                     }
                                                 },
@@ -888,21 +895,28 @@ fun IconPickerModal(
                                         .clickable(enabled = !isDownloading) {
                                             downloadingUrl = item.imageUrl
                                             coroutineScope.launch {
-                                                val savedKey = OnlineIconSearchService.downloadAndSaveIcon(
-                                                    context = context,
-                                                    imageUrl = item.imageUrl,
-                                                    backgroundColor = onlineIconBgColor?.toArgb()
-                                                )
-                                                downloadingUrl = null
-                                                if (savedKey != null) {
-                                                    if (!customIcons.contains(savedKey)) {
-                                                        customIcons.add(0, savedKey)
+                                                try {
+                                                    val savedKey = OnlineIconSearchService.downloadAndSaveIcon(
+                                                        context = context,
+                                                        imageUrl = item.imageUrl,
+                                                        backgroundColor = onlineIconBgColor?.toArgb()
+                                                    )
+                                                    downloadingUrl = null
+                                                    if (savedKey != null) {
+                                                        if (!customIcons.contains(savedKey)) {
+                                                            customIcons.add(0, savedKey)
+                                                        }
+                                                        onIconSelected(savedKey)
+                                                        Toast.makeText(context, "Icon saved & selected!", Toast.LENGTH_SHORT).show()
+                                                        onDismiss()
+                                                    } else {
+                                                        Toast.makeText(context, "Failed to download icon", Toast.LENGTH_SHORT).show()
                                                     }
-                                                    onIconSelected(savedKey)
-                                                    Toast.makeText(context, "Icon saved & selected!", Toast.LENGTH_SHORT).show()
-                                                    onDismiss()
-                                                } else {
-                                                    Toast.makeText(context, "Failed to download icon", Toast.LENGTH_SHORT).show()
+                                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                                    downloadingUrl = null
+                                                } catch (e: Exception) {
+                                                    downloadingUrl = null
+                                                    Toast.makeText(context, "Failed to download icon: ${e.message}", Toast.LENGTH_SHORT).show()
                                                 }
                                             }
                                         },
@@ -1023,21 +1037,28 @@ fun IconPickerModal(
                                                     if (query.isNotBlank() && !isLoadingMore) {
                                                         isLoadingMore = true
                                                         coroutineScope.launch {
-                                                            val nextPage = currentOnlinePage + 1
-                                                            val moreResults = OnlineIconSearchService.searchIcons(context, query, page = nextPage)
-                                                            if (moreResults.isNotEmpty()) {
-                                                                val currentUrls = onlineResults.map { it.imageUrl }.toSet()
-                                                                val filteredNew = moreResults.filter { it.imageUrl !in currentUrls }
-                                                                if (filteredNew.isNotEmpty()) {
-                                                                    onlineResults = onlineResults + filteredNew
-                                                                    currentOnlinePage = nextPage
+                                                            try {
+                                                                val nextPage = currentOnlinePage + 1
+                                                                val moreResults = OnlineIconSearchService.searchIcons(context, query, page = nextPage)
+                                                                if (moreResults.isNotEmpty()) {
+                                                                    val currentUrls = onlineResults.map { it.imageUrl }.toSet()
+                                                                    val filteredNew = moreResults.filter { it.imageUrl !in currentUrls }
+                                                                    if (filteredNew.isNotEmpty()) {
+                                                                        onlineResults = onlineResults + filteredNew
+                                                                        currentOnlinePage = nextPage
+                                                                    } else {
+                                                                        hasMoreOnline = false
+                                                                    }
                                                                 } else {
                                                                     hasMoreOnline = false
                                                                 }
-                                                            } else {
+                                                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                                                // Cancelled safely
+                                                            } catch (_: Exception) {
                                                                 hasMoreOnline = false
+                                                            } finally {
+                                                                isLoadingMore = false
                                                             }
-                                                            isLoadingMore = false
                                                         }
                                                     }
                                                 },
