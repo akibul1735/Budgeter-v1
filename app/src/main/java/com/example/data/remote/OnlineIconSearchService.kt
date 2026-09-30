@@ -1538,6 +1538,13 @@ object OnlineIconSearchService {
         "youtube", "youtu.be", "ytimg", "facebook", "fbcdn", "instagram", "tiktok",
         "twitter", "x.com", "threads.net", "pinterest", "dailymotion", "vimeo",
         "imaneralo", "tumblr", "reddit",
+        // Personal blog engines, story sites & low-quality aggregators
+        "blogspot", "wordpress", "weebly", "wixsite", "chotigolpo", "captionbanglay",
+        "bamihal", "golpo", "choti", "shayari", "status", "lyrics", "quotes",
+        "desikahani", "kahani", "story", "stories", "medium.com", "substack",
+        // Unrelated crypto, stock trading & college admission portals
+        "bittime", "tradingview", "binance", "coinmarketcap", "forex", "admission",
+        "admissions", "exam", "result", "jobcircular", "bdjobs",
         // Regional sensational gossip & political news domains
         "republicbharat", "timesnownews", "timesnow", "abplive", "abpnews",
         "indianexpress", "india.com", "ndtv", "aajtak", "zeenews", "hindustantimes",
@@ -1551,18 +1558,30 @@ object OnlineIconSearchService {
         "marry a married man", "press conference", "lok sabha", "rajya sabha",
         "narendra modi", "sheikh hasina", "scandal", "controversy",
         "full episode", "drama", "waz", "mahfil", "bangla song", "status video",
-        "whatsapp status", "reels", "shorts", "teaser", "trailer"
+        "whatsapp status", "reels", "shorts", "teaser", "trailer",
+        // Bangla story / adult / caption spam keywords
+        "চটি", "গল্প", "মামাতো", "খালাতো", "ফুফাতো", "দেবর", "ভাবী", "বউ",
+        "ক্যাপশন", "স্ট্যাটাস", "প্রেম", "রোমান্টিক", "উক্তি", "কবিতা", "গান",
+        "নাটক", "ভিডিও", "লিপস্টিক", "হট", "সেক্সি", "পর্ব", "খোলামেলা", "যৌন", "কাহিনী",
+        // English story / adult / caption / finance chart spam keywords
+        "choti", "golpo", "mamato", "bhabi", "debor", "bou", "caption", "shayari",
+        "status", "romantic", "desikahani", "kahani", "hot", "sexy", "bhabhi",
+        "candlestick", "crypto", "bitcoin", "chart", "forex", "admission", "admissions",
+        "gossip", "affair", "leak", "leaked", "sex", "porn", "adult", "nude", "romance"
     )
 
-    private fun isExcludedOrIrrelevantContent(item: OnlineImageResult): Boolean {
+    private fun isExcludedOrIrrelevantContent(item: OnlineImageResult, purl: String? = null): Boolean {
         val titleLower = item.title.lowercase()
         val sourceLower = item.sourceName.lowercase()
         val urlLower = item.imageUrl.lowercase()
+        val purlLower = purl?.lowercase().orEmpty()
 
-        if (EXCLUDED_UNRELATED_DOMAINS.any { domain -> sourceLower.contains(domain) || urlLower.contains(domain) }) {
+        if (EXCLUDED_UNRELATED_DOMAINS.any { domain ->
+                sourceLower.contains(domain) || urlLower.contains(domain) || purlLower.contains(domain)
+            }) {
             return true
         }
-        if (EXCLUDED_UNRELATED_KEYWORDS.any { kw -> titleLower.contains(kw) }) {
+        if (EXCLUDED_UNRELATED_KEYWORDS.any { kw -> titleLower.contains(kw) || purlLower.contains(kw) }) {
             return true
         }
         return false
@@ -1572,6 +1591,11 @@ object OnlineIconSearchService {
         if (rawHost.isNullOrBlank()) return "Web"
         val lower = rawHost.lowercase()
         return when {
+            lower.contains("flickr") -> "FLICKR"
+            lower.contains("unsplash") -> "Unsplash"
+            lower.contains("openverse") -> "Openverse"
+            lower.contains("wikimedia") -> "Wikimedia"
+            lower.contains("wikipedia") -> "Wikipedia"
             lower.contains("iconfinder") -> "Iconfinder"
             lower.contains("flaticon") -> "Flaticon"
             lower.contains("freepik") -> "Freepik"
@@ -1645,7 +1669,7 @@ object OnlineIconSearchService {
                             height = 0
                         )
 
-                        if (murl.isNotBlank() && (murl.startsWith("http://") || murl.startsWith("https://")) && !isExcludedOrIrrelevantContent(item)) {
+                        if (murl.isNotBlank() && (murl.startsWith("http://") || murl.startsWith("https://")) && !isExcludedOrIrrelevantContent(item, purl)) {
                             results.add(item)
                         }
                     } catch (_: Exception) {}
@@ -1666,11 +1690,11 @@ object OnlineIconSearchService {
         try {
             val cleanLower = term.trim().lowercase()
             val corrected = fuzzyCorrectToken(cleanLower) ?: cleanLower
-            val searchQuery = "$corrected icon png"
+            val searchQuery = "$corrected icon png -site:blogspot.com -site:wordpress.com"
             val encoded = URLEncoder.encode(searchQuery, "UTF-8")
             val first = ((page - 1) * limit) + 1
             // Use transparent photo filter first for clean isolated icons
-            val url = "https://www.bing.com/images/async?q=$encoded&qft=+filterui:photo-transparent&first=$first&count=$limit&mmasync=1"
+            val url = "https://www.bing.com/images/async?q=$encoded&qft=+filterui:photo-transparent&first=$first&count=$limit&mmasync=1&adlt=strict"
 
             val request = Request.Builder()
                 .url(url)
@@ -1683,7 +1707,7 @@ object OnlineIconSearchService {
             var matches = executeBingImageQuery(request, limit, term)
             // Fallback without transparent filter if transparent returned too few results
             if (matches.size < 4) {
-                val fallbackUrl = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1"
+                val fallbackUrl = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1&adlt=strict"
                 val fallbackReq = request.newBuilder().url(fallbackUrl).build()
                 val fallbackMatches = executeBingImageQuery(fallbackReq, limit, term)
                 matches = (matches + fallbackMatches).distinctBy { it.imageUrl }
@@ -1719,11 +1743,13 @@ object OnlineIconSearchService {
                 "beverages", "beverage" -> "beverages drinks"
                 "donate", "donation", "donations" -> "donation charity"
                 "charity" -> "charity donation"
+                "vegetable", "vegetables" -> "fresh vegetables"
                 else -> corrected
             }
-            val encoded = URLEncoder.encode(queryTerm, "UTF-8")
+            val searchQuery = "$queryTerm -site:blogspot.com -site:wordpress.com"
+            val encoded = URLEncoder.encode(searchQuery, "UTF-8")
             val first = ((page - 1) * limit) + 1
-            val url = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1"
+            val url = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1&adlt=strict"
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -1752,6 +1778,7 @@ object OnlineIconSearchService {
                 "oil" -> "cooking oil"
                 "salt" -> "salt food"
                 "flour" -> "flour wheat food"
+                "vegetable", "vegetables" -> "fresh vegetables"
                 else -> corrected
             }
             val vqd = getDuckDuckGoVqd(queryTerm) ?: return@withContext emptyList()
@@ -1786,6 +1813,7 @@ object OnlineIconSearchService {
                     val title = item.optString("title", term)
                     val fullImg = item.optString("image")
                     val thumb = item.optString("thumbnail").ifBlank { fullImg }
+                    val urlHost = item.optString("url")
                     val width = item.optInt("width", 0)
                     val height = item.optInt("height", 0)
 
@@ -1797,7 +1825,7 @@ object OnlineIconSearchService {
                         width = width,
                         height = height
                     )
-                    if (fullImg.isNotBlank() && (fullImg.startsWith("http://") || fullImg.startsWith("https://")) && !isExcludedOrIrrelevantContent(itemResult)) {
+                    if (fullImg.isNotBlank() && (fullImg.startsWith("http://") || fullImg.startsWith("https://")) && !isExcludedOrIrrelevantContent(itemResult, urlHost)) {
                         results.add(itemResult)
                     }
                 }
@@ -1810,57 +1838,57 @@ object OnlineIconSearchService {
 
     /**
      * Fetches images for a single search term across all media engines concurrently.
-     * Prioritizes Bing commercial/product images (the core engine behind DuckDuckGo image search),
-     * followed by Unsplash photography, Wikipedia encyclopedia references, and Openverse as fallback.
+     * Prioritizes Unsplash high-quality photography and Openverse/Flickr verified creative commons,
+     * followed by Wikimedia encyclopedia references, and clean Bing/DuckDuckGo web images.
      */
     private suspend fun fetchImagesForTerm(term: String, page: Int, limit: Int = 16): List<OnlineImageResult> = coroutineScope {
-        val bingJob = async { fetchBingImages(term, page, limit = 20) }
-        val ddgJob = async { fetchDuckDuckGoImages(term, page, limit) }
-        val unsplashJob = async { fetchUnsplashImages(term, page, limit = 10) }
+        val unsplashJob = async { fetchUnsplashImages(term, page, limit = 12) }
+        val openverseJob = async { fetchOpenverseImages(term, page, limit = 10) }
         val wikiJob = async { fetchWikimediaImages(term, page, limit = 8) }
         val wikiPageJob = async { fetchWikipediaImages(term, page, limit = 6) }
-        val openverseJob = async { fetchOpenverseImages(term, page, limit = 6) }
+        val bingJob = async { fetchBingImages(term, page, limit = 16) }
+        val ddgJob = async { fetchDuckDuckGoImages(term, page, limit = 12) }
 
-        val bing = bingJob.await()
-        val ddg = ddgJob.await()
         val unsplash = unsplashJob.await()
+        val openverse = openverseJob.await()
         val wiki = wikiJob.await()
         val wikiPage = wikiPageJob.await()
-        val openverse = openverseJob.await()
+        val bing = bingJob.await()
+        val ddg = ddgJob.await()
 
         val combined = mutableListOf<OnlineImageResult>()
         val seen = mutableSetOf<String>()
 
-        // 1. Give top priority to Bing web images (the core commercial product/photo index behind DuckDuckGo)
-        for (item in bing) {
-            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
-                combined.add(item)
-            }
-        }
-
-        // 2. DuckDuckGo if available
-        for (item in ddg) {
-            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
-                combined.add(item)
-            }
-        }
-
-        // 3. Unsplash high-quality photography
+        // 1. Unsplash high-quality photography (zero spam, beautiful food/item photos)
         for (item in unsplash) {
             if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
                 combined.add(item)
             }
         }
 
-        // 4. Encyclopedic references (Wikipedia / Wikimedia)
+        // 2. Openverse / Flickr creative commons (authentic item photos)
+        for (item in openverse) {
+            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
+                combined.add(item)
+            }
+        }
+
+        // 3. Encyclopedic references (Wikipedia / Wikimedia)
         val maxWiki = maxOf(wiki.size, wikiPage.size)
         for (i in 0 until maxWiki) {
             if (i < wiki.size && !isExcludedOrIrrelevantContent(wiki[i]) && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
             if (i < wikiPage.size && !isExcludedOrIrrelevantContent(wikiPage[i]) && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
         }
 
-        // 5. Openverse creative commons as last fallback
-        for (item in openverse) {
+        // 4. Bing web images (with strict filtering and SafeSearch)
+        for (item in bing) {
+            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
+                combined.add(item)
+            }
+        }
+
+        // 5. DuckDuckGo images
+        for (item in ddg) {
             if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
                 combined.add(item)
             }
@@ -1872,8 +1900,8 @@ object OnlineIconSearchService {
     /**
      * Searches online images across multiple free, keyless endpoints with 3-tier priority:
      * 1. Exact full word / phrase match (or elevated primary anchor word)
-     * 2. Split individual words match
-     * 3. Synonyms & domain keywords match
+     * 2. Split individual words match (only when needed)
+     * 3. Synonyms & domain keywords match (only when needed)
      */
     suspend fun searchImages(context: Context?, query: String, page: Int = 1): List<OnlineImageResult> = searchImages(query, context, page)
 
@@ -1887,24 +1915,24 @@ object OnlineIconSearchService {
         coroutineScope {
             // Tier 1: Search exact word / primary anchor
             val tier1Job = async {
-                fetchImagesForTerm(tiers.exactWord, page, limit = 16)
+                fetchImagesForTerm(tiers.exactWord, page, limit = 20)
             }
 
             // Tier 2: Search split individual words (anchor words prioritized)
             val tier2Jobs = if (tiers.splitWords.isNotEmpty()) {
                 tiers.splitWords.map { splitWord ->
-                    async { fetchImagesForTerm(splitWord, page, limit = 12) }
+                    async { fetchImagesForTerm(splitWord, page, limit = 10) }
                 }
             } else emptyList()
 
-            // Tier 3: Search synonyms (up to 6 synonyms)
+            // Tier 3: Search synonyms (up to 4 synonyms)
             val tier3Jobs = if (tiers.synonyms.isNotEmpty()) {
-                tiers.synonyms.take(6).map { synWord ->
-                    async { fetchImagesForTerm(synWord, page, limit = 8) }
+                tiers.synonyms.take(4).map { synWord ->
+                    async { fetchImagesForTerm(synWord, page, limit = 6) }
                 }
             } else emptyList()
 
-            // Await and collect in STRICT 1 -> 2 -> 3 order:
+            // Await and collect in strict order:
             // 1. Exact full word / primary anchor results
             val tier1Results = tier1Job.await()
             for (item in tier1Results) {
@@ -1913,19 +1941,24 @@ object OnlineIconSearchService {
                 }
             }
 
-            // 2. Split words results
-            val tier2Results = tier2Jobs.awaitAll().flatten()
-            for (item in tier2Results) {
-                if (seenUrls.add(item.imageUrl)) {
-                    results.add(item)
+            // Only append split words / synonyms if Tier 1 returned too few results (< 8) or on page > 1
+            if (results.size < 8 || page > 1) {
+                val tier2Results = tier2Jobs.awaitAll().flatten()
+                for (item in tier2Results) {
+                    if (results.size >= 24 && page == 1) break
+                    if (seenUrls.add(item.imageUrl)) {
+                        results.add(item)
+                    }
                 }
             }
 
-            // 3. Synonym results
-            val tier3Results = tier3Jobs.awaitAll().flatten()
-            for (item in tier3Results) {
-                if (seenUrls.add(item.imageUrl)) {
-                    results.add(item)
+            if (results.size < 8 || page > 1) {
+                val tier3Results = tier3Jobs.awaitAll().flatten()
+                for (item in tier3Results) {
+                    if (results.size >= 24 && page == 1) break
+                    if (seenUrls.add(item.imageUrl)) {
+                        results.add(item)
+                    }
                 }
             }
         }
