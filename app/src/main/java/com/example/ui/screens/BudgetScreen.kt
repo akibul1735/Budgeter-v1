@@ -3583,13 +3583,13 @@ private fun CategoriesBudgetEntryView(
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .size(28.dp)
+                                                .clip(RoundedCornerShape(6.5.dp))
                                                 .background(IconHelper.parseColorHex(groupColor).copy(alpha = 0.10f))
                                                 .border(
-                                                    width = 1.dp,
+                                                    width = 0.65.dp,
                                                     color = IconHelper.parseColorHex(groupColor).copy(alpha = 0.30f),
-                                                    shape = RoundedCornerShape(8.dp)
+                                                    shape = RoundedCornerShape(6.5.dp)
                                                 ),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -3597,7 +3597,7 @@ private fun CategoriesBudgetEntryView(
                                                 iconName = groupIcon,
                                                 contentDescription = groupName,
                                                 tint = IconHelper.parseColorHex(groupColor),
-                                                modifier = Modifier.size(21.dp)
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         }
                                         Text(
@@ -3775,13 +3775,13 @@ private fun BudgetItemRow(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(29.dp)
-                            .clip(RoundedCornerShape(7.5.dp))
+                            .size(25.dp)
+                            .clip(RoundedCornerShape(5.5.dp))
                             .background(parsedColor.copy(alpha = 0.10f))
                             .border(
-                                width = 1.dp,
+                                width = 0.65.dp,
                                 color = parsedColor.copy(alpha = 0.28f),
-                                shape = RoundedCornerShape(7.5.dp)
+                                shape = RoundedCornerShape(5.5.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -3789,7 +3789,7 @@ private fun BudgetItemRow(
                             imageVector = IconHelper.getIconByName(item.iconName),
                             contentDescription = null,
                             tint = parsedColor,
-                            modifier = Modifier.size(19.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 

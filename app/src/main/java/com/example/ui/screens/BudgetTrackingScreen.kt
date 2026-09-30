@@ -2584,16 +2584,16 @@ private fun CategoryGroupSection(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Group Icon (Squircle shaped border, 21dp icon)
+                        // Group Icon (Squircle shaped border, 22dp icon with 0.65dp hairline border)
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(6.5.dp))
                                 .background(groupColor.copy(alpha = 0.10f))
                                 .border(
-                                    width = 1.dp,
+                                    width = 0.65.dp,
                                     color = groupColor.copy(alpha = 0.30f),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(6.5.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -2601,7 +2601,7 @@ private fun CategoryGroupSection(
                                 imageVector = groupIcon,
                                 contentDescription = null,
                                 tint = groupColor,
-                                modifier = Modifier.size(21.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
 
@@ -2890,16 +2890,16 @@ private fun CategoryRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Category Icon (Squircle shaped border, 19dp icon)
+                // Category Icon (Squircle shaped border, 20dp icon with 0.65dp hairline border)
                 Box(
                     modifier = Modifier
-                        .size(29.dp)
-                        .clip(RoundedCornerShape(7.5.dp))
+                        .size(25.dp)
+                        .clip(RoundedCornerShape(5.5.dp))
                         .background(parsedColor.copy(alpha = 0.10f))
                         .border(
-                            width = 1.dp,
+                            width = 0.65.dp,
                             color = parsedColor.copy(alpha = 0.28f),
-                            shape = RoundedCornerShape(7.5.dp)
+                            shape = RoundedCornerShape(5.5.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -2907,7 +2907,7 @@ private fun CategoryRow(
                         imageVector = IconHelper.getIconByName(item.category.iconName),
                         contentDescription = null,
                         tint = parsedColor,
-                        modifier = Modifier.size(19.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 

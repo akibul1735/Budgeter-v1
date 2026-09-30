@@ -3052,16 +3052,16 @@ private fun BalanceSheetGroupItem(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f, fill = false)
                     ) {
-                        // Group Icon (Squircle shaped border, 21dp icon)
+                        // Group Icon (Squircle shaped border, 22dp icon with 0.65dp hairline border)
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(6.5.dp))
                                 .background(if (isIncluded) parentAccColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 .border(
-                                    width = 1.dp,
+                                    width = 0.65.dp,
                                     color = if (isIncluded) parentAccColor.copy(alpha = 0.30f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(6.5.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -3069,7 +3069,7 @@ private fun BalanceSheetGroupItem(
                                 iconName = group.parentAccount.iconName,
                                 contentDescription = null,
                                 tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(21.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
 
@@ -3308,16 +3308,16 @@ private fun BalanceSheetGroupItem(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f, fill = false)
                 ) {
-                    // Standalone Account Icon (Squircle shaped border, 19dp icon)
+                    // Standalone Account Icon (Squircle shaped border, 20dp icon with 0.65dp hairline border)
                     Box(
                         modifier = Modifier
-                            .size(29.dp)
-                            .clip(RoundedCornerShape(7.5.dp))
+                            .size(25.dp)
+                            .clip(RoundedCornerShape(5.5.dp))
                             .background(if (isIncluded) parentAccColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                             .border(
-                                width = 1.dp,
+                                width = 0.65.dp,
                                 color = if (isIncluded) parentAccColor.copy(alpha = 0.28f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                shape = RoundedCornerShape(7.5.dp)
+                                shape = RoundedCornerShape(5.5.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -3325,7 +3325,7 @@ private fun BalanceSheetGroupItem(
                             iconName = group.parentAccount.iconName,
                             contentDescription = null,
                             tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(19.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
@@ -3558,16 +3558,16 @@ private fun SubAccountRowItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f, fill = false)
             ) {
-                // Sub-Account Icon (Squircle shaped border, 19dp icon)
+                // Sub-Account Icon (Squircle shaped border, 20dp icon with 0.65dp hairline border)
                 Box(
                     modifier = Modifier
-                        .size(29.dp)
-                        .clip(RoundedCornerShape(7.5.dp))
+                        .size(25.dp)
+                        .clip(RoundedCornerShape(5.5.dp))
                         .background(if (isIncluded) subAccColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                         .border(
-                            width = 1.dp,
+                            width = 0.65.dp,
                             color = if (isIncluded) subAccColor.copy(alpha = 0.28f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(7.5.dp)
+                            shape = RoundedCornerShape(5.5.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -3575,7 +3575,7 @@ private fun SubAccountRowItem(
                         iconName = row.account.iconName,
                         contentDescription = null,
                         tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(19.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
