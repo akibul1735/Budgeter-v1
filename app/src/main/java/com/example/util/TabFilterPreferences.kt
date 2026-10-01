@@ -712,7 +712,7 @@ class TabFilterPreferences private constructor(context: Context) {
             prefs.edit().putString(KEY_BUDGET_TRACKING_SEARCH, value).apply()
         }
 
-    var budgetTrackingActiveTab: String = prefs.getString(KEY_BUDGET_TRACKING_TAB, "EXPENSE") ?: "EXPENSE"
+    var budgetTrackingActiveTab: String = prefs.getString(KEY_BUDGET_TRACKING_TAB, "ALL") ?: "ALL"
         set(value) {
             field = value
             prefs.edit().putString(KEY_BUDGET_TRACKING_TAB, value).apply()

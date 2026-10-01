@@ -408,23 +408,8 @@ fun BudgetTrackingScreen(
         activeIds
     }
 
-    val targetCatType = if (activeTabMode == "EXPENSE") CategoryType.EXPENSE else CategoryType.INCOME
-    val itemTypeKey = if (activeTabMode == "EXPENSE") "EXPENSE" else "INCOME"
-
-    // Grouping calculations
-    val categoryGroups = remember(
-        allCategories,
-        compareMonthTransactions,
-        baseMonthTransactions,
-        budgetMap,
-        adjustmentsMap,
-        parentCatMap,
-        targetCatType,
-        itemTypeKey,
-        searchQuery,
-        filterState,
-        activeCategoryIdsInLast3Months
-    ) {
+    // Helper to compute category groups for a specific category type
+    fun computeCategoryGroupsForType(targetCatType: CategoryType, itemTypeKey: String): List<CategoryGroupBudgetTracking> {
         val relevantCategories = allCategories.filter { it.type == targetCatType }
         val parentCategories = relevantCategories.filter { it.parentId == null }
         val childCategories = relevantCategories.filter { it.parentId != null }
@@ -726,7 +711,45 @@ fun BudgetTrackingScreen(
             )
         }
 
-        mappedGroups
+        return mappedGroups
+    }
+
+    // Expense Groups (Computed for Expense and All tabs)
+    val expenseGroups = remember(
+        allCategories,
+        compareMonthTransactions,
+        baseMonthTransactions,
+        budgetMap,
+        adjustmentsMap,
+        parentCatMap,
+        searchQuery,
+        filterState,
+        activeCategoryIdsInLast3Months
+    ) {
+        computeCategoryGroupsForType(CategoryType.EXPENSE, "EXPENSE")
+    }
+
+    // Income Groups (Computed for Income and All tabs)
+    val incomeGroups = remember(
+        allCategories,
+        compareMonthTransactions,
+        baseMonthTransactions,
+        budgetMap,
+        adjustmentsMap,
+        parentCatMap,
+        searchQuery,
+        filterState,
+        activeCategoryIdsInLast3Months
+    ) {
+        computeCategoryGroupsForType(CategoryType.INCOME, "INCOME")
+    }
+
+    val categoryGroups = remember(activeTabMode, expenseGroups, incomeGroups) {
+        when (activeTabMode) {
+            "EXPENSE" -> expenseGroups
+            "INCOME" -> incomeGroups
+            else -> expenseGroups + incomeGroups
+        }
     }
 
     // Overall Totals
@@ -1569,6 +1592,148 @@ fun BudgetTrackingScreen(
                             }
                         }
                     }
+                } else if (activeTabMode == "ALL" && !filterState.showOnlyCategoriesWithoutGroups) {
+                    // ALL MODE: Section 1: EXPENSES first
+                    if (expenseGroups.isNotEmpty()) {
+                        item(key = "section_header_expenses") {
+                            Surface(
+                                color = CrimsonPink.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                                            contentDescription = null,
+                                            tint = CrimsonPink,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (EXPENSES)" else "EXPENSES",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = CrimsonPink
+                                        )
+                                    }
+                                    Text(
+                                        text = formatBudgetAmount(expenseGroups.sumOf { it.totalSpent }, filterState, languageMode),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = CrimsonPink
+                                    )
+                                }
+                            }
+                        }
+                        items(
+                            items = expenseGroups,
+                            key = { "exp_${it.parentCategory?.id ?: "others"}_${it.groupNameEn}_${it.groupNameBn}" }
+                        ) { group ->
+                            val groupKey = "exp_${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
+                            val isExpanded = if (filterState.showOnlyGroups) {
+                                expandedGroups[groupKey] ?: false
+                            } else {
+                                expandedGroups[groupKey] ?: true
+                            }
+
+                            CategoryGroupSection(
+                                group = group,
+                                isExpanded = isExpanded,
+                                showComparison = filterState.comparisonEnabled && baseRange != null,
+                                todayPaceRatio = todayPaceRatio,
+                                languageMode = languageMode,
+                                onToggleExpand = {
+                                    expandedGroups[groupKey] = !isExpanded
+                                },
+                                onCategoryClick = { trackingItem ->
+                                    selectedCategoryForDetail = trackingItem
+                                }
+                            )
+                        }
+                    }
+
+                    if (expenseGroups.isNotEmpty() && incomeGroups.isNotEmpty()) {
+                        item(key = "expenses_incomes_divider") {
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    }
+
+                    // ALL MODE: Section 2: INCOMES second
+                    if (incomeGroups.isNotEmpty()) {
+                        item(key = "section_header_incomes") {
+                            Surface(
+                                color = SolidIncome.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                            contentDescription = null,
+                                            tint = SolidIncome,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "আয় (INCOMES)" else "INCOMES",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SolidIncome
+                                        )
+                                    }
+                                    Text(
+                                        text = formatBudgetAmount(incomeGroups.sumOf { it.totalSpent }, filterState, languageMode),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidIncome
+                                    )
+                                }
+                            }
+                        }
+                        items(
+                            items = incomeGroups,
+                            key = { "inc_${it.parentCategory?.id ?: "others"}_${it.groupNameEn}_${it.groupNameBn}" }
+                        ) { group ->
+                            val groupKey = "inc_${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
+                            val isExpanded = if (filterState.showOnlyGroups) {
+                                expandedGroups[groupKey] ?: false
+                            } else {
+                                expandedGroups[groupKey] ?: true
+                            }
+
+                            CategoryGroupSection(
+                                group = group,
+                                isExpanded = isExpanded,
+                                showComparison = filterState.comparisonEnabled && baseRange != null,
+                                todayPaceRatio = todayPaceRatio,
+                                languageMode = languageMode,
+                                onToggleExpand = {
+                                    expandedGroups[groupKey] = !isExpanded
+                                },
+                                onCategoryClick = { trackingItem ->
+                                    selectedCategoryForDetail = trackingItem
+                                }
+                            )
+                        }
+                    }
                 } else {
                     if (filterState.showOnlyCategoriesWithoutGroups) {
                         val flatItems = categoryGroups.flatMap { it.items }.map { item ->
@@ -1719,7 +1884,8 @@ fun BudgetTrackingScreen(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.clickable {
                                 isSpeedDialExpanded = false
-                                val defaultCat = allCategories.firstOrNull { it.type == targetCatType && it.parentId != null }
+                                val defaultType = if (activeTabMode == "INCOME") CategoryType.INCOME else CategoryType.EXPENSE
+                                val defaultCat = allCategories.firstOrNull { it.type == defaultType && it.parentId != null }
                                 if (defaultCat != null) onAddTransactionWithCategory(defaultCat)
                                 else onNavigateToBudgetMaker()
                             }
@@ -1742,7 +1908,8 @@ fun BudgetTrackingScreen(
                             FloatingActionButton(
                                 onClick = {
                                     isSpeedDialExpanded = false
-                                    val defaultCat = allCategories.firstOrNull { it.type == targetCatType && it.parentId != null }
+                                    val defaultType = if (activeTabMode == "INCOME") CategoryType.INCOME else CategoryType.EXPENSE
+                                    val defaultCat = allCategories.firstOrNull { it.type == defaultType && it.parentId != null }
                                     if (defaultCat != null) onAddTransactionWithCategory(defaultCat)
                                     else onNavigateToBudgetMaker()
                                 },
@@ -1803,7 +1970,7 @@ fun BudgetTrackingScreen(
                         .padding(3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Expense Button
+                    // 1. Expense Button
                     val isExpense = activeTabMode == "EXPENSE"
                     Surface(
                         shape = RoundedCornerShape(20.dp),
@@ -1824,19 +1991,52 @@ fun BudgetTrackingScreen(
                                 imageVector = Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
                                 tint = if (isExpense) CrimsonPink else SlateText,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (Expenses)" else "Expenses",
-                                fontSize = 13.sp,
+                                text = if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense",
+                                fontSize = 12.5.sp,
                                 fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isExpense) CrimsonPink else SlateText
                             )
                         }
                     }
 
-                    // Income Button
+                    // 2. All Button (in between Expense and Income)
+                    val isAll = activeTabMode == "ALL"
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isAll) BrandBlueLight.copy(alpha = 0.16f) else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable { activeTabMode = "ALL" }
+                            .testTag("budget_mode_all")
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CompareArrows,
+                                contentDescription = null,
+                                tint = if (isAll) BrandBlueLight else SlateText,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সব (All)" else "All",
+                                fontSize = 12.5.sp,
+                                fontWeight = if (isAll) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isAll) BrandBlueLight else SlateText
+                            )
+                        }
+                    }
+
+                    // 3. Income Button
                     val isIncome = activeTabMode == "INCOME"
                     Surface(
                         shape = RoundedCornerShape(20.dp),
@@ -1857,12 +2057,12 @@ fun BudgetTrackingScreen(
                                 imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                 contentDescription = null,
                                 tint = if (isIncome) SolidIncome else SlateText,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "আয় (Incomes)" else "Incomes",
-                                fontSize = 13.sp,
+                                text = if (languageMode == LanguageMode.BANGLA) "আয়" else "Income",
+                                fontSize = 12.5.sp,
                                 fontWeight = if (isIncome) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isIncome) SolidIncome else SlateText
                             )
@@ -1905,9 +2105,10 @@ fun BudgetTrackingScreen(
 
     // CATEGORY SET BUDGET DIALOG (Category-specific popup with all Budget Maker features)
     categoryForSetBudget?.let { item ->
+        val dialogItemTypeKey = if (item.category.type == CategoryType.EXPENSE) "EXPENSE" else "INCOME"
         CategorySetBudgetDialog(
             item = item,
-            itemTypeKey = itemTypeKey,
+            itemTypeKey = dialogItemTypeKey,
             selectedYear = selectedYear,
             selectedMonth = selectedMonth,
             monthlyBudgets = monthlyBudgets,
@@ -1916,7 +2117,7 @@ fun BudgetTrackingScreen(
             onDismiss = { categoryForSetBudget = null },
             onSaveBudget = { newAmount, isEnabled ->
                 viewModel.saveMonthlyBudget(
-                    itemType = itemTypeKey,
+                    itemType = dialogItemTypeKey,
                     itemId = item.category.id,
                     amount = newAmount,
                     isEnabled = isEnabled
@@ -1928,6 +2129,7 @@ fun BudgetTrackingScreen(
 
     // CATEGORY ADJUST BUDGET DIALOG (Allows mid-period adjustment without altering transactions)
     categoryForAdjustBudget?.let { item ->
+        val dialogItemTypeKey = if (item.category.type == CategoryType.EXPENSE) "EXPENSE" else "INCOME"
         CategoryAdjustBudgetDialog(
             item = item,
             selectedYear = selectedYear,
@@ -1936,7 +2138,7 @@ fun BudgetTrackingScreen(
             onDismiss = { categoryForAdjustBudget = null },
             onSaveAdjustment = { newAmount, note ->
                 viewModel.saveBudgetAdjustment(
-                    itemType = itemTypeKey,
+                    itemType = dialogItemTypeKey,
                     itemId = item.category.id,
                     newAmount = newAmount,
                     isEnabled = true,

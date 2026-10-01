@@ -164,7 +164,7 @@ data class BalanceSheetFilterState(
     val filterNonZeroGroups: Boolean = false,
     val displayCurrency: Boolean = true,
     val displayCurrencySymbol: Boolean = true,
-    val sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.AMOUNT_DESC,
+    val sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.NAME_ASC,
     val showHiddenAccounts: Boolean = false,
     val showOnlyCurrentBalance: Boolean = false,
     val showOnlyAccountsWithoutGroups: Boolean = false
@@ -177,7 +177,7 @@ data class BalanceSheetFilterState(
                 filterNonZeroGroups ||
                 !displayCurrency ||
                 !displayCurrencySymbol ||
-                (sortOrder != BalanceSheetSortOrder.DEFAULT && sortOrder != BalanceSheetSortOrder.AMOUNT_DESC) ||
+                (sortOrder != BalanceSheetSortOrder.NAME_ASC && sortOrder != BalanceSheetSortOrder.DEFAULT) ||
                 showHiddenAccounts ||
                 showOnlyCurrentBalance ||
                 showOnlyAccountsWithoutGroups
@@ -482,6 +482,15 @@ fun BalanceSheetScreen(
                     showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                     languageMode = languageMode,
                     isCalcMode = isCalcMode,
+                    sortOrder = filterState.sortOrder,
+                    onToggleSortOrder = {
+                        val nextSort = if (filterState.sortOrder == BalanceSheetSortOrder.NAME_ASC || filterState.sortOrder == BalanceSheetSortOrder.DEFAULT) {
+                            BalanceSheetSortOrder.AMOUNT_DESC
+                        } else {
+                            BalanceSheetSortOrder.NAME_ASC
+                        }
+                        filterState = filterState.copy(sortOrder = nextSort)
+                    },
                     onToggleCalcMode = { isCalcMode = !isCalcMode },
                     onOpenFilter = { showFilterDialog = true },
                     onPickBaseDate = {
@@ -2711,6 +2720,8 @@ private fun ComparisonDatesCard(
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
     isCalcMode: Boolean,
+    sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.NAME_ASC,
+    onToggleSortOrder: () -> Unit,
     onToggleCalcMode: () -> Unit,
     onOpenFilter: () -> Unit,
     onPickBaseDate: () -> Unit,
@@ -2758,29 +2769,58 @@ private fun ComparisonDatesCard(
                     }
                 }
 
-                // Calculation Inclusion/Exclusion Toggle Button (replaces legacy Edit button)
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isCalcMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onToggleCalcMode() }
+                // Action Buttons: Sort (Icon only) + Calc Toggle
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Sort Button beside Calc Button (Default: A to Z, Click: Sort by Amount - icon only, no text)
+                    val isSortedByAmount = sortOrder == BalanceSheetSortOrder.AMOUNT_DESC || sortOrder == BalanceSheetSortOrder.AMOUNT_ASC
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSortedByAmount) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onToggleSortOrder() }
+                            .testTag("balance_sheet_sort_toggle")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Calculation Settings",
-                            tint = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "হিসাব গণনা" else "Calc",
-                            fontSize = 11.sp,
-                            fontWeight = if (isCalcMode) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Box(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Sort,
+                                contentDescription = if (isSortedByAmount) "Sort by Amount" else "Sort A to Z",
+                                tint = if (isSortedByAmount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
+
+                    // Calculation Inclusion/Exclusion Toggle Button (replaces legacy Edit button)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isCalcMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onToggleCalcMode() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Calculation Settings",
+                                tint = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "হিসাব গণনা" else "Calc",
+                                fontSize = 11.sp,
+                                fontWeight = if (isCalcMode) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -3138,12 +3178,12 @@ private fun BalanceSheetGroupItem(
 
                                 Spacer(modifier = Modifier.height(2.dp))
 
-                                // Bottom Line: Group Percentage Pill + Adjustment Pill under group name
+                                 // Bottom Line: Group Percentage Pill + Adjustment Pill under group name
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    if (group.percentageShare > 0) {
+                                    if (isIncluded) {
                                         val pctStr = String.format(java.util.Locale.US, "%.1f%%", group.percentageShare)
                                         val localizedPct = if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(pctStr) else pctStr
                                         val totalLabel = if (languageMode == LanguageMode.BANGLA) "মোট" else "in total"
@@ -3381,7 +3421,7 @@ private fun BalanceSheetGroupItem(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            if (group.percentageShare > 0) {
+                            if (isIncluded) {
                                 val pctStr = String.format(java.util.Locale.US, "%.1f%%", group.percentageShare)
                                 val localizedPct = if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(pctStr) else pctStr
                                 val totalLabel = if (languageMode == LanguageMode.BANGLA) "মোট" else "in total"
@@ -3631,31 +3671,28 @@ private fun SubAccountRowItem(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        // 1. Group Percentage (bold colored text)
-                        if (row.percentageShare > 0) {
-                            val grpPctStr = String.format(java.util.Locale.US, "%.1f%%", row.percentageShare)
-                            val localizedGrp = if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(grpPctStr) else grpPctStr
+                        if (isIncluded) {
+                            // 1. Group Percentage (bold colored text) if greater than 0
+                            if (row.percentageShare > 0.0001) {
+                                val grpPctStr = String.format(java.util.Locale.US, "%.1f%%", row.percentageShare)
+                                val localizedGrp = if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(grpPctStr) else grpPctStr
 
-                            Text(
-                                text = localizedGrp,
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline
-                            )
-                        }
+                                Text(
+                                    text = localizedGrp,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = subAccColor
+                                )
 
-                        // Middle dot separator if both group and total percentages exist
-                        if (row.percentageShare > 0 && row.totalPercentageShare > 0) {
-                            Text(
-                                text = "·",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        }
+                                Text(
+                                    text = "·",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
 
-                        // 2. Percentage of Total (in subtle shady tight padding pill badge)
-                        if (row.totalPercentageShare > 0) {
+                            // 2. Percentage of Total (in subtle shady tight padding pill badge)
                             val totPctStr = String.format(java.util.Locale.US, "%.1f%%", row.totalPercentageShare)
                             val localizedTot = if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(totPctStr) else totPctStr
                             val totalLabel = if (languageMode == LanguageMode.BANGLA) "মোট" else "in total"

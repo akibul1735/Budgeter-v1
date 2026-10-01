@@ -366,16 +366,21 @@ object BalanceSheetHelper {
         val totalLiabilitiesBase = rawLiabilityGroups.sumOf { Math.abs(it.effectiveBaseBalance) }
         val totalLiabilitiesCurrent = rawLiabilityGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
 
+        val totalAssetsPool = if (Math.abs(totalAssetsCurrent) > 0.001) Math.abs(totalAssetsCurrent) else rawAssetGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
+        val totalLiabilitiesPool = if (Math.abs(totalLiabilitiesCurrent) > 0.001) Math.abs(totalLiabilitiesCurrent) else rawLiabilityGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
+
         val netWorthBase = totalAssetsBase - totalLiabilitiesBase
         val netWorthCurrent = totalAssetsCurrent - totalLiabilitiesCurrent
         val netWorthDelta = netWorthCurrent - netWorthBase
 
         // Compute percentage shares
         val rawMappedAssets = rawAssetGroups.map { group ->
-            val groupShare = if (totalAssetsCurrent > 0 && group.isIncludedInCalc) (group.effectiveCurrentBalance / totalAssetsCurrent) * 100.0 else 0.0
+            val groupEffective = Math.abs(group.effectiveCurrentBalance)
+            val groupShare = if (totalAssetsPool > 0.0001 && group.isIncludedInCalc) (groupEffective / totalAssetsPool) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->
-                val subShareInGroup = if (group.effectiveCurrentBalance > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / group.effectiveCurrentBalance) * 100.0 else 0.0
-                val subShareInTotal = if (totalAssetsCurrent > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / totalAssetsCurrent) * 100.0 else 0.0
+                val subEffective = Math.abs(sub.effectiveCurrentBalance)
+                val subShareInGroup = if (groupEffective > 0.0001 && sub.isIncludedInCalc) (subEffective / groupEffective) * 100.0 else 0.0
+                val subShareInTotal = if (totalAssetsPool > 0.0001 && sub.isIncludedInCalc) (subEffective / totalAssetsPool) * 100.0 else 0.0
                 sub.copy(
                     percentageShare = subShareInGroup.coerceAtLeast(0.0),
                     totalPercentageShare = subShareInTotal.coerceAtLeast(0.0)
@@ -388,10 +393,12 @@ object BalanceSheetHelper {
         }
 
         val rawMappedLiabilities = rawLiabilityGroups.map { group ->
-            val groupShare = if (totalLiabilitiesCurrent > 0 && group.isIncludedInCalc) (Math.abs(group.effectiveCurrentBalance) / totalLiabilitiesCurrent) * 100.0 else 0.0
+            val groupEffective = Math.abs(group.effectiveCurrentBalance)
+            val groupShare = if (totalLiabilitiesPool > 0.0001 && group.isIncludedInCalc) (groupEffective / totalLiabilitiesPool) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->
-                val subShareInGroup = if (Math.abs(group.effectiveCurrentBalance) > 0 && sub.isIncludedInCalc) (Math.abs(sub.effectiveCurrentBalance) / Math.abs(group.effectiveCurrentBalance)) * 100.0 else 0.0
-                val subShareInTotal = if (totalLiabilitiesCurrent > 0 && sub.isIncludedInCalc) (Math.abs(sub.effectiveCurrentBalance) / totalLiabilitiesCurrent) * 100.0 else 0.0
+                val subEffective = Math.abs(sub.effectiveCurrentBalance)
+                val subShareInGroup = if (groupEffective > 0.0001 && sub.isIncludedInCalc) (subEffective / groupEffective) * 100.0 else 0.0
+                val subShareInTotal = if (totalLiabilitiesPool > 0.0001 && sub.isIncludedInCalc) (subEffective / totalLiabilitiesPool) * 100.0 else 0.0
                 sub.copy(
                     percentageShare = subShareInGroup.coerceAtLeast(0.0),
                     totalPercentageShare = subShareInTotal.coerceAtLeast(0.0)
@@ -403,33 +410,33 @@ object BalanceSheetHelper {
             )
         }
 
-        // Apply Sorting by Amount or Name
+        // Apply Sorting by Amount or Name (Default is Group & Sub Account A to Z)
         val assetGroups = when (sortOrder) {
-            BalanceSheetSortOrder.DEFAULT -> rawMappedAssets
+            BalanceSheetSortOrder.DEFAULT,
+            BalanceSheetSortOrder.NAME_ASC -> rawMappedAssets.sortedBy { it.parentAccount.nameEn.lowercase() }
             BalanceSheetSortOrder.AMOUNT_DESC -> rawMappedAssets.sortedByDescending { it.effectiveCurrentBalance }
             BalanceSheetSortOrder.AMOUNT_ASC -> rawMappedAssets.sortedBy { it.effectiveCurrentBalance }
-            BalanceSheetSortOrder.NAME_ASC -> rawMappedAssets.sortedBy { it.parentAccount.nameEn.lowercase() }
         }.map { group ->
             val sortedSubs = when (sortOrder) {
-                BalanceSheetSortOrder.DEFAULT -> group.subAccounts
+                BalanceSheetSortOrder.DEFAULT,
+                BalanceSheetSortOrder.NAME_ASC -> group.subAccounts.sortedBy { it.account.nameEn.lowercase() }
                 BalanceSheetSortOrder.AMOUNT_DESC -> group.subAccounts.sortedByDescending { it.effectiveCurrentBalance }
                 BalanceSheetSortOrder.AMOUNT_ASC -> group.subAccounts.sortedBy { it.effectiveCurrentBalance }
-                BalanceSheetSortOrder.NAME_ASC -> group.subAccounts.sortedBy { it.account.nameEn.lowercase() }
             }
             group.copy(subAccounts = sortedSubs)
         }
 
         val liabilityGroups = when (sortOrder) {
-            BalanceSheetSortOrder.DEFAULT -> rawMappedLiabilities
+            BalanceSheetSortOrder.DEFAULT,
+            BalanceSheetSortOrder.NAME_ASC -> rawMappedLiabilities.sortedBy { it.parentAccount.nameEn.lowercase() }
             BalanceSheetSortOrder.AMOUNT_DESC -> rawMappedLiabilities.sortedByDescending { it.effectiveCurrentBalance }
             BalanceSheetSortOrder.AMOUNT_ASC -> rawMappedLiabilities.sortedBy { it.effectiveCurrentBalance }
-            BalanceSheetSortOrder.NAME_ASC -> rawMappedLiabilities.sortedBy { it.parentAccount.nameEn.lowercase() }
         }.map { group ->
             val sortedSubs = when (sortOrder) {
-                BalanceSheetSortOrder.DEFAULT -> group.subAccounts
+                BalanceSheetSortOrder.DEFAULT,
+                BalanceSheetSortOrder.NAME_ASC -> group.subAccounts.sortedBy { it.account.nameEn.lowercase() }
                 BalanceSheetSortOrder.AMOUNT_DESC -> group.subAccounts.sortedByDescending { it.effectiveCurrentBalance }
                 BalanceSheetSortOrder.AMOUNT_ASC -> group.subAccounts.sortedBy { it.effectiveCurrentBalance }
-                BalanceSheetSortOrder.NAME_ASC -> group.subAccounts.sortedBy { it.account.nameEn.lowercase() }
             }
             group.copy(subAccounts = sortedSubs)
         }
