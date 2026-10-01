@@ -2861,6 +2861,12 @@ private fun ScreenRouter(
                     if (acc != null) {
                         if (onAccountClick != null) onAccountClick(acc) else onEditAccount(acc)
                     }
+                },
+                onToggleCategoryActive = { categoryId, isActive ->
+                    viewModel.toggleCategoryActiveInPaymentSource(categoryId, isActive)
+                },
+                onToggleOtherAccountActive = { otherAccountId, isActive ->
+                    viewModel.toggleOtherAccountActiveInPaymentSource(otherAccountId, isActive)
                 }
             )
         }

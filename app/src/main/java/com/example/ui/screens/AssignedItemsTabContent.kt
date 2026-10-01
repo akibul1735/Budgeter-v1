@@ -61,7 +61,9 @@ internal fun AssignedItemsTabContent(
     usageFrequencyMap: Map<Long, Int>,
     onOpenCategorySplitDialog: (CategoryAllocationAnalysis) -> Unit,
     onOpenOtherAccountSplitDialog: (OtherAccountAllocationAnalysis) -> Unit,
-    onAddTransactionWithAccount: (Long, TransactionType) -> Unit
+    onAddTransactionWithAccount: (Long, TransactionType) -> Unit,
+    onToggleCategoryActive: (Long, Boolean) -> Unit = { _, _ -> },
+    onToggleOtherAccountActive: (Long, Boolean) -> Unit = { _, _ -> }
 ) {
     val q = searchQuery.trim().lowercase()
 
@@ -80,6 +82,8 @@ internal fun AssignedItemsTabContent(
         }
         when (statusFilter) {
             AssignedItemStatusFilter.ALL -> list
+            AssignedItemStatusFilter.ACTIVE_ONLY -> list.filter { it.isActive }
+            AssignedItemStatusFilter.INACTIVE_ONLY -> list.filter { !it.isActive }
             AssignedItemStatusFilter.BUDGETED_ONLY -> list.filter { it.totalBudgeted > 0 }
             AssignedItemStatusFilter.REMAINING_ONLY -> list.filter { it.totalRemaining > 0 }
             AssignedItemStatusFilter.MOST_FREQUENT -> list.sortedByDescending { usageFrequencyMap[it.account.id] ?: 0 }
@@ -103,6 +107,8 @@ internal fun AssignedItemsTabContent(
         }
         when (statusFilter) {
             AssignedItemStatusFilter.ALL -> list
+            AssignedItemStatusFilter.ACTIVE_ONLY -> list.filter { it.isActive }
+            AssignedItemStatusFilter.INACTIVE_ONLY -> list.filter { !it.isActive }
             AssignedItemStatusFilter.BUDGETED_ONLY -> list.filter { it.totalBudgeted > 0 }
             AssignedItemStatusFilter.REMAINING_ONLY -> list.filter { it.totalRemaining > 0 }
             AssignedItemStatusFilter.MOST_FREQUENT -> list.sortedByDescending { usageFrequencyMap[it.category.id] ?: 0 }
@@ -126,6 +132,8 @@ internal fun AssignedItemsTabContent(
         }
         when (statusFilter) {
             AssignedItemStatusFilter.ALL -> list
+            AssignedItemStatusFilter.ACTIVE_ONLY -> list.filter { it.isActive }
+            AssignedItemStatusFilter.INACTIVE_ONLY -> list.filter { !it.isActive }
             AssignedItemStatusFilter.BUDGETED_ONLY -> list.filter { it.totalBudgeted > 0 }
             AssignedItemStatusFilter.REMAINING_ONLY -> list.filter { it.totalRemaining > 0 }
             AssignedItemStatusFilter.MOST_FREQUENT -> list.sortedByDescending { usageFrequencyMap[it.category.id] ?: 0 }
@@ -373,6 +381,32 @@ internal fun AssignedItemsTabContent(
                             label = if (languageMode == LanguageMode.BANGLA) "সকল" else "All"
                         )
                         CompactAssignedFilterChip(
+                            selected = statusFilter == AssignedItemStatusFilter.ACTIVE_ONLY,
+                            onClick = { onStatusFilterChange(AssignedItemStatusFilter.ACTIVE_ONLY) },
+                            label = if (languageMode == LanguageMode.BANGLA) "সক্রিয়" else "Active Only",
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = SolidIncome,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        )
+                        CompactAssignedFilterChip(
+                            selected = statusFilter == AssignedItemStatusFilter.INACTIVE_ONLY,
+                            onClick = { onStatusFilterChange(AssignedItemStatusFilter.INACTIVE_ONLY) },
+                            label = if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয়" else "Inactive Only",
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Cancel,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        )
+                        CompactAssignedFilterChip(
                             selected = statusFilter == AssignedItemStatusFilter.BUDGETED_ONLY,
                             onClick = { onStatusFilterChange(AssignedItemStatusFilter.BUDGETED_ONLY) },
                             label = if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত / দেনা" else "Budgeted / Due"
@@ -531,6 +565,9 @@ internal fun AssignedItemsTabContent(
                         onAddTransaction = {
                             val txType = if (otherAccAlloc.isExpense) TransactionType.EXPENSE else TransactionType.INCOME
                             onAddTransactionWithAccount(otherAccAlloc.account.id, txType)
+                        },
+                        onToggleActive = { active ->
+                            onToggleOtherAccountActive(otherAccAlloc.account.id, active)
                         }
                     )
                 }
@@ -575,7 +612,10 @@ internal fun AssignedItemsTabContent(
                         allocation = catAlloc,
                         isExpense = true,
                         languageMode = languageMode,
-                        onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
+                        onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
+                        onToggleActive = { active ->
+                            onToggleCategoryActive(catAlloc.category.id, active)
+                        }
                     )
                 }
             }
@@ -619,7 +659,10 @@ internal fun AssignedItemsTabContent(
                         allocation = catAlloc,
                         isExpense = false,
                         languageMode = languageMode,
-                        onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
+                        onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
+                        onToggleActive = { active ->
+                            onToggleCategoryActive(catAlloc.category.id, active)
+                        }
                     )
                 }
             }

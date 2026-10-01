@@ -14,21 +14,25 @@ data class AccountObligation(
     val targetAccountId: Long, // The obligation account (e.g. Liability, Credit Card, Loan, Receivable)
     val amount: Double,
     val isExpense: Boolean = true, // true = paying off a payable/liability from source; false = receiving from debtor into source
-    val note: String = ""
+    val note: String = "",
+    val isActive: Boolean = true
 )
 
 data class AccountLink(
     val id: String = java.util.UUID.randomUUID().toString(),
     val otherAccountId: Long,
     val paymentSourceAccountId: Long,
-    val relationNote: String = ""
+    val relationNote: String = "",
+    val isActive: Boolean = true
 )
 
 data class PaymentSourceConfig(
     val selectedSourceAccountIds: Set<Long> = emptySet(),
     val hasCustomizedSelection: Boolean = false,
     val accountObligations: List<AccountObligation> = emptyList(),
-    val accountLinks: List<AccountLink> = emptyList()
+    val accountLinks: List<AccountLink> = emptyList(),
+    val inactiveCategoryIds: Set<Long> = emptySet(),
+    val inactiveOtherAccountIds: Set<Long> = emptySet()
 ) {
     fun isPaymentSource(accountId: Long, fallbackIsLeafAsset: Boolean): Boolean {
         return if (hasCustomizedSelection) {
@@ -48,6 +52,8 @@ class PaymentSourcePreferences private constructor(context: Context) {
     private fun loadConfig(): PaymentSourceConfig {
         val hasCustom = prefs.getBoolean(KEY_HAS_CUSTOM, false)
         val idsSet = prefs.getStringSet(KEY_SELECTED_ACCOUNT_IDS, emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+        val inactiveCatSet = prefs.getStringSet(KEY_INACTIVE_CATEGORIES, emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+        val inactiveOtherSet = prefs.getStringSet(KEY_INACTIVE_OTHER_ACCOUNTS, emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
         
         val obligationsJson = prefs.getString(KEY_OBLIGATIONS, "[]") ?: "[]"
         val obligationsList = mutableListOf<AccountObligation>()
@@ -62,7 +68,8 @@ class PaymentSourcePreferences private constructor(context: Context) {
                         targetAccountId = obj.getLong("targetAccountId"),
                         amount = obj.getDouble("amount"),
                         isExpense = obj.optBoolean("isExpense", true),
-                        note = obj.optString("note", "")
+                        note = obj.optString("note", ""),
+                        isActive = obj.optBoolean("isActive", true)
                     )
                 )
             }
@@ -79,7 +86,8 @@ class PaymentSourcePreferences private constructor(context: Context) {
                         id = obj.optString("id", java.util.UUID.randomUUID().toString()),
                         otherAccountId = obj.getLong("otherAccountId"),
                         paymentSourceAccountId = obj.getLong("paymentSourceAccountId"),
-                        relationNote = obj.optString("relationNote", "")
+                        relationNote = obj.optString("relationNote", ""),
+                        isActive = obj.optBoolean("isActive", true)
                     )
                 )
             }
@@ -89,7 +97,9 @@ class PaymentSourcePreferences private constructor(context: Context) {
             selectedSourceAccountIds = idsSet,
             hasCustomizedSelection = hasCustom,
             accountObligations = obligationsList,
-            accountLinks = linksList
+            accountLinks = linksList,
+            inactiveCategoryIds = inactiveCatSet,
+            inactiveOtherAccountIds = inactiveOtherSet
         )
     }
 
@@ -112,6 +122,41 @@ class PaymentSourcePreferences private constructor(context: Context) {
             updated.remove(accountId)
         }
         setSelectedSourceAccountIds(updated)
+    }
+
+    fun toggleCategoryActive(categoryId: Long, isActive: Boolean) {
+        val currentSet = _config.value.inactiveCategoryIds.toMutableSet()
+        if (isActive) {
+            currentSet.remove(categoryId)
+        } else {
+            currentSet.add(categoryId)
+        }
+        prefs.edit()
+            .putStringSet(KEY_INACTIVE_CATEGORIES, currentSet.map { it.toString() }.toSet())
+            .apply()
+        _config.value = _config.value.copy(inactiveCategoryIds = currentSet)
+    }
+
+    fun toggleOtherAccountActive(otherAccountId: Long, isActive: Boolean) {
+        val currentSet = _config.value.inactiveOtherAccountIds.toMutableSet()
+        if (isActive) {
+            currentSet.remove(otherAccountId)
+        } else {
+            currentSet.add(otherAccountId)
+        }
+        prefs.edit()
+            .putStringSet(KEY_INACTIVE_OTHER_ACCOUNTS, currentSet.map { it.toString() }.toSet())
+            .apply()
+        _config.value = _config.value.copy(inactiveOtherAccountIds = currentSet)
+    }
+
+    fun toggleAccountObligationActive(obligationId: String, isActive: Boolean) {
+        val currentList = _config.value.accountObligations.toMutableList()
+        val index = currentList.indexOfFirst { it.id == obligationId }
+        if (index >= 0) {
+            currentList[index] = currentList[index].copy(isActive = isActive)
+            persistObligations(currentList)
+        }
     }
 
     fun saveAccountObligation(obligation: AccountObligation) {
@@ -140,6 +185,7 @@ class PaymentSourcePreferences private constructor(context: Context) {
             obj.put("amount", ob.amount)
             obj.put("isExpense", ob.isExpense)
             obj.put("note", ob.note)
+            obj.put("isActive", ob.isActive)
             jsonArr.put(obj)
         }
         prefs.edit().putString(KEY_OBLIGATIONS, jsonArr.toString()).apply()
@@ -171,7 +217,8 @@ class PaymentSourcePreferences private constructor(context: Context) {
                 AccountLink(
                     otherAccountId = otherAccountId,
                     paymentSourceAccountId = srcId,
-                    relationNote = note
+                    relationNote = note,
+                    isActive = true
                 )
             )
         }
@@ -186,6 +233,7 @@ class PaymentSourcePreferences private constructor(context: Context) {
             obj.put("otherAccountId", lk.otherAccountId)
             obj.put("paymentSourceAccountId", lk.paymentSourceAccountId)
             obj.put("relationNote", lk.relationNote)
+            obj.put("isActive", lk.isActive)
             jsonArr.put(obj)
         }
         prefs.edit().putString(KEY_ACCOUNT_LINKS, jsonArr.toString()).apply()
@@ -201,6 +249,8 @@ class PaymentSourcePreferences private constructor(context: Context) {
         private const val KEY_SELECTED_ACCOUNT_IDS = "selected_source_account_ids"
         private const val KEY_OBLIGATIONS = "account_obligations"
         private const val KEY_ACCOUNT_LINKS = "account_links"
+        private const val KEY_INACTIVE_CATEGORIES = "inactive_categories"
+        private const val KEY_INACTIVE_OTHER_ACCOUNTS = "inactive_other_accounts"
 
         @Volatile
         private var INSTANCE: PaymentSourcePreferences? = null

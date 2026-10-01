@@ -14,6 +14,8 @@ enum class AssignedItemSectionFilter {
 
 enum class AssignedItemStatusFilter {
     ALL,
+    ACTIVE_ONLY,
+    INACTIVE_ONLY,
     BUDGETED_ONLY,
     REMAINING_ONLY,
     MOST_FREQUENT,

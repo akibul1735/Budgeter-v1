@@ -32,8 +32,12 @@ object PaymentSourceCalculator {
         recurringBills: List<RecurringBill> = emptyList(),
         selectedPaymentSourceIds: Set<Long>? = null,
         accountObligations: List<AccountObligation> = emptyList(),
-        accountCalcConfig: AccountCalcConfig? = null
+        accountCalcConfig: AccountCalcConfig? = null,
+        paymentSourceConfig: PaymentSourceConfig? = null
     ): PaymentSourceAnalysisOverview {
+        val effectiveObligations = paymentSourceConfig?.accountObligations ?: accountObligations
+        val inactiveCatIds = paymentSourceConfig?.inactiveCategoryIds ?: emptySet()
+        val inactiveOtherAccIds = paymentSourceConfig?.inactiveOtherAccountIds ?: emptySet()
         // 1. Flatten accountsWithBalances to include both parents and sub-accounts
         val flatAwbMap = mutableMapOf<Long, Double>()
         accountsWithBalances.forEach { parent ->
@@ -193,6 +197,7 @@ object PaymentSourceCalculator {
         val expenseAllocationsList = mutableListOf<CategoryAllocationAnalysis>()
 
         for (cat in expenseCategories) {
+            val isCatActive = !inactiveCatIds.contains(cat.id)
             val explicitCatAllocs = allocationsByCatId[cat.id] ?: emptyList()
             val totalExplicitBudget = explicitCatAllocs.sumOf { it.budgetedAmount }
 
@@ -239,23 +244,25 @@ object PaymentSourceCalculator {
 
                     val reqAmt = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) allocatedAmt else remainingInThisAcc
 
-                    accountExpensesMap[accId]?.add(
-                        AccountRequirementItem(
-                            title = cat.nameEn,
-                            amount = reqAmt,
-                            originalBudgetOrExpected = allocatedAmt,
-                            actualSpentOrReceived = spentInThisAcc,
-                            remaining = remainingInThisAcc,
-                            isRecurring = false,
-                            isExpense = true,
-                            categoryId = cat.id,
-                            iconName = cat.iconName,
-                            colorHex = cat.colorHex,
-                            isMultiAccountSplit = splitCount > 1,
-                            totalCategoryBudget = effectiveCategoryBudget,
-                            splitAccountCount = splitCount
+                    if (isCatActive) {
+                        accountExpensesMap[accId]?.add(
+                            AccountRequirementItem(
+                                title = cat.nameEn,
+                                amount = reqAmt,
+                                originalBudgetOrExpected = allocatedAmt,
+                                actualSpentOrReceived = spentInThisAcc,
+                                remaining = remainingInThisAcc,
+                                isRecurring = false,
+                                isExpense = true,
+                                categoryId = cat.id,
+                                iconName = cat.iconName,
+                                colorHex = cat.colorHex,
+                                isMultiAccountSplit = splitCount > 1,
+                                totalCategoryBudget = effectiveCategoryBudget,
+                                splitAccountCount = splitCount
+                            )
                         )
-                    )
+                    }
 
                     val pct = if (effectiveCategoryBudget > 0) (allocatedAmt / effectiveCategoryBudget * 100) else (100.0 / splitCount)
                     catSplits.add(
@@ -274,7 +281,7 @@ object PaymentSourceCalculator {
                 for ((_, otherAccId) in otherAccsWithSpend) {
                     val otherAcc = validAccountsMap[otherAccId] ?: continue
                     val extraSpent = spentByCatAndAcc[cat.id to otherAccId] ?: 0.0
-                    if (extraSpent > 0) {
+                    if (extraSpent > 0 && isCatActive) {
                         accountExpensesMap[otherAccId]?.add(
                             AccountRequirementItem(
                                 title = cat.nameEn,
@@ -307,23 +314,25 @@ object PaymentSourceCalculator {
                         val remainingInAcc = maxOf(0.0, allocatedBudget - spentInAcc)
                         val reqAmt = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) (if (allocatedBudget > 0) allocatedBudget else spentInAcc) else remainingInAcc
 
-                        accountExpensesMap[accId]?.add(
-                            AccountRequirementItem(
-                                title = cat.nameEn,
-                                amount = reqAmt,
-                                originalBudgetOrExpected = allocatedBudget,
-                                actualSpentOrReceived = spentInAcc,
-                                remaining = remainingInAcc,
-                                isRecurring = false,
-                                isExpense = true,
-                                categoryId = cat.id,
-                                iconName = cat.iconName,
-                                colorHex = cat.colorHex,
-                                isMultiAccountSplit = true,
-                                totalCategoryBudget = effectiveCategoryBudget,
-                                splitAccountCount = accountsWithSpendForCat.size
+                        if (isCatActive) {
+                            accountExpensesMap[accId]?.add(
+                                AccountRequirementItem(
+                                    title = cat.nameEn,
+                                    amount = reqAmt,
+                                    originalBudgetOrExpected = allocatedBudget,
+                                    actualSpentOrReceived = spentInAcc,
+                                    remaining = remainingInAcc,
+                                    isRecurring = false,
+                                    isExpense = true,
+                                    categoryId = cat.id,
+                                    iconName = cat.iconName,
+                                    colorHex = cat.colorHex,
+                                    isMultiAccountSplit = true,
+                                    totalCategoryBudget = effectiveCategoryBudget,
+                                    splitAccountCount = accountsWithSpendForCat.size
+                                )
                             )
-                        )
+                        }
                         catSplits.add(
                             CategoryAccountSplit(
                                 account = acc,
@@ -348,23 +357,25 @@ object PaymentSourceCalculator {
                     }
 
                     if (requiredAmt > 0 || spentInThisAcc > 0 || originalBudget > 0) {
-                        accountExpensesMap[mappedAccId]?.add(
-                            AccountRequirementItem(
-                                title = cat.nameEn,
-                                amount = requiredAmt,
-                                originalBudgetOrExpected = originalBudget,
-                                actualSpentOrReceived = spentInThisAcc,
-                                remaining = remaining,
-                                isRecurring = false,
-                                isExpense = true,
-                                categoryId = cat.id,
-                                iconName = cat.iconName,
-                                colorHex = cat.colorHex,
-                                isMultiAccountSplit = false,
-                                totalCategoryBudget = originalBudget,
-                                splitAccountCount = 1
+                        if (isCatActive) {
+                            accountExpensesMap[mappedAccId]?.add(
+                                AccountRequirementItem(
+                                    title = cat.nameEn,
+                                    amount = requiredAmt,
+                                    originalBudgetOrExpected = originalBudget,
+                                    actualSpentOrReceived = spentInThisAcc,
+                                    remaining = remaining,
+                                    isRecurring = false,
+                                    isExpense = true,
+                                    categoryId = cat.id,
+                                    iconName = cat.iconName,
+                                    colorHex = cat.colorHex,
+                                    isMultiAccountSplit = false,
+                                    totalCategoryBudget = originalBudget,
+                                    splitAccountCount = 1
+                                )
                             )
-                        )
+                        }
                         if (mappedAcc != null) {
                             catSplits.add(
                                 CategoryAccountSplit(
@@ -389,7 +400,8 @@ object PaymentSourceCalculator {
                         totalActualSpent = totalCatActualSpent,
                         totalRemaining = totalCatRemaining,
                         accountSplits = catSplits.sortedByDescending { it.allocatedAmount },
-                        isExpense = true
+                        isExpense = true,
+                        isActive = isCatActive
                     )
                 )
             }
@@ -451,6 +463,7 @@ object PaymentSourceCalculator {
         val incomeAllocationsList = mutableListOf<CategoryAllocationAnalysis>()
 
         for (cat in incomeCategories) {
+            val isCatActive = !inactiveCatIds.contains(cat.id)
             val explicitCatAllocs = allocationsByCatId[cat.id] ?: emptyList()
             val totalExplicitBudget = explicitCatAllocs.sumOf { it.budgetedAmount }
 
@@ -496,23 +509,25 @@ object PaymentSourceCalculator {
                     val remainingInThisAcc = maxOf(0.0, allocatedAmt - receivedInThisAcc)
                     val expectedAmt = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) allocatedAmt else remainingInThisAcc
 
-                    accountIncomesMap[accId]?.add(
-                        AccountRequirementItem(
-                            title = cat.nameEn,
-                            amount = expectedAmt,
-                            originalBudgetOrExpected = allocatedAmt,
-                            actualSpentOrReceived = receivedInThisAcc,
-                            remaining = remainingInThisAcc,
-                            isRecurring = false,
-                            isExpense = false,
-                            categoryId = cat.id,
-                            iconName = cat.iconName,
-                            colorHex = cat.colorHex,
-                            isMultiAccountSplit = splitCount > 1,
-                            totalCategoryBudget = effectiveCategoryBudget,
-                            splitAccountCount = splitCount
+                    if (isCatActive) {
+                        accountIncomesMap[accId]?.add(
+                            AccountRequirementItem(
+                                title = cat.nameEn,
+                                amount = expectedAmt,
+                                originalBudgetOrExpected = allocatedAmt,
+                                actualSpentOrReceived = receivedInThisAcc,
+                                remaining = remainingInThisAcc,
+                                isRecurring = false,
+                                isExpense = false,
+                                categoryId = cat.id,
+                                iconName = cat.iconName,
+                                colorHex = cat.colorHex,
+                                isMultiAccountSplit = splitCount > 1,
+                                totalCategoryBudget = effectiveCategoryBudget,
+                                splitAccountCount = splitCount
+                            )
                         )
-                    )
+                    }
 
                     val pct = if (effectiveCategoryBudget > 0) (allocatedAmt / effectiveCategoryBudget * 100) else (100.0 / splitCount)
                     incSplits.add(
@@ -543,20 +558,22 @@ object PaymentSourceCalculator {
                 }
 
                 if (expectedAmt > 0 || receivedInThisAcc > 0 || originalBudget > 0) {
-                    accountIncomesMap[mappedAccId]?.add(
-                        AccountRequirementItem(
-                            title = cat.nameEn,
-                            amount = expectedAmt,
-                            originalBudgetOrExpected = originalBudget,
-                            actualSpentOrReceived = receivedInThisAcc,
-                            remaining = remaining,
-                            isRecurring = false,
-                            isExpense = false,
-                            categoryId = cat.id,
-                            iconName = cat.iconName,
-                            colorHex = cat.colorHex
+                    if (isCatActive) {
+                        accountIncomesMap[mappedAccId]?.add(
+                            AccountRequirementItem(
+                                title = cat.nameEn,
+                                amount = expectedAmt,
+                                originalBudgetOrExpected = originalBudget,
+                                actualSpentOrReceived = receivedInThisAcc,
+                                remaining = remaining,
+                                isRecurring = false,
+                                isExpense = false,
+                                categoryId = cat.id,
+                                iconName = cat.iconName,
+                                colorHex = cat.colorHex
+                            )
                         )
-                    )
+                    }
                     if (mappedAcc != null) {
                         incSplits.add(
                             CategoryAccountSplit(
@@ -580,7 +597,8 @@ object PaymentSourceCalculator {
                     totalActualSpent = totalCatActualReceived,
                     totalRemaining = totalCatRemaining,
                     accountSplits = incSplits.sortedByDescending { it.allocatedAmount },
-                    isExpense = false
+                    isExpense = false,
+                    isActive = isCatActive
                 )
             )
         }
@@ -656,7 +674,7 @@ object PaymentSourceCalculator {
 
         val accountObligationAnalyses = mutableListOf<AccountObligationAnalysis>()
 
-        for (ob in accountObligations) {
+        for (ob in effectiveObligations) {
             val sourceAcc = validAccountsMap[ob.sourceAccountId] ?: continue
             val targetAcc = allAccountsMap[ob.targetAccountId] ?: continue
 
@@ -667,18 +685,20 @@ object PaymentSourceCalculator {
                     targetAccount = targetAcc,
                     amount = ob.amount,
                     isExpense = ob.isExpense,
-                    note = ob.note
+                    note = ob.note,
+                    isActive = ob.isActive
                 )
             )
         }
 
         for (otherAcc in otherAccounts) {
+            val isOtherAccActive = !inactiveOtherAccIds.contains(otherAcc.id)
             val isExpense = otherAcc.type == AccountType.LIABILITY ||
-                    accountObligations.any { it.targetAccountId == otherAcc.id && it.isExpense } ||
+                    effectiveObligations.any { it.targetAccountId == otherAcc.id && it.isExpense } ||
                     otherAcc.type == AccountType.EQUITY
 
             val explicitSplits = allocationsByOtherAccId[otherAcc.id] ?: emptyList()
-            val obligationsForAcc = accountObligations.filter { it.targetAccountId == otherAcc.id }
+            val obligationsForAcc = effectiveObligations.filter { it.targetAccountId == otherAcc.id }
 
             val totalExplicitBudget = explicitSplits.sumOf { it.budgetedAmount }
             val totalObligationBudget = obligationsForAcc.sumOf { it.amount }
@@ -735,7 +755,7 @@ object PaymentSourceCalculator {
                         remainingInSrc
                     }
 
-                    if (reqAmt > 0 || actualSettled > 0 || allocatedAmt > 0) {
+                    if ((reqAmt > 0 || actualSettled > 0 || allocatedAmt > 0) && isOtherAccActive) {
                         if (isExpense) {
                             accountExpensesMap[srcAcc.id]?.add(
                                 AccountRequirementItem(
@@ -808,44 +828,46 @@ object PaymentSourceCalculator {
                         remainingInSrc
                     }
 
-                    if (isExpense) {
-                        accountExpensesMap[srcAcc.id]?.add(
-                            AccountRequirementItem(
-                                title = otherAcc.nameEn,
-                                amount = reqAmt,
-                                originalBudgetOrExpected = allocatedAmt,
-                                actualSpentOrReceived = actualSettled,
-                                remaining = remainingInSrc,
-                                isRecurring = false,
-                                isExpense = true,
-                                iconName = otherAcc.iconName,
-                                colorHex = otherAcc.colorHex,
-                                isMultiAccountSplit = obligationsForAcc.size > 1,
-                                totalCategoryBudget = effectiveBudget,
-                                splitAccountCount = obligationsForAcc.size,
-                                isAccountObligation = true,
-                                linkedAccountId = otherAcc.id
+                    if (isOtherAccActive && ob.isActive) {
+                        if (isExpense) {
+                            accountExpensesMap[srcAcc.id]?.add(
+                                AccountRequirementItem(
+                                    title = otherAcc.nameEn,
+                                    amount = reqAmt,
+                                    originalBudgetOrExpected = allocatedAmt,
+                                    actualSpentOrReceived = actualSettled,
+                                    remaining = remainingInSrc,
+                                    isRecurring = false,
+                                    isExpense = true,
+                                    iconName = otherAcc.iconName,
+                                    colorHex = otherAcc.colorHex,
+                                    isMultiAccountSplit = obligationsForAcc.size > 1,
+                                    totalCategoryBudget = effectiveBudget,
+                                    splitAccountCount = obligationsForAcc.size,
+                                    isAccountObligation = true,
+                                    linkedAccountId = otherAcc.id
+                                )
                             )
-                        )
-                    } else {
-                        accountIncomesMap[srcAcc.id]?.add(
-                            AccountRequirementItem(
-                                title = otherAcc.nameEn,
-                                amount = reqAmt,
-                                originalBudgetOrExpected = allocatedAmt,
-                                actualSpentOrReceived = actualSettled,
-                                remaining = remainingInSrc,
-                                isRecurring = false,
-                                isExpense = false,
-                                iconName = otherAcc.iconName,
-                                colorHex = otherAcc.colorHex,
-                                isMultiAccountSplit = obligationsForAcc.size > 1,
-                                totalCategoryBudget = effectiveBudget,
-                                splitAccountCount = obligationsForAcc.size,
-                                isAccountObligation = true,
-                                linkedAccountId = otherAcc.id
+                        } else {
+                            accountIncomesMap[srcAcc.id]?.add(
+                                AccountRequirementItem(
+                                    title = otherAcc.nameEn,
+                                    amount = reqAmt,
+                                    originalBudgetOrExpected = allocatedAmt,
+                                    actualSpentOrReceived = actualSettled,
+                                    remaining = remainingInSrc,
+                                    isRecurring = false,
+                                    isExpense = false,
+                                    iconName = otherAcc.iconName,
+                                    colorHex = otherAcc.colorHex,
+                                    isMultiAccountSplit = obligationsForAcc.size > 1,
+                                    totalCategoryBudget = effectiveBudget,
+                                    splitAccountCount = obligationsForAcc.size,
+                                    isAccountObligation = true,
+                                    linkedAccountId = otherAcc.id
+                                )
                             )
-                        )
+                        }
                     }
 
                     val pct = if (effectiveBudget > 0) (allocatedAmt / effectiveBudget * 100) else 0.0
@@ -869,7 +891,7 @@ object PaymentSourceCalculator {
                         totalRemaining
                     }
 
-                    if (reqAmt > 0 || totalActualSettled > 0 || effectiveBudget > 0) {
+                    if ((reqAmt > 0 || totalActualSettled > 0 || effectiveBudget > 0) && isOtherAccActive) {
                         if (isExpense) {
                             accountExpensesMap[defaultSourceAcc.id]?.add(
                                 AccountRequirementItem(
@@ -931,7 +953,8 @@ object PaymentSourceCalculator {
                     totalActualSettled = totalActualSettled,
                     totalRemaining = totalRemaining,
                     accountSplits = accSplits.sortedByDescending { it.allocatedAmount },
-                    isExpense = isExpense
+                    isExpense = isExpense,
+                    isActive = isOtherAccActive
                 )
             )
         }

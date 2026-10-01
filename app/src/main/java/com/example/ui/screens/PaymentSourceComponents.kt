@@ -165,7 +165,8 @@ internal fun OtherAccountAllocationCard(
     allocation: OtherAccountAllocationAnalysis,
     languageMode: LanguageMode,
     onOpenSplit: () -> Unit,
-    onAddTransaction: () -> Unit
+    onAddTransaction: () -> Unit,
+    onToggleActive: ((Boolean) -> Unit)? = null
 ) {
     val acc = allocation.account
     val accColor = remember(acc.colorHex) {
@@ -181,11 +182,14 @@ internal fun OtherAccountAllocationCard(
             .fillMaxWidth()
             .testTag("other_acc_card_${acc.id}"),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (allocation.isActive) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        ),
+        border = if (!allocation.isActive) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (allocation.isActive) 1.dp else 0.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Header Row: Account Icon, Name, Type Badge, Split Button
+            // Header Row: Account Icon, Name, Type Badge, Active Status Chip, Split Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -197,13 +201,13 @@ internal fun OtherAccountAllocationCard(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isImg) Color.Transparent else accColor.copy(alpha = 0.15f)),
+                            .background(if (isImg) Color.Transparent else (if (allocation.isActive) accColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))),
                         contentAlignment = Alignment.Center
                     ) {
                         IconHelper.AppIcon(
                             iconName = acc.iconName,
                             contentDescription = null,
-                            tint = accColor,
+                            tint = if (allocation.isActive) accColor else MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(if (isImg) 40.dp else 22.dp)
                         )
                     }
@@ -216,6 +220,7 @@ internal fun OtherAccountAllocationCard(
                                 text = acc.localizedName(languageMode),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
+                                color = if (allocation.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -233,9 +238,31 @@ internal fun OtherAccountAllocationCard(
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
+                            // Active / Inactive Status Toggle Pill
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (allocation.isActive) SolidIncome.copy(alpha = 0.12f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onToggleActive?.invoke(!allocation.isActive) }
+                                    .testTag("toggle_active_other_acc_${acc.id}")
+                            ) {
+                                Text(
+                                    text = if (allocation.isActive) (if (languageMode == LanguageMode.BANGLA) "সক্রিয়" else "Active")
+                                    else (if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয়" else "Inactive"),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (allocation.isActive) SolidIncome else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
                         }
                         Text(
-                            text = "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)}",
+                            text = if (allocation.isActive) {
+                                "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)}"
+                            } else {
+                                "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • (${if (languageMode == LanguageMode.BANGLA) "হিসেবে অন্তর্ভুক্ত নয়" else "Excluded from calc"})"
+                            },
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -623,7 +650,8 @@ internal fun CategoryAllocationCard(
     allocation: CategoryAllocationAnalysis,
     isExpense: Boolean,
     languageMode: LanguageMode,
-    onOpenSplit: () -> Unit
+    onOpenSplit: () -> Unit,
+    onToggleActive: ((Boolean) -> Unit)? = null
 ) {
     val cat = allocation.category
     val catColor = remember(cat.colorHex) {
@@ -639,11 +667,14 @@ internal fun CategoryAllocationCard(
             .fillMaxWidth()
             .testTag("cat_alloc_card_${cat.id}"),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (allocation.isActive) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        ),
+        border = if (!allocation.isActive) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)) else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (allocation.isActive) 1.dp else 0.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Header Row: Category Icon, Name, Split Button
+            // Header Row: Category Icon, Name, Active Status Pill, Split Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -654,13 +685,13 @@ internal fun CategoryAllocationCard(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(catColor.copy(alpha = 0.16f)),
+                            .background(if (allocation.isActive) catColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = IconHelper.getIconByName(cat.iconName),
                             contentDescription = null,
-                            tint = catColor,
+                            tint = if (allocation.isActive) catColor else MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -668,18 +699,43 @@ internal fun CategoryAllocationCard(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = cat.localizedName(languageMode),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (allocation.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            // Active / Inactive Status Toggle Pill
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (allocation.isActive) SolidIncome.copy(alpha = 0.12f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onToggleActive?.invoke(!allocation.isActive) }
+                                    .testTag("toggle_active_cat_${cat.id}")
+                            ) {
+                                Text(
+                                    text = if (allocation.isActive) (if (languageMode == LanguageMode.BANGLA) "সক্রিয়" else "Active")
+                                    else (if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয়" else "Inactive"),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (allocation.isActive) SolidIncome else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                         Text(
-                            text = cat.localizedName(languageMode),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = if (isExpense) {
-                                "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                            text = if (allocation.isActive) {
+                                if (isExpense) {
+                                    "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                                } else {
+                                    "${if (languageMode == LanguageMode.BANGLA) "প্রত্যাশিত" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                                }
                             } else {
-                                "${if (languageMode == LanguageMode.BANGLA) "প্রত্যাশিত" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                                "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • (${if (languageMode == LanguageMode.BANGLA) "হিসেবে অন্তর্ভুক্ত নয়" else "Excluded from calc"})"
                             },
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant

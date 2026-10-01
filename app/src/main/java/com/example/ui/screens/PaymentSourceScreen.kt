@@ -173,7 +173,9 @@ fun PaymentSourceScreen(
     onSetPaymentSourceAccountIds: (Set<Long>) -> Unit = {},
     onSaveAccountObligation: (AccountObligation) -> Unit = {},
     onDeleteAccountObligation: (String) -> Unit = {},
-    onAccountClick: (Long) -> Unit = {}
+    onAccountClick: (Long) -> Unit = {},
+    onToggleCategoryActive: (Long, Boolean) -> Unit = { _, _ -> },
+    onToggleOtherAccountActive: (Long, Boolean) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
@@ -260,7 +262,7 @@ fun PaymentSourceScreen(
         allTransactions,
         recurringBills,
         selectedSourceAccountIds,
-        paymentSourceConfig.accountObligations,
+        paymentSourceConfig,
         accountCalcConfig
     ) {
         PaymentSourceCalculator.calculateAnalysis(
@@ -275,7 +277,8 @@ fun PaymentSourceScreen(
             recurringBills = recurringBills,
             selectedPaymentSourceIds = selectedSourceAccountIds,
             accountObligations = paymentSourceConfig.accountObligations,
-            accountCalcConfig = accountCalcConfig
+            accountCalcConfig = accountCalcConfig,
+            paymentSourceConfig = paymentSourceConfig
         )
     }
 
@@ -459,7 +462,9 @@ fun PaymentSourceScreen(
                         usageFrequencyMap = categoryUsageFrequencyMap,
                         onOpenCategorySplitDialog = { showCategorySplitDialog = it },
                         onOpenOtherAccountSplitDialog = { showOtherAccountSplitDialog = it },
-                        onAddTransactionWithAccount = onAddTransactionWithAccount
+                        onAddTransactionWithAccount = onAddTransactionWithAccount,
+                        onToggleCategoryActive = onToggleCategoryActive,
+                        onToggleOtherAccountActive = onToggleOtherAccountActive
                     )
                 }
             }

@@ -63,7 +63,8 @@ data class CategoryAllocationAnalysis(
     val totalRemaining: Double,
     val accountSplits: List<CategoryAccountSplit>,
     val isMultiAccount: Boolean = accountSplits.size > 1,
-    val isExpense: Boolean = true
+    val isExpense: Boolean = true,
+    val isActive: Boolean = true
 )
 
 data class OtherAccountAllocationAnalysis(
@@ -74,7 +75,8 @@ data class OtherAccountAllocationAnalysis(
     val totalRemaining: Double = 0.0,
     val accountSplits: List<CategoryAccountSplit> = emptyList(),
     val isMultiAccount: Boolean = accountSplits.size > 1,
-    val isExpense: Boolean = true // true: Payable/Liability; false: Receivable/Due to collect
+    val isExpense: Boolean = true, // true: Payable/Liability; false: Receivable/Due to collect
+    val isActive: Boolean = true
 )
 
 data class AccountObligationAnalysis(
@@ -83,7 +85,8 @@ data class AccountObligationAnalysis(
     val targetAccount: Account,
     val amount: Double,
     val isExpense: Boolean = true, // true: Pay payable/liability from source; false: Receive receivable into source
-    val note: String = ""
+    val note: String = "",
+    val isActive: Boolean = true
 )
 
 data class AccountRequirementAnalysis(

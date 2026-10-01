@@ -223,6 +223,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         paymentSourcePrefs.toggleSourceAccount(accountId, isSource, allCurrent)
     }
 
+    fun toggleCategoryActiveInPaymentSource(categoryId: Long, isActive: Boolean) {
+        paymentSourcePrefs.toggleCategoryActive(categoryId, isActive)
+    }
+
+    fun toggleOtherAccountActiveInPaymentSource(otherAccountId: Long, isActive: Boolean) {
+        paymentSourcePrefs.toggleOtherAccountActive(otherAccountId, isActive)
+    }
+
+    fun toggleAccountObligationActive(obligationId: String, isActive: Boolean) {
+        paymentSourcePrefs.toggleAccountObligationActive(obligationId, isActive)
+    }
+
     fun saveAccountObligation(obligation: com.example.util.AccountObligation) {
         paymentSourcePrefs.saveAccountObligation(obligation)
     }
