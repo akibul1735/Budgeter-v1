@@ -46,25 +46,25 @@ object IconHelper {
 
     val CATEGORIES = listOf(
         "All",
-        "BD Banks & MFS",
-        "Finance & Accounts",
-        "Income & Earnings",
-        "Food & Groceries",
-        "Shopping & Fashion",
-        "Bills & Housing",
-        "Health & Wellness",
-        "Education & Study",
-        "Transport & Travel",
-        "Islamic & Charity",
-        "Celebrations & Social",
-        "Repairs & Maintenance",
-        "Life & Work",
-        "Entertainment & Sports",
-        "Tech & Tools",
-        "Nature & Weather",
-        "Symbols",
         "Custom",
-        "Online Search"
+        "Online Search",
+        "BD Banks & MFS",
+        "Bills & Housing",
+        "Celebrations & Social",
+        "Education & Study",
+        "Entertainment & Sports",
+        "Finance & Accounts",
+        "Food & Groceries",
+        "Health & Wellness",
+        "Income & Earnings",
+        "Islamic & Charity",
+        "Life & Work",
+        "Nature & Weather",
+        "Repairs & Maintenance",
+        "Shopping & Fashion",
+        "Symbols",
+        "Tech & Tools",
+        "Transport & Travel"
     )
 
     val BUILTIN_ICONS: List<IconItem> = listOf(

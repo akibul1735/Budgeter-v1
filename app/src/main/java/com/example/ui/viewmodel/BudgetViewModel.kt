@@ -231,6 +231,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         paymentSourcePrefs.toggleOtherAccountActive(otherAccountId, isActive)
     }
 
+    fun toggleMultipleCategoriesActiveInPaymentSource(categoryIds: Collection<Long>, isActive: Boolean) {
+        paymentSourcePrefs.toggleMultipleCategoriesActive(categoryIds, isActive)
+    }
+
+    fun toggleMultipleOtherAccountsActiveInPaymentSource(otherAccountIds: Collection<Long>, isActive: Boolean) {
+        paymentSourcePrefs.toggleMultipleOtherAccountsActive(otherAccountIds, isActive)
+    }
+
     fun toggleAccountObligationActive(obligationId: String, isActive: Boolean) {
         paymentSourcePrefs.toggleAccountObligationActive(obligationId, isActive)
     }
@@ -1227,6 +1235,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    fun updateCategory(category: Category) = saveCategory(category)
 
     fun saveCategories(categories: List<Category>) {
         viewModelScope.launch {

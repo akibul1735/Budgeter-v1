@@ -175,7 +175,9 @@ fun PaymentSourceScreen(
     onDeleteAccountObligation: (String) -> Unit = {},
     onAccountClick: (Long) -> Unit = {},
     onToggleCategoryActive: (Long, Boolean) -> Unit = { _, _ -> },
-    onToggleOtherAccountActive: (Long, Boolean) -> Unit = { _, _ -> }
+    onToggleOtherAccountActive: (Long, Boolean) -> Unit = { _, _ -> },
+    onBulkToggleActive: (accountIds: List<Long>, categoryIds: List<Long>, isActive: Boolean) -> Unit = { _, _, _ -> },
+    onBulkAssignSource: (accountIds: List<Long>, categoryIds: List<Long>, sourceAccountId: Long) -> Unit = { _, _, _ -> }
 ) {
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
@@ -464,7 +466,9 @@ fun PaymentSourceScreen(
                         onOpenOtherAccountSplitDialog = { showOtherAccountSplitDialog = it },
                         onAddTransactionWithAccount = onAddTransactionWithAccount,
                         onToggleCategoryActive = onToggleCategoryActive,
-                        onToggleOtherAccountActive = onToggleOtherAccountActive
+                        onToggleOtherAccountActive = onToggleOtherAccountActive,
+                        onBulkToggleActive = onBulkToggleActive,
+                        onBulkAssignSource = onBulkAssignSource
                     )
                 }
             }

@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -160,13 +163,18 @@ internal fun SectionHeader(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun OtherAccountAllocationCard(
     allocation: OtherAccountAllocationAnalysis,
     languageMode: LanguageMode,
     onOpenSplit: () -> Unit,
     onAddTransaction: () -> Unit,
-    onToggleActive: ((Boolean) -> Unit)? = null
+    onToggleActive: ((Boolean) -> Unit)? = null,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onSelectToggle: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null
 ) {
     val acc = allocation.account
     val accColor = remember(acc.colorHex) {
@@ -180,13 +188,36 @@ internal fun OtherAccountAllocationCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("other_acc_card_${acc.id}"),
+            .testTag("other_acc_card_${acc.id}")
+            .clip(RoundedCornerShape(12.dp))
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        onSelectToggle?.invoke()
+                    } else {
+                        onOpenSplit()
+                    }
+                },
+                onLongClick = {
+                    onLongClick?.invoke()
+                }
+            ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (allocation.isActive) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            containerColor = if (isSelected) {
+                SolidPrimary.copy(alpha = 0.12f)
+            } else if (allocation.isActive) {
+                MaterialTheme.colorScheme.surface
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            }
         ),
-        border = if (!allocation.isActive) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (allocation.isActive) 1.dp else 0.dp)
+        border = when {
+            isSelected -> BorderStroke(2.dp, SolidPrimary)
+            !allocation.isActive -> BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            else -> null
+        },
+        elevation = CardDefaults.cardElevation(defaultElevation = if (allocation.isActive && !isSelected) 1.dp else 0.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             // Header Row: Account Icon, Name, Type Badge, Active Status Chip, Split Button
@@ -196,6 +227,18 @@ internal fun OtherAccountAllocationCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onSelectToggle?.invoke() },
+                            modifier = Modifier.size(28.dp).padding(end = 4.dp),
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = SolidPrimary,
+                                uncheckedColor = MaterialTheme.colorScheme.outline
+                            )
+                        )
+                    }
+
                     val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
                     Box(
                         modifier = Modifier
@@ -645,13 +688,18 @@ internal fun ItemizedRequirementRow(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun CategoryAllocationCard(
     allocation: CategoryAllocationAnalysis,
     isExpense: Boolean,
     languageMode: LanguageMode,
     onOpenSplit: () -> Unit,
-    onToggleActive: ((Boolean) -> Unit)? = null
+    onToggleActive: ((Boolean) -> Unit)? = null,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onSelectToggle: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null
 ) {
     val cat = allocation.category
     val catColor = remember(cat.colorHex) {
@@ -665,13 +713,36 @@ internal fun CategoryAllocationCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("cat_alloc_card_${cat.id}"),
+            .testTag("cat_alloc_card_${cat.id}")
+            .clip(RoundedCornerShape(12.dp))
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        onSelectToggle?.invoke()
+                    } else {
+                        onOpenSplit()
+                    }
+                },
+                onLongClick = {
+                    onLongClick?.invoke()
+                }
+            ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (allocation.isActive) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            containerColor = if (isSelected) {
+                SolidPrimary.copy(alpha = 0.12f)
+            } else if (allocation.isActive) {
+                MaterialTheme.colorScheme.surface
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            }
         ),
-        border = if (!allocation.isActive) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (allocation.isActive) 1.dp else 0.dp)
+        border = when {
+            isSelected -> BorderStroke(2.dp, SolidPrimary)
+            !allocation.isActive -> BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            else -> null
+        },
+        elevation = CardDefaults.cardElevation(defaultElevation = if (allocation.isActive && !isSelected) 1.dp else 0.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             // Header Row: Category Icon, Name, Active Status Pill, Split Button
@@ -681,6 +752,18 @@ internal fun CategoryAllocationCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onSelectToggle?.invoke() },
+                            modifier = Modifier.size(28.dp).padding(end = 4.dp),
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = SolidPrimary,
+                                uncheckedColor = MaterialTheme.colorScheme.outline
+                            )
+                        )
+                    }
+
                     Box(
                         modifier = Modifier
                             .size(32.dp)

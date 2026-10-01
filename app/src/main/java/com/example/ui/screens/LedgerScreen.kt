@@ -211,10 +211,17 @@ fun LedgerScreen(
     onAccountClick: ((Account) -> Unit)? = null,
     onUpdateTransactions: (List<Transaction>) -> Unit = {},
     onDeleteTransactions: (List<Transaction>) -> Unit = {},
-    onDeleteTransaction: (Transaction) -> Unit = {}
+    onDeleteTransaction: (Transaction) -> Unit = {},
+    onSaveItemImageCache: ((String, String) -> Unit)? = null,
+    onUpdateCategory: ((Category) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
+    // Change Icon States
+    var itemForIconChange by remember { mutableStateOf<TransactionWithDetails?>(null) }
+    var showChangeIconConfirmDialog by remember { mutableStateOf(false) }
+    var showIconPickerForTransaction by remember { mutableStateOf(false) }
 
     // Search & Filter state - remembered and restored from TabFilterPreferences
     var searchQuery by remember { mutableStateOf(tabFilterPrefs.ledgerSearchQuery) }
@@ -1249,6 +1256,10 @@ fun LedgerScreen(
                                             },
                                             onLongClick = {
                                                 selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
+                                            },
+                                            onIconClick = {
+                                                itemForIconChange = item
+                                                showChangeIconConfirmDialog = true
                                             }
                                         )
                                     }
@@ -1293,6 +1304,10 @@ fun LedgerScreen(
                                             },
                                             onLongClick = {
                                                 selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
+                                            },
+                                            onIconClick = {
+                                                itemForIconChange = item
+                                                showChangeIconConfirmDialog = true
                                             }
                                         )
                                     }
@@ -1342,6 +1357,10 @@ fun LedgerScreen(
                                             } else {
                                                 selectedTransactionIds + tx.id
                                             }
+                                        },
+                                        onIconClick = {
+                                            itemForIconChange = item
+                                            showChangeIconConfirmDialog = true
                                         }
                                     )
                                 }
@@ -1381,6 +1400,87 @@ fun LedgerScreen(
             onShowSimilar = { query ->
                 viewingTransactionItem = null
                 searchQuery = query
+            }
+        )
+    }
+
+    // Change Icon Confirmation Dialog & IconPickerModal
+    if (showChangeIconConfirmDialog && itemForIconChange != null) {
+        val targetItem = itemForIconChange!!
+        val targetTitle = targetItem.transaction.payeeOrPayer.ifBlank {
+            targetItem.category?.localizedName(languageMode) ?: targetItem.transaction.note.ifBlank { "Transaction" }
+        }
+        AlertDialog(
+            onDismissRequest = {
+                showChangeIconConfirmDialog = false
+                itemForIconChange = null
+            },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "আইকন পরিবর্তন" else "Change Icon",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA)
+                        "\"$targetTitle\" এর জন্য আইকন পরিবর্তন করতে চান?"
+                    else
+                        "Want to change icon for \"$targetTitle\"?",
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showChangeIconConfirmDialog = false
+                        showIconPickerForTransaction = true
+                    }
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "হ্যাঁ" else "Yes")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showChangeIconConfirmDialog = false
+                        itemForIconChange = null
+                    }
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "না" else "No")
+                }
+            }
+        )
+    }
+
+    if (showIconPickerForTransaction && itemForIconChange != null) {
+        val targetItem = itemForIconChange!!
+        val currentIcon = com.example.util.ItemCacheHelper.resolveTransactionIconName(targetItem, itemImageCacheMap)
+        val initialQuery = targetItem.transaction.payeeOrPayer.ifBlank {
+            targetItem.category?.nameEn ?: targetItem.transaction.note
+        }
+        com.example.ui.components.IconPickerModal(
+            selectedIconName = currentIcon,
+            initialQuery = initialQuery,
+            onIconSelected = { newIcon ->
+                val payee = targetItem.transaction.payeeOrPayer.trim()
+                val note = targetItem.transaction.note.trim()
+                val cat = targetItem.category
+
+                if (payee.isNotBlank()) {
+                    onSaveItemImageCache?.invoke(payee, newIcon)
+                } else if (note.isNotBlank()) {
+                    onSaveItemImageCache?.invoke(note, newIcon)
+                }
+                if (cat != null) {
+                    onUpdateCategory?.invoke(cat.copy(iconName = newIcon))
+                }
+                showIconPickerForTransaction = false
+                itemForIconChange = null
+            },
+            onDismiss = {
+                showIconPickerForTransaction = false
+                itemForIconChange = null
             }
         )
     }
@@ -1631,7 +1731,8 @@ internal fun TransactionRowItem(
     overrideAmtColor: Color? = null,
     targetAccount: Account? = null,
     onClick: () -> Unit,
-    onLongClick: () -> Unit = {}
+    onLongClick: () -> Unit = {},
+    onIconClick: (() -> Unit)? = null
 ) {
     val tx = item.transaction
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -1803,7 +1904,10 @@ internal fun TransactionRowItem(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(if (isImage) Color.Transparent else catBg),
+                        .background(if (isImage) Color.Transparent else catBg)
+                        .clickable(enabled = onIconClick != null && !isSelectionMode) {
+                            onIconClick?.invoke()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     IconHelper.AppIcon(

@@ -137,6 +137,32 @@ class PaymentSourcePreferences private constructor(context: Context) {
         _config.value = _config.value.copy(inactiveCategoryIds = currentSet)
     }
 
+    fun toggleMultipleCategoriesActive(categoryIds: Collection<Long>, isActive: Boolean) {
+        val currentSet = _config.value.inactiveCategoryIds.toMutableSet()
+        if (isActive) {
+            currentSet.removeAll(categoryIds.toSet())
+        } else {
+            currentSet.addAll(categoryIds)
+        }
+        prefs.edit()
+            .putStringSet(KEY_INACTIVE_CATEGORIES, currentSet.map { it.toString() }.toSet())
+            .apply()
+        _config.value = _config.value.copy(inactiveCategoryIds = currentSet)
+    }
+
+    fun toggleMultipleOtherAccountsActive(otherAccountIds: Collection<Long>, isActive: Boolean) {
+        val currentSet = _config.value.inactiveOtherAccountIds.toMutableSet()
+        if (isActive) {
+            currentSet.removeAll(otherAccountIds.toSet())
+        } else {
+            currentSet.addAll(otherAccountIds)
+        }
+        prefs.edit()
+            .putStringSet(KEY_INACTIVE_OTHER_ACCOUNTS, currentSet.map { it.toString() }.toSet())
+            .apply()
+        _config.value = _config.value.copy(inactiveOtherAccountIds = currentSet)
+    }
+
     fun toggleOtherAccountActive(otherAccountId: Long, isActive: Boolean) {
         val currentSet = _config.value.inactiveOtherAccountIds.toMutableSet()
         if (isActive) {

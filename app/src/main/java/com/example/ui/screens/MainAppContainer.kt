@@ -2752,7 +2752,13 @@ private fun ScreenRouter(
                 onTransactionClick = onEditTransaction,
                 onAccountClick = onAccountClick,
                 onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) },
-                onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
+                onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) },
+                onSaveItemImageCache = { itemName, iconKey ->
+                    viewModel.researchAndReplaceItemImage(itemName, iconKey)
+                },
+                onUpdateCategory = { cat ->
+                    viewModel.updateCategory(cat)
+                }
             )
         }
         AppView.CASH_FLOW -> {
@@ -2867,6 +2873,22 @@ private fun ScreenRouter(
                 },
                 onToggleOtherAccountActive = { otherAccountId, isActive ->
                     viewModel.toggleOtherAccountActiveInPaymentSource(otherAccountId, isActive)
+                },
+                onBulkToggleActive = { accountIds, categoryIds, isActive ->
+                    if (accountIds.isNotEmpty()) {
+                        viewModel.toggleMultipleOtherAccountsActiveInPaymentSource(accountIds, isActive)
+                    }
+                    if (categoryIds.isNotEmpty()) {
+                        viewModel.toggleMultipleCategoriesActiveInPaymentSource(categoryIds, isActive)
+                    }
+                },
+                onBulkAssignSource = { accountIds, categoryIds, sourceAccountId ->
+                    categoryIds.forEach { catId ->
+                        viewModel.saveCategoryAccountAllocations(catId, mapOf(sourceAccountId to 100.0))
+                    }
+                    accountIds.forEach { otherAccId ->
+                        viewModel.saveLinksForOtherAccount(otherAccId, listOf(sourceAccountId))
+                    }
                 }
             )
         }
