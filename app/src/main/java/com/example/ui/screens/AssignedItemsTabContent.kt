@@ -199,7 +199,7 @@ internal fun AssignedItemsTabContent(
     val parentCategoryMap = remember(allCategories) { allCategories.associateBy { it.id } }
 
     val totalItemsShown = when (sectionFilter) {
-        AssignedItemSectionFilter.ALL -> sortedOtherAccounts.size + sortedExpenses.size + sortedIncomes.size
+        AssignedItemSectionFilter.ALL, AssignedItemSectionFilter.ONLY_ITEMS -> sortedOtherAccounts.size + sortedExpenses.size + sortedIncomes.size
         AssignedItemSectionFilter.OTHER_ACCOUNTS -> sortedOtherAccounts.size
         AssignedItemSectionFilter.EXPENSES -> sortedExpenses.size
         AssignedItemSectionFilter.INCOMES -> sortedIncomes.size
@@ -223,13 +223,13 @@ internal fun AssignedItemsTabContent(
 
     val visibleKeys = remember(sortedOtherAccounts, sortedExpenses, sortedIncomes, sectionFilter) {
         val keys = mutableSetOf<String>()
-        if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) {
+        if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS || sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) {
             sortedOtherAccounts.forEach { keys.add("OTHER_ACC_${it.account.id}") }
         }
-        if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.EXPENSES) {
+        if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS || sectionFilter == AssignedItemSectionFilter.EXPENSES) {
             sortedExpenses.forEach { keys.add("EXPENSE_${it.category.id}") }
         }
-        if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.INCOMES) {
+        if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS || sectionFilter == AssignedItemSectionFilter.INCOMES) {
             sortedIncomes.forEach { keys.add("INCOME_${it.category.id}") }
         }
         keys
@@ -489,6 +489,19 @@ internal fun AssignedItemsTabContent(
                             label = if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Items"
                         )
                         CompactAssignedFilterChip(
+                            selected = sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS,
+                            onClick = { onSectionFilterChange(AssignedItemSectionFilter.ONLY_ITEMS) },
+                            label = if (languageMode == LanguageMode.BANGLA) "শুধু আইটেম" else "Only Items",
+                            leadingIcon = {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.List,
+                                    contentDescription = null,
+                                    tint = if (sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        )
+                        CompactAssignedFilterChip(
                             selected = sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS,
                             onClick = { onSectionFilterChange(AssignedItemSectionFilter.OTHER_ACCOUNTS) },
                             label = if (languageMode == LanguageMode.BANGLA) "অন্যান্য (${overview.otherAccountAllocations.count { it.isActive == isTargetActive }})" else "Other Accounts (${overview.otherAccountAllocations.count { it.isActive == isTargetActive }})",
@@ -593,7 +606,7 @@ internal fun AssignedItemsTabContent(
 
                         Spacer(modifier = Modifier.width(6.dp))
 
-                        // Sorting Option Dropdown Button (Moved to right side)
+                        // Sorting Option Dropdown Button (Compact icon only)
                         Box {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -603,28 +616,15 @@ internal fun AssignedItemsTabContent(
                                 color = if (sortOption != AssignedItemSortOption.DEFAULT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 border = BorderStroke(1.dp, if (sortOption != AssignedItemSortOption.DEFAULT) SolidPrimary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Sort,
                                         contentDescription = "Sort",
                                         tint = if (sortOption != AssignedItemSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) sortOption.titleBn else sortOption.titleEn,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (sortOption != AssignedItemSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDropDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 }
                             }
@@ -662,6 +662,61 @@ internal fun AssignedItemsTabContent(
                 }
             }
 
+            // Selected Account banner if filtered by an account from payment source tab
+            if (selectedAccountId != null && selectedAccount != null) {
+                item(key = "selected_account_banner") {
+                    val basisLabel = if (overview.calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT) {
+                        if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"
+                    } else {
+                        if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"
+                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    IconHelper.getIconByName(selectedAccount.iconName),
+                                    contentDescription = null,
+                                    tint = SolidPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA)
+                                        "${selectedAccount.localizedName(languageMode)} এর বরাদ্দ ($basisLabel)"
+                                    else
+                                        "Assigned to ${selectedAccount.localizedName(languageMode)} ($basisLabel)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            IconButton(
+                                onClick = onClearAccountFilter,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Empty state check
             if (totalItemsShown == 0) {
                 item {
@@ -671,9 +726,11 @@ internal fun AssignedItemsTabContent(
                 }
             }
 
-            // 4. Section: Other Accounts (Grouped by original Account Group)
-            if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) && sortedOtherAccounts.isNotEmpty()) {
-                if (sectionFilter == AssignedItemSectionFilter.ALL) {
+            val isWithoutGroups = sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS || selectedAccountId != null
+
+            // 4. Section: Other Accounts
+            if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS || sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) && sortedOtherAccounts.isNotEmpty()) {
+                if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS) {
                     item {
                         SectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য অ্যাকাউন্ট (ব্যক্তি / ঋণ / দেনা)" else "Other Accounts (Persons, Loans, Liabilities)",
@@ -684,51 +741,91 @@ internal fun AssignedItemsTabContent(
                     }
                 }
 
-                groupedOtherAccounts.forEach { (parentId, itemsInGroup) ->
-                    val parentAccount = parentId?.let { parentAccountMap[it] }
-                    val groupTitle = parentAccount?.localizedName(languageMode)
-                        ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ অ্যাকাউন্ট" else "General Accounts"
-                    val groupIcon = parentAccount?.iconName ?: "account_balance"
-
-                    item(key = "hdr_other_acc_group_${parentId ?: -1L}") {
-                        ItemGroupHeader(
-                            title = groupTitle,
-                            count = itemsInGroup.size,
-                            iconName = groupIcon,
-                            color = SolidTransfer
-                        )
-                    }
-
-                    items(itemsInGroup, key = { "other_acc_${it.account.id}" }) { otherAccAlloc ->
+                if (isWithoutGroups) {
+                    items(sortedOtherAccounts, key = { "compact_other_${it.account.id}" }) { otherAccAlloc ->
                         val itemKey = "OTHER_ACC_${otherAccAlloc.account.id}"
                         val isSelected = selectedItemKeys.contains(itemKey)
-                        OtherAccountAllocationCard(
-                            allocation = otherAccAlloc,
+                        val split = if (selectedAccountId != null) otherAccAlloc.accountSplits.find { it.account.id == selectedAccountId } else null
+                        val isBudgetBasis = overview.calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT
+                        val amt = if (selectedAccountId != null) {
+                            if (isBudgetBasis) (split?.allocatedAmount ?: otherAccAlloc.totalBudgeted) else (split?.remaining ?: otherAccAlloc.totalRemaining)
+                        } else {
+                            if (isBudgetBasis) otherAccAlloc.totalBudgeted else otherAccAlloc.totalRemaining
+                        }
+                        val amtLabel = if (isBudgetBasis) {
+                            if (languageMode == LanguageMode.BANGLA) "বরাদ্দ বাজেট" else "Assigned Budget"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "বরাদ্দ অবশিষ্ট" else "Assigned Remaining"
+                        }
+                        CompactAssignedItemRow(
+                            title = otherAccAlloc.account.localizedName(languageMode),
+                            subtitle = if (otherAccAlloc.isExpense) (if (languageMode == LanguageMode.BANGLA) "দেনা / ঋণ" else "Payable") else (if (languageMode == LanguageMode.BANGLA) "পাওনা" else "Receivable"),
+                            iconName = otherAccAlloc.account.iconName,
+                            iconColor = SolidTransfer,
+                            amount = amt,
+                            amountTypeLabel = amtLabel,
+                            amountColor = SolidTransfer,
                             languageMode = languageMode,
-                            onOpenSplit = { onOpenOtherAccountSplitDialog(otherAccAlloc) },
-                            onAddTransaction = {
-                                val txType = if (otherAccAlloc.isExpense) TransactionType.EXPENSE else TransactionType.INCOME
-                                onAddTransactionWithAccount(otherAccAlloc.account.id, txType)
-                            },
-                            onToggleActive = { active ->
-                                onToggleOtherAccountActive(otherAccAlloc.account.id, active)
+                            isSplitAcrossSources = otherAccAlloc.isMultiAccount,
+                            splitBadgeText = if (otherAccAlloc.isMultiAccount) "${otherAccAlloc.accountSplits.size} Sources" else null,
+                            onClick = { onOpenOtherAccountSplitDialog(otherAccAlloc) },
+                            onLongClick = {
+                                selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
                             },
                             isSelected = isSelected,
                             isSelectionMode = isSelectionMode,
                             onSelectToggle = {
                                 selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
-                            },
-                            onLongClick = {
-                                selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
                             }
                         )
+                    }
+                } else {
+                    groupedOtherAccounts.forEach { (parentId, itemsInGroup) ->
+                        val parentAccount = parentId?.let { parentAccountMap[it] }
+                        val groupTitle = parentAccount?.localizedName(languageMode)
+                            ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ অ্যাকাউন্ট" else "General Accounts"
+                        val groupIcon = parentAccount?.iconName ?: "account_balance"
+
+                        item(key = "hdr_other_acc_group_${parentId ?: -1L}") {
+                            ItemGroupHeader(
+                                title = groupTitle,
+                                count = itemsInGroup.size,
+                                iconName = groupIcon,
+                                color = SolidTransfer
+                            )
+                        }
+
+                        items(itemsInGroup, key = { "other_acc_${it.account.id}" }) { otherAccAlloc ->
+                            val itemKey = "OTHER_ACC_${otherAccAlloc.account.id}"
+                            val isSelected = selectedItemKeys.contains(itemKey)
+                            OtherAccountAllocationCard(
+                                allocation = otherAccAlloc,
+                                languageMode = languageMode,
+                                onOpenSplit = { onOpenOtherAccountSplitDialog(otherAccAlloc) },
+                                onAddTransaction = {
+                                    val txType = if (otherAccAlloc.isExpense) TransactionType.EXPENSE else TransactionType.INCOME
+                                    onAddTransactionWithAccount(otherAccAlloc.account.id, txType)
+                                },
+                                onToggleActive = { active ->
+                                    onToggleOtherAccountActive(otherAccAlloc.account.id, active)
+                                },
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onSelectToggle = {
+                                    selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
+                                },
+                                onLongClick = {
+                                    selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
+                                }
+                            )
+                        }
                     }
                 }
             }
 
-            // 5. Section: Expense Categories (Grouped by original Category Group)
-            if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.EXPENSES) && sortedExpenses.isNotEmpty()) {
-                if (sectionFilter == AssignedItemSectionFilter.ALL) {
+            // 5. Section: Expense Categories
+            if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS || sectionFilter == AssignedItemSectionFilter.EXPENSES) && sortedExpenses.isNotEmpty()) {
+                if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS) {
                     item {
                         SectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "ব্যয় ক্যাটাগরি" else "Expense Categories",
@@ -739,53 +836,99 @@ internal fun AssignedItemsTabContent(
                     }
                 }
 
-                groupedExpenses.forEach { (parentId, itemsInGroup) ->
-                    val parentCat = parentId?.let { parentCategoryMap[it] }
-                    val groupTitle = parentCat?.localizedName(languageMode)
-                        ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ ব্যয়" else "General Expenses"
-                    val groupIcon = parentCat?.iconName ?: "category"
-                    val groupColor = try {
-                        Color(android.graphics.Color.parseColor(parentCat?.colorHex))
-                    } catch (e: Exception) {
-                        SolidExpense
-                    }
-
-                    item(key = "hdr_expense_group_${parentId ?: -1L}") {
-                        ItemGroupHeader(
-                            title = groupTitle,
-                            count = itemsInGroup.size,
-                            iconName = groupIcon,
-                            color = groupColor
-                        )
-                    }
-
-                    items(itemsInGroup, key = { "expense_${it.category.id}" }) { catAlloc ->
+                if (isWithoutGroups) {
+                    items(sortedExpenses, key = { "compact_expense_${it.category.id}" }) { catAlloc ->
                         val itemKey = "EXPENSE_${catAlloc.category.id}"
                         val isSelected = selectedItemKeys.contains(itemKey)
-                        CategoryAllocationCard(
-                            allocation = catAlloc,
-                            isExpense = true,
+                        val split = if (selectedAccountId != null) catAlloc.accountSplits.find { it.account.id == selectedAccountId } else null
+                        val isBudgetBasis = overview.calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT
+                        val amt = if (selectedAccountId != null) {
+                            if (isBudgetBasis) (split?.allocatedAmount ?: catAlloc.totalBudgeted) else (split?.remaining ?: catAlloc.totalRemaining)
+                        } else {
+                            if (isBudgetBasis) catAlloc.totalBudgeted else catAlloc.totalRemaining
+                        }
+                        val amtLabel = if (isBudgetBasis) {
+                            if (languageMode == LanguageMode.BANGLA) "বরাদ্দ বাজেট" else "Assigned Budget"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "বরাদ্দ অবশিষ্ট" else "Assigned Remaining"
+                        }
+                        val catColor = try {
+                            Color(android.graphics.Color.parseColor(catAlloc.category.colorHex))
+                        } catch (e: Exception) {
+                            SolidExpense
+                        }
+                        val parentCat = catAlloc.category.parentId?.let { parentCategoryMap[it] }
+                        CompactAssignedItemRow(
+                            title = catAlloc.category.localizedName(languageMode),
+                            subtitle = parentCat?.localizedName(languageMode),
+                            iconName = catAlloc.category.iconName,
+                            iconColor = catColor,
+                            amount = amt,
+                            amountTypeLabel = amtLabel,
+                            amountColor = SolidExpense,
                             languageMode = languageMode,
-                            onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
-                            onToggleActive = { active ->
-                                onToggleCategoryActive(catAlloc.category.id, active)
+                            isSplitAcrossSources = catAlloc.isMultiAccount,
+                            splitBadgeText = if (catAlloc.isMultiAccount) "${catAlloc.accountSplits.size} Sources" else null,
+                            onClick = { onOpenCategorySplitDialog(catAlloc) },
+                            onLongClick = {
+                                selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
                             },
                             isSelected = isSelected,
                             isSelectionMode = isSelectionMode,
                             onSelectToggle = {
                                 selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
-                            },
-                            onLongClick = {
-                                selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
                             }
                         )
+                    }
+                } else {
+                    groupedExpenses.forEach { (parentId, itemsInGroup) ->
+                        val parentCat = parentId?.let { parentCategoryMap[it] }
+                        val groupTitle = parentCat?.localizedName(languageMode)
+                            ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ ব্যয়" else "General Expenses"
+                        val groupIcon = parentCat?.iconName ?: "category"
+                        val groupColor = try {
+                            Color(android.graphics.Color.parseColor(parentCat?.colorHex))
+                        } catch (e: Exception) {
+                            SolidExpense
+                        }
+
+                        item(key = "hdr_expense_group_${parentId ?: -1L}") {
+                            ItemGroupHeader(
+                                title = groupTitle,
+                                count = itemsInGroup.size,
+                                iconName = groupIcon,
+                                color = groupColor
+                            )
+                        }
+
+                        items(itemsInGroup, key = { "expense_${it.category.id}" }) { catAlloc ->
+                            val itemKey = "EXPENSE_${catAlloc.category.id}"
+                            val isSelected = selectedItemKeys.contains(itemKey)
+                            CategoryAllocationCard(
+                                allocation = catAlloc,
+                                isExpense = true,
+                                languageMode = languageMode,
+                                onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
+                                onToggleActive = { active ->
+                                    onToggleCategoryActive(catAlloc.category.id, active)
+                                },
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onSelectToggle = {
+                                    selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
+                                },
+                                onLongClick = {
+                                    selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
+                                }
+                            )
+                        }
                     }
                 }
             }
 
-            // 6. Section: Income Categories (Grouped by original Category Group)
-            if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.INCOMES) && sortedIncomes.isNotEmpty()) {
-                if (sectionFilter == AssignedItemSectionFilter.ALL) {
+            // 6. Section: Income Categories
+            if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS || sectionFilter == AssignedItemSectionFilter.INCOMES) && sortedIncomes.isNotEmpty()) {
+                if (sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.ONLY_ITEMS) {
                     item {
                         SectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "আয় ক্যাটাগরি" else "Income Categories",
@@ -796,46 +939,92 @@ internal fun AssignedItemsTabContent(
                     }
                 }
 
-                groupedIncomes.forEach { (parentId, itemsInGroup) ->
-                    val parentCat = parentId?.let { parentCategoryMap[it] }
-                    val groupTitle = parentCat?.localizedName(languageMode)
-                        ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ আয়" else "General Income"
-                    val groupIcon = parentCat?.iconName ?: "payments"
-                    val groupColor = try {
-                        Color(android.graphics.Color.parseColor(parentCat?.colorHex))
-                    } catch (e: Exception) {
-                        SolidIncome
-                    }
-
-                    item(key = "hdr_income_group_${parentId ?: -1L}") {
-                        ItemGroupHeader(
-                            title = groupTitle,
-                            count = itemsInGroup.size,
-                            iconName = groupIcon,
-                            color = groupColor
-                        )
-                    }
-
-                    items(itemsInGroup, key = { "income_${it.category.id}" }) { catAlloc ->
+                if (isWithoutGroups) {
+                    items(sortedIncomes, key = { "compact_income_${it.category.id}" }) { catAlloc ->
                         val itemKey = "INCOME_${catAlloc.category.id}"
                         val isSelected = selectedItemKeys.contains(itemKey)
-                        CategoryAllocationCard(
-                            allocation = catAlloc,
-                            isExpense = false,
+                        val split = if (selectedAccountId != null) catAlloc.accountSplits.find { it.account.id == selectedAccountId } else null
+                        val isBudgetBasis = overview.calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT
+                        val amt = if (selectedAccountId != null) {
+                            if (isBudgetBasis) (split?.allocatedAmount ?: catAlloc.totalBudgeted) else (split?.remaining ?: catAlloc.totalRemaining)
+                        } else {
+                            if (isBudgetBasis) catAlloc.totalBudgeted else catAlloc.totalRemaining
+                        }
+                        val amtLabel = if (isBudgetBasis) {
+                            if (languageMode == LanguageMode.BANGLA) "প্রত্যাশিত আয়" else "Assigned Income"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট আয়" else "Remaining Income"
+                        }
+                        val catColor = try {
+                            Color(android.graphics.Color.parseColor(catAlloc.category.colorHex))
+                        } catch (e: Exception) {
+                            SolidIncome
+                        }
+                        val parentCat = catAlloc.category.parentId?.let { parentCategoryMap[it] }
+                        CompactAssignedItemRow(
+                            title = catAlloc.category.localizedName(languageMode),
+                            subtitle = parentCat?.localizedName(languageMode),
+                            iconName = catAlloc.category.iconName,
+                            iconColor = catColor,
+                            amount = amt,
+                            amountTypeLabel = amtLabel,
+                            amountColor = SolidIncome,
                             languageMode = languageMode,
-                            onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
-                            onToggleActive = { active ->
-                                onToggleCategoryActive(catAlloc.category.id, active)
+                            isSplitAcrossSources = catAlloc.isMultiAccount,
+                            splitBadgeText = if (catAlloc.isMultiAccount) "${catAlloc.accountSplits.size} Sources" else null,
+                            onClick = { onOpenCategorySplitDialog(catAlloc) },
+                            onLongClick = {
+                                selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
                             },
                             isSelected = isSelected,
                             isSelectionMode = isSelectionMode,
                             onSelectToggle = {
                                 selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
-                            },
-                            onLongClick = {
-                                selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
                             }
                         )
+                    }
+                } else {
+                    groupedIncomes.forEach { (parentId, itemsInGroup) ->
+                        val parentCat = parentId?.let { parentCategoryMap[it] }
+                        val groupTitle = parentCat?.localizedName(languageMode)
+                            ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ আয়" else "General Income"
+                        val groupIcon = parentCat?.iconName ?: "payments"
+                        val groupColor = try {
+                            Color(android.graphics.Color.parseColor(parentCat?.colorHex))
+                        } catch (e: Exception) {
+                            SolidIncome
+                        }
+
+                        item(key = "hdr_income_group_${parentId ?: -1L}") {
+                            ItemGroupHeader(
+                                title = groupTitle,
+                                count = itemsInGroup.size,
+                                iconName = groupIcon,
+                                color = groupColor
+                            )
+                        }
+
+                        items(itemsInGroup, key = { "income_${it.category.id}" }) { catAlloc ->
+                            val itemKey = "INCOME_${catAlloc.category.id}"
+                            val isSelected = selectedItemKeys.contains(itemKey)
+                            CategoryAllocationCard(
+                                allocation = catAlloc,
+                                isExpense = false,
+                                languageMode = languageMode,
+                                onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
+                                onToggleActive = { active ->
+                                    onToggleCategoryActive(catAlloc.category.id, active)
+                                },
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onSelectToggle = {
+                                    selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
+                                },
+                                onLongClick = {
+                                    selectedItemKeys = if (isSelected) selectedItemKeys - itemKey else selectedItemKeys + itemKey
+                                }
+                            )
+                        }
                     }
                 }
             }

@@ -7,6 +7,7 @@ enum class MainPaymentSourceTab {
 
 enum class AssignedItemSectionFilter {
     ALL,
+    ONLY_ITEMS,
     OTHER_ACCOUNTS,
     EXPENSES,
     INCOMES

@@ -344,7 +344,7 @@ internal fun AccountsPaymentSourceTabContent(
             }
         }
 
-        // Account Status Filter Chips & Sort
+        // Account Status Filter Chips & Sort (Compact layout)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -354,31 +354,37 @@ internal fun AccountsPaymentSourceTabContent(
                     modifier = Modifier
                         .weight(1f)
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    FilterChip(
+                    CompactAssignedFilterChip(
                         selected = accountStatusFilter == AccountStatusFilter.ALL,
                         onClick = { onStatusFilterChange(AccountStatusFilter.ALL) },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল (${overview.accountAnalyses.size})" else "All (${overview.accountAnalyses.size})", fontSize = 11.sp) }
+                        label = if (languageMode == LanguageMode.BANGLA) "সকল (${overview.accountAnalyses.size})" else "All (${overview.accountAnalyses.size})"
                     )
-                    FilterChip(
+                    CompactAssignedFilterChip(
                         selected = accountStatusFilter == AccountStatusFilter.SHORTFALL_ONLY,
                         onClick = { onStatusFilterChange(AccountStatusFilter.SHORTFALL_ONLY) },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "ঘাটতি (${overview.accountsNeedingFundsCount})" else "Shortfall (${overview.accountsNeedingFundsCount})", fontSize = 11.sp) },
-                        leadingIcon = { if (overview.accountsNeedingFundsCount > 0) Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(14.dp)) }
+                        label = if (languageMode == LanguageMode.BANGLA) "ঘাটতি (${overview.accountsNeedingFundsCount})" else "Shortfall (${overview.accountsNeedingFundsCount})",
+                        leadingIcon = if (overview.accountsNeedingFundsCount > 0) {
+                            { Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(13.dp)) }
+                        } else null,
+                        selectedColor = SolidExpense
                     )
-                    FilterChip(
+                    CompactAssignedFilterChip(
                         selected = accountStatusFilter == AccountStatusFilter.SURPLUS_ONLY,
                         onClick = { onStatusFilterChange(AccountStatusFilter.SURPLUS_ONLY) },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত (${overview.accountsWithSurplusCount})" else "Surplus (${overview.accountsWithSurplusCount})", fontSize = 11.sp) },
-                        leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(14.dp)) }
+                        label = if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত (${overview.accountsWithSurplusCount})" else "Surplus (${overview.accountsWithSurplusCount})",
+                        leadingIcon = {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(13.dp))
+                        },
+                        selectedColor = SolidIncome
                     )
                 }
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Sort Button with DropdownMenu (Moved to right side)
+                // Sort Button with DropdownMenu (Compact icon only)
                 Box {
                     Surface(
                         modifier = Modifier
@@ -388,28 +394,15 @@ internal fun AccountsPaymentSourceTabContent(
                         color = if (sortOption != PaymentSourceSortOption.DEFAULT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         border = BorderStroke(1.dp, if (sortOption != PaymentSourceSortOption.DEFAULT) SolidPrimary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Box(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Sort,
                                 contentDescription = "Sort",
                                 tint = if (sortOption != PaymentSourceSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) sortOption.titleBn else sortOption.titleEn,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (sortOption != PaymentSourceSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }

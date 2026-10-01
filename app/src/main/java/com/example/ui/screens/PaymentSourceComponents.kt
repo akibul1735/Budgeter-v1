@@ -1005,3 +1005,147 @@ internal fun CompactAssignedFilterChip(
         }
     }
 }
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+internal fun CompactAssignedItemRow(
+    title: String,
+    subtitle: String? = null,
+    iconName: String,
+    iconColor: Color,
+    amount: Double,
+    amountTypeLabel: String,
+    amountColor: Color,
+    languageMode: LanguageMode,
+    isSplitAcrossSources: Boolean = false,
+    splitBadgeText: String? = null,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onSelectToggle: () -> Unit = {}
+) {
+    val isImg = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
+    val rowBg = if (isSelected) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) onSelectToggle() else onClick()
+                },
+                onLongClick = onLongClick
+            ),
+        shape = RoundedCornerShape(8.dp),
+        color = rowBg,
+        border = BorderStroke(
+            if (isSelected) 1.5.dp else 0.5.dp,
+            if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        tonalElevation = if (isSelected) 2.dp else 0.5.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onSelectToggle() },
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(if (isImg) Color.Transparent else iconColor.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconHelper.AppIcon(
+                        iconName = iconName,
+                        contentDescription = null,
+                        tint = if (isImg) Color.Unspecified else iconColor,
+                        modifier = Modifier.size(if (isImg) 32.dp else 17.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        if (!subtitle.isNullOrBlank()) {
+                            Text(
+                                text = subtitle,
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (isSplitAcrossSources) {
+                            Surface(
+                                shape = RoundedCornerShape(3.dp),
+                                color = SolidPrimary.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = splitBadgeText ?: (if (languageMode == LanguageMode.BANGLA) "বিভক্ত" else "Split"),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidPrimary,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = LanguageHelper.formatCurrency(amount, languageMode),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = amountColor
+                )
+                Text(
+                    text = amountTypeLabel,
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
