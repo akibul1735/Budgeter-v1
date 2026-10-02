@@ -184,6 +184,7 @@ internal fun OtherAccountAllocationCard(
             if (allocation.isExpense) SolidExpense else SolidIncome
         }
     }
+    val balanceAmt = if (allocation.currentBalance != 0.0) Math.abs(allocation.currentBalance) else allocation.totalBudgeted
 
     Card(
         modifier = Modifier
@@ -300,14 +301,16 @@ internal fun OtherAccountAllocationCard(
                                 )
                             }
                         }
+                        val statusText = when {
+                            !allocation.isActive -> "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • (${if (languageMode == LanguageMode.BANGLA) "হিসেবে অন্তর্ভুক্ত নয়" else "Excluded from calc"})"
+                            allocation.isExpense -> "${if (languageMode == LanguageMode.BANGLA) "বকেয়া দায় / দেনা" else "Net Due / Payable"}: ${LanguageHelper.formatCurrency(balanceAmt, languageMode)}"
+                            else -> "${if (languageMode == LanguageMode.BANGLA) "প্রাপ্য / পাওনা" else "Receivable / Asset"}: ${LanguageHelper.formatCurrency(balanceAmt, languageMode)}"
+                        }
                         Text(
-                            text = if (allocation.isActive) {
-                                "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)}"
-                            } else {
-                                "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • (${if (languageMode == LanguageMode.BANGLA) "হিসেবে অন্তর্ভুক্ত নয়" else "Excluded from calc"})"
-                            },
+                            text = statusText,
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
+                            fontWeight = FontWeight.Medium,
+                            color = if (!allocation.isActive) MaterialTheme.colorScheme.outline else if (allocation.isExpense) SolidExpense else SolidIncome
                         )
                     }
                 }
@@ -348,13 +351,25 @@ internal fun OtherAccountAllocationCard(
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     if (allocation.accountSplits.isEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স নির্বাচন করতে Assign চাপুন" else "Tap Assign to choose payment source",
+                                    fontSize = 10.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নির্ধারিত নেই (ডিফল্ট হিসাব ব্যবহৃত হবে)" else "No payment source assigned (fallback used)",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = LanguageHelper.formatCurrency(balanceAmt, languageMode),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (allocation.isExpense) SolidExpense else SolidIncome
                             )
                         }
                     } else {

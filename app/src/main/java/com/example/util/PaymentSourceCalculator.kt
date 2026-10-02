@@ -693,9 +693,16 @@ object PaymentSourceCalculator {
 
         for (otherAcc in otherAccounts) {
             val isOtherAccActive = !inactiveOtherAccIds.contains(otherAcc.id)
-            val isExpense = otherAcc.type == AccountType.LIABILITY ||
-                    effectiveObligations.any { it.targetAccountId == otherAcc.id && it.isExpense } ||
-                    otherAcc.type == AccountType.EQUITY
+            val currentBal = balanceMap[otherAcc.id] ?: 0.0
+
+            val isExpense = when {
+                effectiveObligations.any { it.targetAccountId == otherAcc.id } -> {
+                    effectiveObligations.first { it.targetAccountId == otherAcc.id }.isExpense
+                }
+                otherAcc.type == AccountType.LIABILITY -> currentBal <= 0.001
+                otherAcc.type == AccountType.EQUITY -> true
+                else -> currentBal < -0.001
+            }
 
             val explicitSplits = allocationsByOtherAccId[otherAcc.id] ?: emptyList()
             val obligationsForAcc = effectiveObligations.filter { it.targetAccountId == otherAcc.id }
@@ -703,18 +710,15 @@ object PaymentSourceCalculator {
             val totalExplicitBudget = explicitSplits.sumOf { it.budgetedAmount }
             val totalObligationBudget = obligationsForAcc.sumOf { it.amount }
 
-            val currentBal = balanceMap[otherAcc.id] ?: 0.0
-            val defaultBudget = if (isExpense) {
-                if (currentBal < 0) -currentBal else if (otherAcc.type == AccountType.LIABILITY) Math.abs(currentBal) else 0.0
+            val defaultBudget = if (totalExplicitBudget > 0) {
+                totalExplicitBudget
+            } else if (totalObligationBudget > 0) {
+                totalObligationBudget
             } else {
-                if (currentBal > 0) currentBal else 0.0
+                Math.abs(currentBal)
             }
 
-            val effectiveBudget = when {
-                totalExplicitBudget > 0 -> totalExplicitBudget
-                totalObligationBudget > 0 -> totalObligationBudget
-                else -> defaultBudget
-            }
+            val effectiveBudget = defaultBudget
 
             val totalActualSettled = if (isExpense) {
                 settledByOtherAccAndPaymentSource.filter { it.key.first == otherAcc.id }.values.sum()
@@ -948,6 +952,7 @@ object PaymentSourceCalculator {
             otherAccountAllocationsList.add(
                 com.example.data.model.OtherAccountAllocationAnalysis(
                     account = otherAcc,
+                    currentBalance = currentBal,
                     totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) effectiveBudget else totalRemaining,
                     totalBudgeted = effectiveBudget,
                     totalActualSettled = totalActualSettled,

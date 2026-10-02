@@ -69,6 +69,7 @@ data class CategoryAllocationAnalysis(
 
 data class OtherAccountAllocationAnalysis(
     val account: Account,
+    val currentBalance: Double = 0.0,
     val totalBudgetOrRequired: Double,
     val totalBudgeted: Double = totalBudgetOrRequired,
     val totalActualSettled: Double = 0.0,

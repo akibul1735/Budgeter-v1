@@ -764,7 +764,13 @@ internal fun OtherAccountSplitDialog(
     onDismiss: () -> Unit,
     onSave: (Map<Long, Double>) -> Unit
 ) {
-    val totalBudget = otherAccountAllocation.totalBudgeted
+    val totalBudget = if (otherAccountAllocation.totalBudgeted > 0.0) {
+        otherAccountAllocation.totalBudgeted
+    } else if (otherAccountAllocation.currentBalance != 0.0) {
+        Math.abs(otherAccountAllocation.currentBalance)
+    } else {
+        0.0
+    }
     val isExpense = otherAccountAllocation.isExpense
 
     var assignmentMode by remember {
