@@ -107,8 +107,8 @@ object TabExportHelper {
                                 put("account", accName)
                                 put("debitAccount", tx.debitAccount?.nameEn ?: "")
                                 put("creditAccount", tx.creditAccount?.nameEn ?: "")
-                                put("labels", tx.transaction.referenceNo)
-                                put("notes", tx.transaction.note)
+                                put("labels", tx.transaction.referenceNo ?: "")
+                                put("notes", tx.transaction.note ?: "")
                                 put("status", tx.transaction.status.name)
                             })
                         }
