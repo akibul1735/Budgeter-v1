@@ -52,7 +52,17 @@ internal fun CategoryAccountSplitDialog(
     onDismiss: () -> Unit,
     onSave: (Map<Long, Double>) -> Unit
 ) {
-    val totalBudget = categoryAllocation.totalBudgeted
+    val totalBudget = if (categoryAllocation.totalBudgeted > 0.0) {
+        categoryAllocation.totalBudgeted
+    } else if (categoryAllocation.totalBudgetOrRequired > 0.0) {
+        categoryAllocation.totalBudgetOrRequired
+    } else if (categoryAllocation.category.budgetLimit > 0.0) {
+        categoryAllocation.category.budgetLimit
+    } else if (categoryAllocation.totalActualSpent > 0.0) {
+        categoryAllocation.totalActualSpent
+    } else {
+        0.0
+    }
     val isExpense = categoryAllocation.isExpense
 
     // Mode: 0 = Single Source (100%), 1 = Multi-Source Split
@@ -77,29 +87,41 @@ internal fun CategoryAccountSplitDialog(
     // Multi-split state
     var isPercentageMode by remember { mutableStateOf(false) }
 
+    fun getEffectiveBudget(): Double {
+        val input = budgetInputText.toDoubleOrNull()
+        if (input != null && input > 0.0) return input
+        if (totalBudget > 0.0) return totalBudget
+        if (categoryAllocation.totalBudgetOrRequired > 0.0) return categoryAllocation.totalBudgetOrRequired
+        if (categoryAllocation.category.budgetLimit > 0.0) return categoryAllocation.category.budgetLimit
+        return 0.0
+    }
+
     val allocMap = remember {
         val map = mutableStateMapOf<Long, String>()
+        val currBudget = if (totalBudget > 0.0) totalBudget else categoryAllocation.totalBudgetOrRequired
         categoryAllocation.accountSplits.forEach { split ->
-            map[split.account.id] = if (split.allocatedAmount > 0) String.format("%.2f", split.allocatedAmount) else "0.00"
+            if (split.allocatedAmount > 0) {
+                map[split.account.id] = String.format("%.2f", split.allocatedAmount)
+            }
         }
-        if (map.isEmpty() && paymentSourceAccounts.isNotEmpty()) {
-            map[paymentSourceAccounts.first().id] = if (totalBudget > 0) String.format("%.2f", totalBudget) else "0.00"
+        if (map.isEmpty() && categoryAllocation.accountSplits.isNotEmpty()) {
+            val firstSplit = categoryAllocation.accountSplits.first()
+            map[firstSplit.account.id] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+        } else if (map.isEmpty() && paymentSourceAccounts.isNotEmpty()) {
+            map[paymentSourceAccounts.first().id] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
         }
         map
     }
 
     val pctMap = remember {
         val map = mutableStateMapOf<Long, String>()
+        val currBudget = if (totalBudget > 0.0) totalBudget else categoryAllocation.totalBudgetOrRequired
         allocMap.forEach { (accId, amtStr) ->
             val amt = amtStr.toDoubleOrNull() ?: 0.0
-            val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
+            val pct = if (currBudget > 0) (amt / currBudget) * 100.0 else 0.0
             map[accId] = if (pct > 0) String.format("%.1f", pct) else "0.0"
         }
         map
-    }
-
-    fun getEffectiveBudget(): Double {
-        return budgetInputText.toDoubleOrNull() ?: totalBudget
     }
 
     fun recalculateAmountsFromPercentages() {
@@ -129,6 +151,38 @@ internal fun CategoryAccountSplitDialog(
             allocMap.keys.toList().forEach { accId ->
                 allocMap[accId] = if (shareAmt > 0) String.format("%.2f", shareAmt) else "0.00"
                 pctMap[accId] = String.format("%.1f", sharePct)
+            }
+        }
+    }
+
+    fun onToggleSourceAccount(accId: Long, isChecked: Boolean) {
+        val currBudget = getEffectiveBudget()
+        if (isChecked) {
+            if (allocMap.isEmpty()) {
+                allocMap[accId] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+                pctMap[accId] = "100.0"
+            } else {
+                val allocatedSoFar = allocMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+                val remainingAmt = maxOf(0.0, currBudget - allocatedSoFar)
+                if (remainingAmt > 0.0) {
+                    allocMap[accId] = String.format("%.2f", remainingAmt)
+                    val pct = if (currBudget > 0) (remainingAmt / currBudget) * 100.0 else 0.0
+                    pctMap[accId] = String.format("%.1f", pct)
+                } else {
+                    val existingCount = allocMap.size + 1
+                    val share = if (currBudget > 0) (currBudget / existingCount) else 0.0
+                    val sharePct = 100.0 / existingCount
+                    allocMap[accId] = if (share > 0) String.format("%.2f", share) else "0.00"
+                    pctMap[accId] = String.format("%.1f", sharePct)
+                }
+            }
+        } else {
+            allocMap.remove(accId)
+            pctMap.remove(accId)
+            if (allocMap.size == 1) {
+                val remainingAccId = allocMap.keys.first()
+                allocMap[remainingAccId] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+                pctMap[remainingAccId] = "100.0"
             }
         }
     }
@@ -547,7 +601,12 @@ internal fun CategoryAccountSplitDialog(
                             val currBudget = getEffectiveBudget()
 
                             Surface(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onToggleSourceAccount(acc.id, !isIncluded)
+                                    },
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isIncluded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
@@ -563,16 +622,7 @@ internal fun CategoryAccountSplitDialog(
                                         Checkbox(
                                             checked = isIncluded,
                                             onCheckedChange = { checked ->
-                                                if (checked) {
-                                                    val existingCount = allocMap.size + 1
-                                                    val share = if (currBudget > 0) (currBudget / existingCount) else 0.0
-                                                    val sharePct = 100.0 / existingCount
-                                                    allocMap[acc.id] = if (share > 0) String.format("%.2f", share) else "0.00"
-                                                    pctMap[acc.id] = String.format("%.1f", sharePct)
-                                                } else {
-                                                    allocMap.remove(acc.id)
-                                                    pctMap.remove(acc.id)
-                                                }
+                                                onToggleSourceAccount(acc.id, checked)
                                             }
                                         )
                                         val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
@@ -766,6 +816,8 @@ internal fun OtherAccountSplitDialog(
 ) {
     val totalBudget = if (otherAccountAllocation.totalBudgeted > 0.0) {
         otherAccountAllocation.totalBudgeted
+    } else if (otherAccountAllocation.totalBudgetOrRequired > 0.0) {
+        otherAccountAllocation.totalBudgetOrRequired
     } else if (otherAccountAllocation.currentBalance != 0.0) {
         Math.abs(otherAccountAllocation.currentBalance)
     } else {
@@ -791,29 +843,41 @@ internal fun OtherAccountSplitDialog(
 
     var isPercentageMode by remember { mutableStateOf(false) }
 
+    fun getEffectiveBudget(): Double {
+        val input = budgetInputText.toDoubleOrNull()
+        if (input != null && input > 0.0) return input
+        if (totalBudget > 0.0) return totalBudget
+        if (otherAccountAllocation.totalBudgetOrRequired > 0.0) return otherAccountAllocation.totalBudgetOrRequired
+        if (otherAccountAllocation.currentBalance != 0.0) return Math.abs(otherAccountAllocation.currentBalance)
+        return 0.0
+    }
+
     val allocMap = remember {
         val map = mutableStateMapOf<Long, String>()
+        val currBudget = if (totalBudget > 0.0) totalBudget else otherAccountAllocation.totalBudgetOrRequired
         otherAccountAllocation.accountSplits.forEach { split ->
-            map[split.account.id] = if (split.allocatedAmount > 0) String.format("%.2f", split.allocatedAmount) else "0.00"
+            if (split.allocatedAmount > 0) {
+                map[split.account.id] = String.format("%.2f", split.allocatedAmount)
+            }
         }
-        if (map.isEmpty() && paymentSourceAccounts.isNotEmpty()) {
-            map[paymentSourceAccounts.first().id] = if (totalBudget > 0) String.format("%.2f", totalBudget) else "0.00"
+        if (map.isEmpty() && otherAccountAllocation.accountSplits.isNotEmpty()) {
+            val firstSplit = otherAccountAllocation.accountSplits.first()
+            map[firstSplit.account.id] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+        } else if (map.isEmpty() && paymentSourceAccounts.isNotEmpty()) {
+            map[paymentSourceAccounts.first().id] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
         }
         map
     }
 
     val pctMap = remember {
         val map = mutableStateMapOf<Long, String>()
+        val currBudget = if (totalBudget > 0.0) totalBudget else otherAccountAllocation.totalBudgetOrRequired
         allocMap.forEach { (accId, amtStr) ->
             val amt = amtStr.toDoubleOrNull() ?: 0.0
-            val pct = if (totalBudget > 0) (amt / totalBudget) * 100.0 else 0.0
+            val pct = if (currBudget > 0) (amt / currBudget) * 100.0 else 0.0
             map[accId] = if (pct > 0) String.format("%.1f", pct) else "0.0"
         }
         map
-    }
-
-    fun getEffectiveBudget(): Double {
-        return budgetInputText.toDoubleOrNull() ?: totalBudget
     }
 
     fun recalculateAmountsFromPercentages() {
@@ -843,6 +907,38 @@ internal fun OtherAccountSplitDialog(
             allocMap.keys.toList().forEach { accId ->
                 allocMap[accId] = if (shareAmt > 0) String.format("%.2f", shareAmt) else "0.00"
                 pctMap[accId] = String.format("%.1f", sharePct)
+            }
+        }
+    }
+
+    fun onToggleSourceAccount(accId: Long, isChecked: Boolean) {
+        val currBudget = getEffectiveBudget()
+        if (isChecked) {
+            if (allocMap.isEmpty()) {
+                allocMap[accId] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+                pctMap[accId] = "100.0"
+            } else {
+                val allocatedSoFar = allocMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
+                val remainingAmt = maxOf(0.0, currBudget - allocatedSoFar)
+                if (remainingAmt > 0.0) {
+                    allocMap[accId] = String.format("%.2f", remainingAmt)
+                    val pct = if (currBudget > 0) (remainingAmt / currBudget) * 100.0 else 0.0
+                    pctMap[accId] = String.format("%.1f", pct)
+                } else {
+                    val existingCount = allocMap.size + 1
+                    val share = if (currBudget > 0) (currBudget / existingCount) else 0.0
+                    val sharePct = 100.0 / existingCount
+                    allocMap[accId] = if (share > 0) String.format("%.2f", share) else "0.00"
+                    pctMap[accId] = String.format("%.1f", sharePct)
+                }
+            }
+        } else {
+            allocMap.remove(accId)
+            pctMap.remove(accId)
+            if (allocMap.size == 1) {
+                val remainingAccId = allocMap.keys.first()
+                allocMap[remainingAccId] = if (currBudget > 0) String.format("%.2f", currBudget) else "0.00"
+                pctMap[remainingAccId] = "100.0"
             }
         }
     }
@@ -1192,7 +1288,12 @@ internal fun OtherAccountSplitDialog(
                             val currBudget = getEffectiveBudget()
 
                             Surface(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onToggleSourceAccount(acc.id, !isIncluded)
+                                    },
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isIncluded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
@@ -1208,16 +1309,7 @@ internal fun OtherAccountSplitDialog(
                                         Checkbox(
                                             checked = isIncluded,
                                             onCheckedChange = { checked ->
-                                                if (checked) {
-                                                    val existingCount = allocMap.size + 1
-                                                    val share = if (currBudget > 0) (currBudget / existingCount) else 0.0
-                                                    val sharePct = 100.0 / existingCount
-                                                    allocMap[acc.id] = if (share > 0) String.format("%.2f", share) else "0.00"
-                                                    pctMap[acc.id] = String.format("%.1f", sharePct)
-                                                } else {
-                                                    allocMap.remove(acc.id)
-                                                    pctMap.remove(acc.id)
-                                                }
+                                                onToggleSourceAccount(acc.id, checked)
                                             }
                                         )
                                         val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)

@@ -23,6 +23,7 @@ val SolidExpenseContainer = Color(0xFFFFE4E6)
 val SolidOnExpenseContainer = Color(0xFF881337)
 
 val SolidTransfer = Color(0xFF0284C7)        // Pure Sky Azure
+val SolidTransferDark = Color(0xFF38BDF8)    // Bright Luminous Azure
 val SolidTransferContainer = Color(0xFFE0F2FE)
 
 val SolidEquity = Color(0xFF7C3AED)          // Imperial Royal Violet

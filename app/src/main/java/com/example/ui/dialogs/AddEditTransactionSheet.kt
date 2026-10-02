@@ -203,12 +203,17 @@ import com.example.ui.components.DatePickerModal
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.components.TimePickerModal
 import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidExpenseDark
 import com.example.ui.theme.SolidExpenseContainer
 import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidIncomeDark
 import com.example.ui.theme.SolidIncomeContainer
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidPrimaryContainer
 import com.example.ui.theme.SolidTransfer
+import com.example.ui.theme.SolidTransferDark
+import com.example.ui.theme.SolidTransferContainer
+import androidx.compose.ui.graphics.luminance
 import com.example.util.AmountFormatPreferences
 import com.example.util.AutofillConfig
 import com.example.util.AutofillPreferences
@@ -855,16 +860,21 @@ fun AddEditTransactionSheet(
         }
     }
 
-    // Type Colors
+    // Type Colors with theme-aware luminance contrast
+    val isDarkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val effectiveIncomeColor = if (isDarkTheme) SolidIncomeDark else SolidIncome
+    val effectiveExpenseColor = if (isDarkTheme) SolidExpenseDark else SolidExpense
+    val effectiveTransferColor = if (isDarkTheme) SolidTransferDark else SolidTransfer
+
     val typePrimaryColor = when (txType) {
-        TransactionType.EXPENSE -> SolidExpense
-        TransactionType.INCOME -> SolidIncome
-        TransactionType.TRANSFER -> SolidTransfer
+        TransactionType.EXPENSE -> effectiveExpenseColor
+        TransactionType.INCOME -> effectiveIncomeColor
+        TransactionType.TRANSFER -> effectiveTransferColor
     }
     val typeContainerColor = when (txType) {
-        TransactionType.EXPENSE -> SolidExpenseContainer
-        TransactionType.INCOME -> SolidIncomeContainer
-        TransactionType.TRANSFER -> SolidPrimaryContainer
+        TransactionType.EXPENSE -> if (isDarkTheme) SolidExpense.copy(alpha = 0.22f) else SolidExpenseContainer
+        TransactionType.INCOME -> if (isDarkTheme) SolidIncome.copy(alpha = 0.22f) else SolidIncomeContainer
+        TransactionType.TRANSFER -> if (isDarkTheme) SolidTransfer.copy(alpha = 0.22f) else SolidTransferContainer
     }
 
     // Unified function to apply smart autofill from a matched previous transaction respecting user preferences
@@ -922,6 +932,7 @@ fun AddEditTransactionSheet(
     // Function to apply autofill when a payee suggestion is tapped
     fun onSelectPayeeSuggestion(suggestedPayee: String) {
         payee = suggestedPayee
+        showNameDropdown = false
         val latestMatch = allTransactions.firstOrNull {
             it.transaction.payeeOrPayer.equals(suggestedPayee, ignoreCase = true)
         }?.transaction
@@ -935,9 +946,9 @@ fun AddEditTransactionSheet(
             try {
                 focusManager.clearFocus()
                 keyboardController?.hide()
-                showCalculator = true
+                amountFocusRequester.requestFocus()
             } catch (_: Exception) {
-                showCalculator = true
+                focusManager.clearFocus()
             }
         }
     }
@@ -1491,21 +1502,28 @@ fun AddEditTransactionSheet(
                                 }
                                 .testTag("tx_payee_input"),
                             keyboardOptions = KeyboardOptions(
-                                imeAction = ImeAction.Next
+                                imeAction = ImeAction.Done
                             ),
                             keyboardActions = KeyboardActions(
                                 onNext = {
                                     showNameDropdown = false
                                     try {
-                                        amountFocusRequester.requestFocus()
-                                        keyboardController?.show()
-                                    } catch (_: Exception) {
                                         focusManager.clearFocus()
+                                        amountFocusRequester.requestFocus()
+                                        showCalculator = true
+                                    } catch (_: Exception) {
+                                        showCalculator = true
                                     }
                                 },
                                 onDone = {
                                     showNameDropdown = false
-                                    focusManager.clearFocus()
+                                    try {
+                                        focusManager.clearFocus()
+                                        amountFocusRequester.requestFocus()
+                                        showCalculator = true
+                                    } catch (_: Exception) {
+                                        showCalculator = true
+                                    }
                                 }
                             ),
                             placeholder = {
@@ -1796,8 +1814,8 @@ fun AddEditTransactionSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .border(1.5.dp, typePrimaryColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
-                        color = typeContainerColor.copy(alpha = 0.35f)
+                            .border(1.5.dp, typePrimaryColor.copy(alpha = if (isDarkTheme) 0.5f else 0.4f), RoundedCornerShape(16.dp)),
+                        color = if (isDarkTheme) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f) else typeContainerColor.copy(alpha = 0.35f)
                     ) {
                         Column(
                             modifier = Modifier
@@ -1813,8 +1831,8 @@ fun AddEditTransactionSheet(
                                 if (txType == TransactionType.TRANSFER) {
                                     Surface(
                                         shape = CircleShape,
-                                        color = SolidTransfer.copy(alpha = 0.15f),
-                                        border = BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.35f)),
+                                        color = typePrimaryColor.copy(alpha = if (isDarkTheme) 0.22f else 0.15f),
+                                        border = BorderStroke(1.dp, typePrimaryColor.copy(alpha = if (isDarkTheme) 0.45f else 0.35f)),
                                         modifier = Modifier
                                             .size(32.dp)
                                             .testTag("tx_transfer_indicator")
@@ -1823,7 +1841,7 @@ fun AddEditTransactionSheet(
                                             Icon(
                                                 imageVector = Icons.Default.SwapHoriz,
                                                 contentDescription = "Transfer",
-                                                tint = SolidTransfer,
+                                                tint = typePrimaryColor,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }
@@ -1848,7 +1866,7 @@ fun AddEditTransactionSheet(
                                             val isMinusSelected = selectedSign == "−" || selectedSign == "-"
                                             Surface(
                                                 shape = CircleShape,
-                                                color = if (isMinusSelected) SolidExpense else Color.Transparent,
+                                                color = if (isMinusSelected) effectiveExpenseColor else Color.Transparent,
                                                 modifier = Modifier
                                                     .size(28.dp)
                                                     .clip(CircleShape)
@@ -1862,7 +1880,7 @@ fun AddEditTransactionSheet(
                                                         text = "−",
                                                         fontSize = 16.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = if (isMinusSelected) Color.White else SolidExpense
+                                                        color = if (isMinusSelected) Color.White else effectiveExpenseColor
                                                     )
                                                 }
                                             }
@@ -1873,7 +1891,7 @@ fun AddEditTransactionSheet(
                                             val isPlusSelected = selectedSign == "+"
                                             Surface(
                                                 shape = CircleShape,
-                                                color = if (isPlusSelected) SolidIncome else Color.Transparent,
+                                                color = if (isPlusSelected) effectiveIncomeColor else Color.Transparent,
                                                 modifier = Modifier
                                                     .size(28.dp)
                                                     .clip(CircleShape)
@@ -1887,7 +1905,7 @@ fun AddEditTransactionSheet(
                                                         text = "+",
                                                         fontSize = 16.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = if (isPlusSelected) Color.White else SolidIncome
+                                                        color = if (isPlusSelected) Color.White else effectiveIncomeColor
                                                     )
                                                 }
                                             }
@@ -1919,8 +1937,8 @@ fun AddEditTransactionSheet(
                                         fontSize = 26.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = when {
-                                            selectedSign == "+" -> SolidIncome
-                                            selectedSign == "−" || selectedSign == "-" -> SolidExpense
+                                            selectedSign == "+" -> effectiveIncomeColor
+                                            selectedSign == "−" || selectedSign == "-" -> effectiveExpenseColor
                                             else -> typePrimaryColor
                                         }
                                     ),
@@ -1969,10 +1987,10 @@ fun AddEditTransactionSheet(
                                                     fontSize = 26.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = (when {
-                                                        selectedSign == "+" -> SolidIncome
-                                                        selectedSign == "−" || selectedSign == "-" -> SolidExpense
+                                                        selectedSign == "+" -> effectiveIncomeColor
+                                                        selectedSign == "−" || selectedSign == "-" -> effectiveExpenseColor
                                                         else -> typePrimaryColor
-                                                    }).copy(alpha = 0.35f)
+                                                    }).copy(alpha = if (isDarkTheme) 0.5f else 0.35f)
                                                 )
                                             }
                                             innerTextField()
@@ -1998,7 +2016,7 @@ fun AddEditTransactionSheet(
                                 // Currency Badge Pill
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = typePrimaryColor.copy(alpha = 0.15f)
+                                    color = typePrimaryColor.copy(alpha = if (isDarkTheme) 0.22f else 0.15f)
                                 ) {
                                     Text(
                                         text = LanguageHelper.activeCurrencyConfig.activeCode.ifBlank { "BDT" },
