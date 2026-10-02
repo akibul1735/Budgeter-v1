@@ -140,7 +140,7 @@ object DataImportHelper {
                 val targetAccount = if (accStr.isNotEmpty()) {
                     accounts.find { it.nameEn.equals(accStr, ignoreCase = true) || it.nameBn.equals(accStr, ignoreCase = true) }
                         ?: run {
-                            val newAcc = Account(nameEn = accStr, nameBn = accStr, type = AccountType.ASSET, iconName = "AccountBalance", colorHex = "#1E56A0")
+                            val newAcc = Account(nameEn = accStr, nameBn = accStr, type = AccountType.ASSET, iconName = IconHelper.resolveBestIconOrInitials(accStr), colorHex = "#1E56A0")
                             val newId = accountDao.insertAccount(newAcc)
                             newAcc.copy(id = newId).also { accounts.add(it) }
                         }
@@ -153,7 +153,7 @@ object DataImportHelper {
                     categories.find { it.nameEn.equals(catStr, ignoreCase = true) || it.nameBn.equals(catStr, ignoreCase = true) }
                         ?: run {
                             val newCatType = if (txType == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
-                            val newCat = Category(nameEn = catStr, nameBn = catStr, type = newCatType, iconName = "Category", colorHex = "#F59E0B")
+                            val newCat = Category(nameEn = catStr, nameBn = catStr, type = newCatType, iconName = IconHelper.resolveBestIconOrInitials(catStr), colorHex = "#F59E0B")
                             val newId = categoryDao.insertCategory(newCat)
                             newCat.copy(id = newId).also { categories.add(it) }
                         }

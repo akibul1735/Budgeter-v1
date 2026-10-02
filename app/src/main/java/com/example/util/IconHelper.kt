@@ -7,9 +7,12 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,7 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import coil.compose.AsyncImage
 import java.io.File
@@ -928,20 +935,12 @@ object IconHelper {
             "Share" -> Icons.Default.Share
             "Brush" -> Icons.Default.Brush
             "Palette" -> Icons.Default.Palette
-            "School" -> Icons.Default.School
             "ContentCut" -> Icons.Default.ContentCut
             "VolunteerActivism" -> Icons.Default.VolunteerActivism
             "Sms" -> Icons.Default.Sms
             "SwapHoriz" -> Icons.Default.SwapHoriz
             "Weekend" -> Icons.Default.Weekend
             "Apps" -> Icons.Default.Apps
-            "Handshake" -> Icons.Default.Handshake
-            "CleanHands" -> Icons.Default.CleanHands
-            "Sanitizer" -> Icons.Default.Sanitizer
-            "GasMeter" -> Icons.Default.GasMeter
-            "Propane" -> Icons.Default.Propane
-            "FamilyRestroom" -> Icons.Default.FamilyRestroom
-            "CleaningServices" -> Icons.Default.CleaningServices
             "Phishing" -> Icons.Default.Phishing
             "BatteryChargingFull" -> Icons.Default.BatteryChargingFull
             "Stars" -> Icons.Default.Stars
@@ -1167,6 +1166,154 @@ object IconHelper {
         }
     }
 
+    val INITIALS_PALETTE: List<Color> = listOf(
+        Color(0xFF2563EB), // Royal Blue
+        Color(0xFF059669), // Emerald
+        Color(0xFF7C3AED), // Violet
+        Color(0xFFD97706), // Amber
+        Color(0xFFDB2777), // Pink
+        Color(0xFF0891B2), // Cyan
+        Color(0xFF4F46E5), // Indigo
+        Color(0xFF0D9488), // Teal
+        Color(0xFFEA580C), // Orange
+        Color(0xFFE11D48), // Rose
+        Color(0xFF0284C7), // Sky
+        Color(0xFF6D28D9)  // Deep Purple
+    )
+
+    val IGNORED_INITIAL_WORDS: Set<String> = setOf(
+        "and", "&", "+", "the", "a", "an", "of", "in", "for", "to", "at", "by", "on", "with", "from",
+        "ltd", "limited", "co", "corp", "corporation", "inc", "incorporated", "llc", "plc", "pvt", "private",
+        "ac", "a/c", "acc", "account",
+        "এবং", "ও", "বা", "আর", "এর", "লিমিটেড", "লিঃ"
+    )
+
+    /**
+     * Checks if the given icon identifier represents an initials monogram avatar.
+     */
+    fun isInitialsIcon(iconName: String?): Boolean {
+        if (iconName.isNullOrBlank()) return false
+        return iconName.startsWith("INITIALS:", ignoreCase = true)
+    }
+
+    /**
+     * Extracts the 1-3 letter monogram from an INITIALS icon identifier.
+     */
+    fun getInitialsFromIconName(iconName: String?): String {
+        if (iconName.isNullOrBlank()) return "NA"
+        val raw = if (iconName.contains(":")) iconName.substringAfter(":") else iconName
+        return raw.substringBefore(":").take(3).uppercase()
+    }
+
+    /**
+     * Deterministically derives an aesthetic Material 3 background color for given initials.
+     */
+    fun getInitialsColor(initials: String): Color {
+        if (initials.isBlank()) return INITIALS_PALETTE[0]
+        val hash = kotlin.math.abs(initials.hashCode())
+        return INITIALS_PALETTE[hash % INITIALS_PALETTE.size]
+    }
+
+    /**
+     * Generates clean, recognizable initials from a name:
+     * - Multi-word: First letter of first word + First letter of last/second word (ignoring generic words)
+     *   e.g. "Ashique Sir" -> "AS", "Digital and Tech" -> "DT", "John Michael Smith" -> "JS"
+     * - Single-word: First letter + onset of second syllable / distinctive consonant
+     *   e.g. "Ashique" -> "AQ", "Purny" -> "PN"
+     */
+    fun generateInitials(name: String?): String {
+        if (name.isNullOrBlank()) return "NA"
+        val clean = name.trim()
+
+        val rawTokens = clean.split(Regex("[\\s\\-_/,.&()]+")).filter { it.isNotBlank() }
+        if (rawTokens.isEmpty()) return "NA"
+
+        val significantWords = rawTokens.filter { !IGNORED_INITIAL_WORDS.contains(it.lowercase()) }
+        val words = if (significantWords.isNotEmpty()) significantWords else rawTokens
+
+        if (words.size >= 2) {
+            val firstWord = words.first()
+            val lastWord = if (words.size == 2) words[1] else words.last()
+
+            val firstChar = firstWord.firstOrNull { it.isLetterOrDigit() } ?: firstWord.first()
+            val secondChar = lastWord.firstOrNull { it.isLetterOrDigit() } ?: lastWord.first()
+            return "$firstChar$secondChar".uppercase()
+        }
+
+        return extractSingleWordInitials(words.first())
+    }
+
+    private fun extractSingleWordInitials(word: String): String {
+        val clean = word.filter { it.isLetterOrDigit() }
+        if (clean.length <= 1) return clean.uppercase()
+        if (clean.length == 2) return clean.uppercase()
+
+        // Check if word has embedded CamelCase (e.g. CashOut -> CO)
+        val upperLetters = clean.filter { it.isUpperCase() }
+        if (upperLetters.length >= 2) {
+            return "${upperLetters.first()}${upperLetters[1]}".uppercase()
+        }
+
+        val firstChar = clean.first()
+        val lower = clean.lowercase()
+
+        // Words ending in "que" (e.g. Ashique -> AQ, Tarique -> TQ, Shafique -> SQ)
+        if (lower.endsWith("que") && clean.length >= 4) {
+            return "${firstChar}Q".uppercase()
+        }
+
+        val vowels = setOf('a', 'e', 'i', 'o', 'u')
+
+        // Syllable onset detection
+        val firstVowelIdx = lower.indexOfFirst { it in vowels }
+        if (firstVowelIdx in 0 until lower.length - 1) {
+            var nextVowelIdx = -1
+            for (i in (firstVowelIdx + 1) until lower.length) {
+                if (lower[i] in vowels || lower[i] == 'y') {
+                    nextVowelIdx = i
+                    break
+                }
+            }
+
+            if (nextVowelIdx > firstVowelIdx + 1) {
+                val consonantCluster = lower.substring(firstVowelIdx + 1, nextVowelIdx)
+                if (consonantCluster.length >= 2) {
+                    // VCCV pattern (e.g. Pur-ny -> N, Mar-tin -> T)
+                    val secondSyllableOnset = consonantCluster.last()
+                    return "$firstChar$secondSyllableOnset".uppercase()
+                } else if (consonantCluster.isNotEmpty()) {
+                    // VCV pattern (e.g. Da-vid -> V)
+                    val onset = consonantCluster.first()
+                    return "$firstChar$onset".uppercase()
+                }
+            } else if (nextVowelIdx != -1 && nextVowelIdx < lower.length - 1) {
+                val consonantAfterSecondVowel = lower.substring(nextVowelIdx + 1).firstOrNull { it !in vowels && it != 'y' }
+                if (consonantAfterSecondVowel != null) {
+                    return "$firstChar$consonantAfterSecondVowel".uppercase()
+                }
+            }
+        }
+
+        val lastConsonant = lower.drop(1).lastOrNull { it !in vowels } ?: lower[1]
+        return "$firstChar$lastConsonant".uppercase()
+    }
+
+    /**
+     * Resolves the best icon for an account or category name:
+     * 1. First tries to find closest matching icon from the app's internal icon library.
+     * 2. If unavailable, generates initials from the name (e.g. Ashique Sir -> AS, Ashique -> AQ, Purny -> PN).
+     * Guaranteed to never return empty or generic placeholder.
+     */
+    fun resolveBestIconOrInitials(name: String?): String {
+        if (name.isNullOrBlank()) return "INITIALS:NA"
+        val matchedInApp = findMatchingInAppIcon(name)
+        if (matchedInApp != null && matchedInApp.isNotBlank() && matchedInApp != "Category") {
+            return matchedInApp
+        }
+        val initials = generateInitials(name)
+        return "INITIALS:$initials"
+    }
+
     /**
      * Checks if the given icon identifier represents a custom image asset from internal storage or URL.
      */
@@ -1320,12 +1467,38 @@ object IconHelper {
     }
 
     /**
-     * Decodes a Bitmap from any icon representation: custom key, drawable res name, or vector.
+     * Decodes a Bitmap from any icon representation: custom key, drawable res name, initials, or vector.
      */
     fun decodeBitmapFromAnyIcon(context: Context, iconKey: String?, targetSize: Int = 512): Bitmap? {
         if (iconKey.isNullOrBlank()) return null
         return try {
-            if (isCustomIcon(iconKey)) {
+            if (isInitialsIcon(iconKey)) {
+                val initials = getInitialsFromIconName(iconKey)
+                val bgCol = getInitialsColor(initials)
+                val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.rgb(
+                        (bgCol.red * 255).toInt(),
+                        (bgCol.green * 255).toInt(),
+                        (bgCol.blue * 255).toInt()
+                    )
+                    style = Paint.Style.FILL
+                }
+                canvas.drawCircle(targetSize / 2f, targetSize / 2f, targetSize / 2f, paint)
+
+                val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.WHITE
+                    textSize = targetSize * 0.42f
+                    isFakeBoldText = true
+                    textAlign = Paint.Align.CENTER
+                }
+                val textBounds = Rect()
+                textPaint.getTextBounds(initials, 0, initials.length, textBounds)
+                val y = targetSize / 2f - textBounds.exactCenterY()
+                canvas.drawText(initials, targetSize / 2f, y, textPaint)
+                bitmap
+            } else if (isCustomIcon(iconKey)) {
                 decodeBitmapFromCustomKey(context, iconKey)
             } else {
                 val drawableRes = getDrawableResId(iconKey)
@@ -1715,17 +1888,23 @@ object IconHelper {
     }
 
     /**
-     * Universal Composable to render either a built-in Material Icon, a Drawable Bank Logo, or a Custom Image Icon.
+     * Universal Composable to render either a built-in Material Icon, a Drawable Bank Logo, a Custom Image Icon, or an Initials Monogram Avatar.
      */
     @Composable
     fun AppIcon(
         iconName: String?,
         contentDescription: String? = null,
         modifier: Modifier = Modifier,
-        tint: Color = LocalContentColor.current
+        tint: Color = LocalContentColor.current,
+        fallbackName: String? = null
     ) {
-        val context = LocalContext.current
-        val drawableRes = getDrawableResId(iconName)
+        val effectiveIcon = if ((iconName.isNullOrBlank() || iconName == "Category") && !fallbackName.isNullOrBlank()) {
+            resolveBestIconOrInitials(fallbackName)
+        } else {
+            iconName
+        }
+
+        val drawableRes = getDrawableResId(effectiveIcon)
         if (drawableRes != null) {
             Image(
                 painter = androidx.compose.ui.res.painterResource(id = drawableRes),
@@ -1735,13 +1914,36 @@ object IconHelper {
             )
             return
         }
-        if (isCustomIcon(iconName)) {
-            val model: Any = if (iconName?.startsWith("http://") == true || iconName?.startsWith("https://") == true) {
-                iconName
-            } else if (iconName?.startsWith("content://") == true || iconName?.startsWith("file://") == true) {
-                android.net.Uri.parse(iconName)
+
+        if (isInitialsIcon(effectiveIcon)) {
+            val initials = getInitialsFromIconName(effectiveIcon)
+            val bgCol = getInitialsColor(initials)
+            Box(
+                modifier = modifier
+                    .clip(CircleShape)
+                    .background(bgCol),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = initials,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
+                )
+            }
+            return
+        }
+
+        if (isCustomIcon(effectiveIcon)) {
+            val context = LocalContext.current
+            val model: Any = if (effectiveIcon?.startsWith("http://") == true || effectiveIcon?.startsWith("https://") == true) {
+                effectiveIcon
+            } else if (effectiveIcon?.startsWith("content://") == true || effectiveIcon?.startsWith("file://") == true) {
+                android.net.Uri.parse(effectiveIcon)
             } else {
-                getCustomIconFile(context, iconName ?: "")
+                getCustomIconFile(context, effectiveIcon ?: "")
             }
             AsyncImage(
                 model = model,
@@ -1752,7 +1954,7 @@ object IconHelper {
             return
         } else {
             Icon(
-                imageVector = getIconByName(iconName),
+                imageVector = getIconByName(effectiveIcon),
                 contentDescription = contentDescription,
                 modifier = modifier,
                 tint = tint

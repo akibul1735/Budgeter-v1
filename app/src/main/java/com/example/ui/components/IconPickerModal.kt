@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandMore
@@ -169,6 +170,7 @@ fun IconPickerModal(
     var hasMoreOnline by remember { mutableStateOf(true) }
     var downloadingUrl by remember { mutableStateOf<String?>(null) }
     var onlineIconBgColor by remember { mutableStateOf<Color?>(null) } // null = transparent
+    var showBgColorPicker by remember { mutableStateOf(false) }
 
     // Trigger online search whenever in "Online Search" tab or user is actively searching
     LaunchedEffect(searchQuery, selectedCategory, onlineSearchSubMode) {
@@ -844,7 +846,7 @@ fun IconPickerModal(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 val bgPresets = listOf(
                                     "None" to null,
                                     "White" to Color.White,
@@ -865,6 +867,30 @@ fun IconPickerModal(
                                         modifier = Modifier.height(26.dp)
                                     )
                                 }
+
+                                val isCustomActive = onlineIconBgColor != null &&
+                                        onlineIconBgColor != Color.White &&
+                                        onlineIconBgColor != Color(0xFF1E293B) &&
+                                        onlineIconBgColor != SolidPrimary
+
+                                FilterChip(
+                                    selected = isCustomActive,
+                                    onClick = { showBgColorPicker = true },
+                                    label = { Text("Color", fontSize = 10.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Palette,
+                                            contentDescription = "Custom Color",
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidPrimary.copy(alpha = 0.18f),
+                                        selectedLabelColor = SolidPrimary
+                                    ),
+                                    modifier = Modifier.height(26.dp)
+                                )
                             }
                         }
 
@@ -1473,6 +1499,20 @@ fun IconPickerModal(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    if (showBgColorPicker) {
+        val initialHex = onlineIconBgColor?.let { AppColorPickerPresets.colorToHex(it) } ?: "#10B981"
+        AppColorPickerDialog(
+            initialColorHex = initialHex,
+            title = "Icon Background Color",
+            description = "Choose from popular presets, adjust with the color picker, or enter a hex code:",
+            onColorSelected = { hex ->
+                onlineIconBgColor = AppColorPickerPresets.parseHexSafe(hex)
+                showBgColorPicker = false
+            },
+            onDismiss = { showBgColorPicker = false }
         )
     }
 }

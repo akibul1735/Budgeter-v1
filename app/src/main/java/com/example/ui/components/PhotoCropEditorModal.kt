@@ -1067,106 +1067,16 @@ fun PhotoCropEditorModal(
     }
 
     if (showCustomColorDialog) {
-        val presetCustomHexes = listOf(
-            "#FFFFFF", "#000000", "#1E293B", "#0D9488",
-            "#2563EB", "#7C3AED", "#DB2777", "#DC2626",
-            "#D97706", "#059669", "#0891B2", "#475569"
-        )
-        val parsedCustomColor = remember(customColorHexInput) {
-            IconHelper.parseColorHex(customColorHexInput, Color.White)
-        }
-
-        AlertDialog(
-            onDismissRequest = { showCustomColorDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Palette, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Custom Background Color", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
+        AppColorPickerDialog(
+            initialColorHex = customColorHexInput,
+            title = "Custom Background Color",
+            description = "Choose from highly popular presets, adjust with the custom color picker, or enter a color code:",
+            onColorSelected = { hex ->
+                customColorHexInput = hex
+                selectedBgColor = IconHelper.parseColorHex(hex, Color.White)
+                showCustomColorDialog = false
             },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Choose or enter a background color for transparent icons/photos:",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .background(parsedCustomColor)
-                                .border(2.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        )
-
-                        OutlinedTextField(
-                            value = customColorHexInput,
-                            onValueChange = { customColorHexInput = it },
-                            label = { Text("Hex Code (e.g. #FFFFFF)") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text("Palette Presets", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(presetCustomHexes) { hex ->
-                            val c = IconHelper.parseColorHex(hex, Color.White)
-                            val isSel = customColorHexInput.equals(hex, ignoreCase = true)
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(c)
-                                    .border(
-                                        width = if (isSel) 2.5.dp else 1.dp,
-                                        color = if (isSel) SolidPrimary else MaterialTheme.colorScheme.outlineVariant,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { customColorHexInput = hex },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isSel) {
-                                    val checkTint = if (hex == "#FFFFFF") Color.Black else Color.White
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = checkTint, modifier = Modifier.size(14.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        selectedBgColor = parsedCustomColor
-                        showCustomColorDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Apply Color")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCustomColorDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showCustomColorDialog = false }
         )
     }
 }

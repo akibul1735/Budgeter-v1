@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import com.example.ui.components.AppColorPickerDialog
 import com.example.ui.components.IconPickerModal
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -107,6 +108,7 @@ fun AddEditSavingsGoalDialog(
     }
     var targetDateMillis by remember { mutableStateOf(existingGoal?.targetDate ?: 0L) }
     var selectedColorHex by remember { mutableStateOf(existingGoal?.colorHex ?: GOAL_COLORS[0]) }
+    var showCustomColorPicker by remember { mutableStateOf(false) }
     var selectedIconName by remember { mutableStateOf(existingGoal?.iconName ?: "Savings") }
     var notes by remember { mutableStateOf(existingGoal?.notes ?: "") }
     var showIconPickerModal by remember { mutableStateOf(false) }
@@ -472,6 +474,35 @@ fun AddEditSavingsGoalDialog(
                                         if (isSelected) {
                                             Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                                         }
+                                    }
+                                }
+
+                                item {
+                                    val isCustomActive = selectedColorHex !in GOAL_COLORS
+                                    val customColor = try {
+                                        Color(android.graphics.Color.parseColor(selectedColorHex))
+                                    } catch (_: Exception) {
+                                        MaterialTheme.colorScheme.primary
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isCustomActive) customColor else MaterialTheme.colorScheme.surfaceVariant)
+                                            .border(
+                                                width = if (isCustomActive) 2.5.dp else 1.dp,
+                                                color = if (isCustomActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
+                                                shape = CircleShape
+                                            )
+                                            .clickable { showCustomColorPicker = true },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Palette,
+                                            contentDescription = "Custom Color",
+                                            tint = if (isCustomActive) Color.White else MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
                                     }
                                 }
                             }
@@ -902,6 +933,18 @@ fun AddEditSavingsGoalDialog(
                 showIconPickerModal = false
             },
             onDismiss = { showIconPickerModal = false }
+        )
+    }
+
+    if (showCustomColorPicker) {
+        AppColorPickerDialog(
+            initialColorHex = selectedColorHex,
+            title = if (languageMode == LanguageMode.BANGLA) "থিম কালার নির্বাচন করুন" else "Pick Theme Color",
+            onColorSelected = { hex ->
+                selectedColorHex = hex
+                showCustomColorPicker = false
+            },
+            onDismiss = { showCustomColorPicker = false }
         )
     }
 }

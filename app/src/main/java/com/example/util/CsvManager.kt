@@ -595,7 +595,7 @@ object CsvManager {
                                 nameBn = cleanedCatGroup,
                                 type = catType,
                                 parentId = null,
-                                iconName = "Category",
+                                iconName = IconHelper.resolveBestIconOrInitials(cleanedCatGroup),
                                 colorHex = if (catType == CategoryType.EXPENSE) "#EF4444" else "#10B981"
                             )
                             val newParentId = categoryDao.insertCategory(newParent)
@@ -620,7 +620,7 @@ object CsvManager {
                             nameBn = row.category.trim(),
                             type = catType,
                             parentId = parentCatId,
-                            iconName = "Category",
+                            iconName = IconHelper.resolveBestIconOrInitials(row.category.trim()),
                             colorHex = if (catType == CategoryType.EXPENSE) "#F59E0B" else "#10B981"
                         )
                         val newCatId = categoryDao.insertCategory(newCat)

@@ -61,6 +61,7 @@ import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.components.AppColorPickerDialog
 import com.example.ui.components.DatePickerModal
 import com.example.ui.components.IconPickerModal
 import com.example.ui.theme.SolidExpense
@@ -117,6 +118,10 @@ fun AddEditAccountGroupOrCategoryDialog(
             existingAccount?.iconName ?: if (accountType == AccountType.ASSET) "Wallet" else "CreditCard"
         )
     }
+    var selectedColorHex by remember {
+        mutableStateOf(existingAccount?.colorHex ?: if (accountType == AccountType.ASSET) "#10B981" else "#EF4444")
+    }
+    var showColorPicker by remember { mutableStateOf(false) }
     var initialAmountText by remember {
         mutableStateOf(existingAccount?.initialBalance?.toString() ?: "0.0")
     }
@@ -128,6 +133,7 @@ fun AddEditAccountGroupOrCategoryDialog(
     }
 
     var showIconPicker by remember { mutableStateOf(false) }
+    var hasUserChangedIcon by remember { mutableStateOf(existingAccount != null) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var groupDropdownExpanded by remember { mutableStateOf(false) }
@@ -309,7 +315,12 @@ fun AddEditAccountGroupOrCategoryDialog(
                 // Name English & Bangla
                 OutlinedTextField(
                     value = nameEn,
-                    onValueChange = { nameEn = it },
+                    onValueChange = {
+                        nameEn = it
+                        if (!hasUserChangedIcon && (it.isNotBlank() || nameBn.isNotBlank())) {
+                            selectedIcon = IconHelper.resolveBestIconOrInitials(it.ifBlank { nameBn })
+                        }
+                    },
                     label = { Text("Name (English)") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -319,7 +330,12 @@ fun AddEditAccountGroupOrCategoryDialog(
 
                 OutlinedTextField(
                     value = nameBn,
-                    onValueChange = { nameBn = it },
+                    onValueChange = {
+                        nameBn = it
+                        if (!hasUserChangedIcon && (it.isNotBlank() || nameEn.isNotBlank())) {
+                            selectedIcon = IconHelper.resolveBestIconOrInitials(nameEn.ifBlank { it })
+                        }
+                    },
                     label = { Text("Name (Bangla - Optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -359,7 +375,9 @@ fun AddEditAccountGroupOrCategoryDialog(
                         Column {
                             Text("Icon", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Text(
-                                if (IconHelper.isCustomIcon(selectedIcon)) "Custom Icon" else selectedIcon,
+                                if (IconHelper.isInitialsIcon(selectedIcon)) "Monogram (${IconHelper.getInitialsFromIconName(selectedIcon)})"
+                                else if (IconHelper.isCustomIcon(selectedIcon)) "Custom Icon" 
+                                else selectedIcon,
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
@@ -373,6 +391,45 @@ fun AddEditAccountGroupOrCategoryDialog(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text("Change", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Theme Color Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val parsedAccColor = try {
+                            Color(android.graphics.Color.parseColor(selectedColorHex))
+                        } catch (_: Exception) {
+                            SolidPrimary
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(parsedAccColor)
+                                .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                                .clickable { showColorPicker = true }
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Theme Color", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(selectedColorHex.uppercase(), fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+
+                    Button(
+                        onClick = { showColorPicker = true },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text("Change Color", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -489,6 +546,12 @@ fun AddEditAccountGroupOrCategoryDialog(
                                 accountType
                             }
 
+                            val finalIcon = if (selectedIcon.isBlank() || selectedIcon == "Category") {
+                                IconHelper.resolveBestIconOrInitials(nameEn.ifBlank { nameBn })
+                            } else {
+                                selectedIcon
+                            }
+
                             val account = Account(
                                 id = existingAccount?.id ?: 0,
                                 nameEn = nameEn.ifBlank { nameBn },
@@ -496,8 +559,8 @@ fun AddEditAccountGroupOrCategoryDialog(
                                 type = groupType,
                                 parentId = parent,
                                 initialBalance = parsedBal,
-                                iconName = selectedIcon,
-                                colorHex = if (groupType == AccountType.ASSET) "#10B981" else "#EF4444",
+                                iconName = finalIcon,
+                                colorHex = selectedColorHex,
                                 isActive = isActive,
                                 createdAt = creationDateEpochMs
                             )
@@ -518,11 +581,26 @@ fun AddEditAccountGroupOrCategoryDialog(
         }
     }
 
+    if (showColorPicker) {
+        AppColorPickerDialog(
+            initialColorHex = selectedColorHex,
+            title = if (languageMode == LanguageMode.BANGLA) "থিম কালার নির্বাচন করুন" else "Pick Theme Color",
+            onColorSelected = { hex ->
+                selectedColorHex = hex
+                showColorPicker = false
+            },
+            onDismiss = { showColorPicker = false }
+        )
+    }
+
     if (showIconPicker) {
         IconPickerModal(
             selectedIconName = selectedIcon,
             initialQuery = nameEn.ifBlank { nameBn },
-            onIconSelected = { selectedIcon = it },
+            onIconSelected = {
+                selectedIcon = it
+                hasUserChangedIcon = true
+            },
             onDismiss = { showIconPicker = false }
         )
     }

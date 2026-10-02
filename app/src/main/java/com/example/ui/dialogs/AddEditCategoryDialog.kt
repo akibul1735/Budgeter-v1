@@ -59,6 +59,7 @@ import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.components.AppColorPickerDialog
 import com.example.ui.components.IconPickerModal
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -108,6 +109,7 @@ fun AddEditCategoryDialog(
         )
     }
     var showIconPicker by remember { mutableStateOf(false) }
+    var showCustomColorPicker by remember { mutableStateOf(false) }
     var hasUserChangedIcon by remember { mutableStateOf(existingCategory != null) }
     var parentDropdownExpanded by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
@@ -209,7 +211,9 @@ fun AddEditCategoryDialog(
                                     fontSize = 14.sp
                                 )
                                 Text(
-                                    text = if (IconHelper.isCustomIcon(iconName)) "Custom Icon" else "Icon: $iconName",
+                                    text = if (IconHelper.isInitialsIcon(iconName)) "Monogram (${IconHelper.getInitialsFromIconName(iconName)})"
+                                    else if (IconHelper.isCustomIcon(iconName)) "Custom Icon"
+                                    else "Icon: $iconName",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -254,6 +258,24 @@ fun AddEditCategoryDialog(
                                     shape = CircleShape
                                 )
                                 .clickable { colorHex = hex }
+                        )
+                    }
+
+                    // Open full custom color picker
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                            .clickable { showCustomColorPicker = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Palette,
+                            contentDescription = "Color Picker",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
@@ -395,11 +417,8 @@ fun AddEditCategoryDialog(
                     value = nameEn,
                     onValueChange = {
                         nameEn = it
-                        if (!hasUserChangedIcon) {
-                            val suggested = IconHelper.suggestIconForName(it.ifBlank { nameBn })
-                            if (suggested != "Category") {
-                                iconName = suggested
-                            }
+                        if (!hasUserChangedIcon && (it.isNotBlank() || nameBn.isNotBlank())) {
+                            iconName = IconHelper.resolveBestIconOrInitials(it.ifBlank { nameBn })
                         }
                     },
                     label = { Text(LanguageHelper.getString("name_en", languageMode)) },
@@ -415,11 +434,8 @@ fun AddEditCategoryDialog(
                     value = nameBn,
                     onValueChange = {
                         nameBn = it
-                        if (!hasUserChangedIcon) {
-                            val suggested = IconHelper.suggestIconForName(it.ifBlank { nameEn })
-                            if (suggested != "Category") {
-                                iconName = suggested
-                            }
+                        if (!hasUserChangedIcon && (it.isNotBlank() || nameEn.isNotBlank())) {
+                            iconName = IconHelper.resolveBestIconOrInitials(nameEn.ifBlank { it })
                         }
                     },
                     label = { Text(LanguageHelper.getString("name_bn", languageMode)) },
@@ -470,6 +486,12 @@ fun AddEditCategoryDialog(
 
                     Button(
                         onClick = {
+                            val finalIcon = if (iconName.isBlank() || iconName == "Category") {
+                                IconHelper.resolveBestIconOrInitials(nameEn.ifBlank { nameBn })
+                            } else {
+                                iconName
+                            }
+
                             val category = Category(
                                 id = existingCategory?.id ?: 0,
                                 nameEn = nameEn.ifBlank { nameBn },
@@ -477,7 +499,7 @@ fun AddEditCategoryDialog(
                                 type = categoryType,
                                 parentId = if (isSubCategory) parentId else null,
                                 budgetLimit = existingCategory?.budgetLimit ?: 0.0,
-                                iconName = iconName,
+                                iconName = finalIcon,
                                 colorHex = colorHex,
                                 isActive = isActive
                             )
@@ -507,6 +529,18 @@ fun AddEditCategoryDialog(
                 showIconPicker = false
             },
             onDismiss = { showIconPicker = false }
+        )
+    }
+
+    if (showCustomColorPicker) {
+        AppColorPickerDialog(
+            initialColorHex = colorHex,
+            title = "Category Color",
+            onColorSelected = { hex ->
+                colorHex = hex
+                showCustomColorPicker = false
+            },
+            onDismiss = { showCustomColorPicker = false }
         )
     }
 
