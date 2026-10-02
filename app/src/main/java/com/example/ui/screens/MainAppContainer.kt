@@ -161,8 +161,6 @@ import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
-import androidx.compose.ui.zIndex
-import com.example.ui.components.AppOpenSplashScreen
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.AutoHidingHeaderContainer
 import com.example.ui.components.LanguageSelector
@@ -419,8 +417,6 @@ fun MainAppContainer(
             showAppUpdatePermissionDialog = true
         }
     }
-
-    var showAppOpenSplash by rememberSaveable { mutableStateOf(true) }
 
     val headerScrollState = rememberHeaderScrollState()
 
@@ -1579,19 +1575,6 @@ fun MainAppContainer(
                 viewModel.dismissFirstLaunchDialog()
             }
         )
-    }
-
-    if (showAppOpenSplash) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .zIndex(100f)
-        ) {
-            AppOpenSplashScreen(
-                languageMode = languageMode,
-                onAnimationComplete = { showAppOpenSplash = false }
-            )
-        }
     }
 }
 
