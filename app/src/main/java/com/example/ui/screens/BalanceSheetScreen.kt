@@ -2,11 +2,16 @@ package com.example.ui.screens
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.example.ui.components.rememberCollapsibleCardState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -415,11 +420,7 @@ fun BalanceSheetScreen(
     }
 
     val listState = rememberLazyListState()
-    val isMainSummaryVisible by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex == 0
-        }
-    }
+    val collapsibleCardState = rememberCollapsibleCardState(collapseRangePx = 220f)
 
     Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -508,39 +509,43 @@ fun BalanceSheetScreen(
                 )
             }
 
-            // Mini height summary card (Only visible when main summary card is scrolled off screen)
-            AnimatedVisibility(
-                visible = !isMainSummaryVisible,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                MiniNetWorthSummaryCard(
-                    data = balanceSheetData,
-                    displayCurrency = filterState.displayCurrency,
-                    displayCurrencySymbol = filterState.displayCurrencySymbol,
-                    languageMode = languageMode
-                )
+            // Top Collapsible Summary Card (Smoothly transitions between full NetWorthSummaryCard and MiniNetWorthSummaryCard)
+            AnimatedContent(
+                targetState = collapsibleCardState.isCollapsed,
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(220)))
+                        .togetherWith(fadeOut(animationSpec = tween(150)) + shrinkVertically(animationSpec = tween(220)))
+                },
+                label = "balance_sheet_summary_transition"
+            ) { isCollapsed ->
+                if (!isCollapsed) {
+                    Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
+                        NetWorthSummaryCard(
+                            data = balanceSheetData,
+                            displayCurrency = filterState.displayCurrency,
+                            displayCurrencySymbol = filterState.displayCurrencySymbol,
+                            showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                            languageMode = languageMode
+                        )
+                    }
+                } else {
+                    MiniNetWorthSummaryCard(
+                        data = balanceSheetData,
+                        displayCurrency = filterState.displayCurrency,
+                        displayCurrencySymbol = filterState.displayCurrencySymbol,
+                        languageMode = languageMode
+                    )
+                }
             }
 
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .weight(1f),
+                    .weight(1f)
+                    .nestedScroll(collapsibleCardState.createNestedScrollConnection(listState)),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 88.dp)
             ) {
-                // 1. Top Net Worth Card (Total Assets | Total Net Worth | Total Liabilities in one row)
-                item(key = "main_net_worth_summary") {
-                    NetWorthSummaryCard(
-                        data = balanceSheetData,
-                        displayCurrency = filterState.displayCurrency,
-                        displayCurrencySymbol = filterState.displayCurrencySymbol,
-                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
-                        languageMode = languageMode
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
                 // Sections based on activeTabMode ("ALL", "ASSETS", or "LIABILITIES")
                 if (activeTabMode == "ALL" || activeTabMode == "ASSETS") {
                     item(key = "section_header_assets") {

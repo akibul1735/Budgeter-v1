@@ -138,6 +138,8 @@ import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.BudgetQuickShortcutsRow
 import com.example.ui.components.LocalHeaderScrollState
+import com.example.ui.components.rememberCollapsibleCardState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.ui.components.BudgetDateRangePreset
 import com.example.ui.components.BudgetComparisonPreset
 import com.example.ui.components.BudgetFilterDialog
@@ -786,13 +788,9 @@ fun BudgetTrackingScreen(
         }
     }
 
-    // Track scroll state to transition top card between normal and mini mode
+    // Track scroll state to smoothly collapse top card without scrolling away content underneath
     val listState = rememberLazyListState()
-    val isScrolled by remember {
-        derivedStateOf {
-            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 20
-        }
-    }
+    val collapsibleCardState = rememberCollapsibleCardState(collapseRangePx = 220f)
 
     Box(modifier = Modifier.fillMaxSize().testTag("budget_tracking_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -861,14 +859,14 @@ fun BudgetTrackingScreen(
 
             // 2. SCROLL-AWARE TOP FIXED CARD (Smooth animated transition between normal and mini mode)
             AnimatedContent(
-                targetState = isScrolled,
+                targetState = collapsibleCardState.isCollapsed,
                 transitionSpec = {
-                    (fadeIn(animationSpec = tween(220)) + expandVertically(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)))
-                        .togetherWith(fadeOut(animationSpec = tween(180)) + shrinkVertically(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)))
+                    (fadeIn(animationSpec = tween(180)) + expandVertically(animationSpec = tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)))
+                        .togetherWith(fadeOut(animationSpec = tween(150)) + shrinkVertically(animationSpec = tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)))
                 },
                 label = "budget_top_card_transition"
-            ) { scrolled ->
-                if (!scrolled) {
+            ) { isCollapsed ->
+                if (!isCollapsed) {
                     // NORMAL TOP FIXED CARD (Full Summary + Dual Comparison Dates / Month picker + Progress)
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -1548,6 +1546,7 @@ fun BudgetTrackingScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)
+                    .nestedScroll(collapsibleCardState.createNestedScrollConnection(listState))
                     .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(bottom = 125.dp)
             ) {

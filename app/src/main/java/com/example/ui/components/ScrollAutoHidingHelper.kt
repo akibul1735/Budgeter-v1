@@ -144,3 +144,70 @@ fun AutoHidingBottomContainer(
         content()
     }
 }
+
+/**
+ * State manager for a collapsible top summary card (transitions between full and mini mode).
+ * Absorbs the initial scroll delta on downward scroll so the card finishes collapsing
+ * into the mini card BEFORE the list items scroll away, preventing content from being
+ * hidden or clipped underneath the card.
+ */
+class CollapsibleCardState(
+    val collapseRangePx: Float = 220f
+) {
+    // 0f = fully expanded, 1f = fully collapsed
+    var collapseFraction by androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    val isCollapsed: Boolean
+        get() = collapseFraction >= 0.5f
+
+    fun createNestedScrollConnection(lazyListState: androidx.compose.foundation.lazy.LazyListState): NestedScrollConnection {
+        return object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+
+                // Downward scroll (finger moves up, delta < 0): collapse card first before list scrolls
+                if (delta < 0f && collapseFraction < 1f) {
+                    val needed = (1f - collapseFraction) * collapseRangePx
+                    val consumed = if (-delta <= needed) -delta else needed
+                    collapseFraction = (collapseFraction + (consumed / collapseRangePx)).coerceIn(0f, 1f)
+                    return Offset(0f, -consumed)
+                }
+
+                // Upward scroll (finger moves down, delta > 0): if list is at very top, expand card
+                if (delta > 0f && lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0 && collapseFraction > 0f) {
+                    val availableExpand = collapseFraction * collapseRangePx
+                    val consumed = if (delta <= availableExpand) delta else availableExpand
+                    collapseFraction = (collapseFraction - (consumed / collapseRangePx)).coerceIn(0f, 1f)
+                    return Offset(0f, consumed)
+                }
+
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                val delta = available.y
+                // Upward overscroll: when list has reached the very top, expand card with remaining delta
+                if (delta > 0f && collapseFraction > 0f && lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0) {
+                    val availableExpand = collapseFraction * collapseRangePx
+                    val consumedDelta = if (delta <= availableExpand) delta else availableExpand
+                    collapseFraction = (collapseFraction - (consumedDelta / collapseRangePx)).coerceIn(0f, 1f)
+                    return Offset(0f, consumedDelta)
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    fun reset() {
+        collapseFraction = 0f
+    }
+}
+
+@Composable
+fun rememberCollapsibleCardState(collapseRangePx: Float = 220f): CollapsibleCardState {
+    return remember { CollapsibleCardState(collapseRangePx) }
+}
