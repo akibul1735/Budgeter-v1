@@ -128,6 +128,7 @@ fun IconPickerModal(
 
     // Cache Stats & Cleaner state
     var unusedCacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
+    var unusedIconsList by remember { mutableStateOf<List<IconHelper.CustomIconFileInfo>>(emptyList()) }
     var showCleanConfirmDialog by remember { mutableStateOf(false) }
     var isCleaningCache by remember { mutableStateOf(false) }
 
@@ -135,14 +136,12 @@ fun IconPickerModal(
         coroutineScope.launch {
             withContext(Dispatchers.IO) {
                 try {
-                    val db = com.example.data.local.AppDatabase.getDatabase(context)
-                    val catIcons = db.categoryDao().getAllCategoriesSnapshot().map { it.iconName }
-                    val accIcons = db.accountDao().getAllAccountsSnapshot().map { it.iconName }
-                    val goalIcons = db.savingsGoalDao().getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
-                    val active = (catIcons + accIcons + goalIcons).filter { it.isNotBlank() }.toSet()
+                    val active = IconHelper.queryAllActiveIconNames(context)
                     val stats = IconHelper.getUnusedCustomIconsStats(context, active)
+                    val list = IconHelper.getUnusedCustomIconsList(context, active)
                     withContext(Dispatchers.Main) {
                         unusedCacheStats = stats
+                        unusedIconsList = list
                     }
                 } catch (_: Exception) {}
             }
@@ -1441,64 +1440,33 @@ fun IconPickerModal(
         )
     }
 
-    // Clear unused custom icons confirmation dialog
+    // Clear unused custom icons visual management dialog
     if (showCleanConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showCleanConfirmDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.DeleteSweep,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(28.dp)
-                )
-            },
-            title = { Text("Clear Unused Custom Icons") },
-            text = {
-                val kb = (unusedCacheStats.unusedBytes / 1024).coerceAtLeast(1)
-                Text(
-                    "Found ${unusedCacheStats.unusedCount} custom icon(s) (~$kb KB) that are not assigned to any category, account, or goal.\n\nDo you want to permanently remove them from storage to free up space?"
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showCleanConfirmDialog = false
-                        isCleaningCache = true
-                        coroutineScope.launch {
-                            withContext(Dispatchers.IO) {
-                                val db = com.example.data.local.AppDatabase.getDatabase(context)
-                                val catIcons = db.categoryDao().getAllCategoriesSnapshot().map { it.iconName }
-                                val accIcons = db.accountDao().getAllAccountsSnapshot().map { it.iconName }
-                                val goalIcons = db.savingsGoalDao().getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
-                                val active = (catIcons + accIcons + goalIcons).filter { it.isNotBlank() }.toSet()
-                                val (deletedCount, freedBytes) = IconHelper.clearUnusedCustomIcons(context, active)
-                                val updatedIcons = IconHelper.getAllCustomIcons(context)
-                                withContext(Dispatchers.Main) {
-                                    customIcons.clear()
-                                    customIcons.addAll(updatedIcons)
-                                    isCleaningCache = false
-                                    refreshCustomStats()
-                                    val freedKb = (freedBytes / 1024).coerceAtLeast(1)
-                                    Toast.makeText(
-                                        context,
-                                        "Cleaned $deletedCount unused icons! Freed $freedKb KB",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
+        UnusedCustomIconsDialog(
+            unusedIcons = unusedIconsList,
+            onDeleteSelected = { keysToDelete ->
+                showCleanConfirmDialog = false
+                isCleaningCache = true
+                coroutineScope.launch {
+                    withContext(Dispatchers.IO) {
+                        val (deletedCount, freedBytes) = IconHelper.deleteSelectedCustomIcons(context, keysToDelete)
+                        val updatedIcons = IconHelper.getAllCustomIcons(context)
+                        withContext(Dispatchers.Main) {
+                            customIcons.clear()
+                            customIcons.addAll(updatedIcons)
+                            isCleaningCache = false
+                            refreshCustomStats()
+                            val freedKb = (freedBytes / 1024).coerceAtLeast(1)
+                            Toast.makeText(
+                                context,
+                                "Cleaned $deletedCount unused icon(s)! Freed $freedKb KB",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Clean Cache")
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showCleanConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showCleanConfirmDialog = false }
         )
     }
 

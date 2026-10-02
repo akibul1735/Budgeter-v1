@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -1701,6 +1704,34 @@ object IconHelper {
         }
     }
 
+    data class CustomIconFileInfo(
+        val iconKey: String,
+        val file: File,
+        val sizeBytes: Long,
+        val lastModifiedEpochMs: Long
+    )
+
+    /**
+     * Comprehensively queries all active icon names across Categories, Accounts,
+     * Savings Goals, Item Image Cache, and all database entities.
+     */
+    suspend fun queryAllActiveIconNames(context: Context): Set<String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val db = com.example.data.local.AppDatabase.getDatabase(context)
+                val catIcons = db.categoryDao().getAllCategoriesSnapshot().map { it.iconName }
+                val accIcons = db.accountDao().getAllAccountsSnapshot().map { it.iconName }
+                val goalIcons = db.savingsGoalDao().getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
+                val cachedItemIcons = db.itemImageCacheDao().getAllCachedItemsSnapshot().map { it.iconKey }
+                (catIcons + accIcons + goalIcons + cachedItemIcons)
+                    .filter { it.isNotBlank() }
+                    .toSet()
+            } catch (_: Exception) {
+                emptySet()
+            }
+        }
+    }
+
     /**
      * Computes statistics about unused and used custom icons currently stored on disk.
      */
@@ -1718,15 +1749,20 @@ object IconHelper {
         var unusedCount = 0
         var usedCount = 0
 
-        val normalizedActive = activeIconNames.map {
-            it.substringAfterLast("/").substringBeforeLast(".")
-        }.toSet()
+        val normalizedActive = activeIconNames.flatMap {
+            val raw = it.trim()
+            listOf(
+                raw,
+                raw.removeSuffix(".png").removeSuffix(".jpg").removeSuffix(".jpeg").removeSuffix(".webp"),
+                raw.substringAfterLast("/").substringBeforeLast(".")
+            )
+        }.filter { it.isNotBlank() }.toSet()
 
         for (file in allFiles) {
             val size = file.length()
             totalBytes += size
             val nameNoExt = file.nameWithoutExtension
-            if (nameNoExt in normalizedActive || file.name in activeIconNames) {
+            if (nameNoExt in normalizedActive || file.name in activeIconNames || file.name in normalizedActive) {
                 usedCount++
                 usedBytes += size
             } else {
@@ -1746,6 +1782,45 @@ object IconHelper {
     }
 
     /**
+     * Returns a list of detailed file info objects for all unused custom icons.
+     */
+    fun getUnusedCustomIconsList(context: Context, activeIconNames: Set<String>): List<CustomIconFileInfo> {
+        val customDir = File(context.filesDir, "custom_icons")
+        if (!customDir.exists()) return emptyList()
+
+        val allFiles = customDir.listFiles { file ->
+            file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp")
+        } ?: return emptyList()
+
+        val normalizedActive = activeIconNames.flatMap {
+            val raw = it.trim()
+            listOf(
+                raw,
+                raw.removeSuffix(".png").removeSuffix(".jpg").removeSuffix(".jpeg").removeSuffix(".webp"),
+                raw.substringAfterLast("/").substringBeforeLast(".")
+            )
+        }.filter { it.isNotBlank() }.toSet()
+
+        val unusedList = mutableListOf<CustomIconFileInfo>()
+        for (file in allFiles) {
+            val nameNoExt = file.nameWithoutExtension
+            val fileName = file.name
+            val isUsed = nameNoExt in normalizedActive || fileName in normalizedActive || activeIconNames.contains(nameNoExt) || activeIconNames.contains(fileName)
+            if (!isUsed) {
+                unusedList.add(
+                    CustomIconFileInfo(
+                        iconKey = nameNoExt,
+                        file = file,
+                        sizeBytes = file.length(),
+                        lastModifiedEpochMs = file.lastModified()
+                    )
+                )
+            }
+        }
+        return unusedList.sortedByDescending { it.lastModifiedEpochMs }
+    }
+
+    /**
      * Deletes all custom icon files that are not referenced in the database.
      * Returns Pair(number_of_files_deleted, bytes_freed).
      */
@@ -1760,11 +1835,43 @@ object IconHelper {
         var deletedCount = 0
         var bytesFreed = 0L
 
-        val normalizedActive = activeIconNames.map { it.removeSuffix(".png") }.toSet()
+        val normalizedActive = activeIconNames.flatMap {
+            val raw = it.trim()
+            listOf(
+                raw,
+                raw.removeSuffix(".png").removeSuffix(".jpg").removeSuffix(".jpeg").removeSuffix(".webp"),
+                raw.substringAfterLast("/").substringBeforeLast(".")
+            )
+        }.filter { it.isNotBlank() }.toSet()
 
         for (file in allFiles) {
             val nameNoExt = file.nameWithoutExtension
-            if (nameNoExt !in normalizedActive && file.name !in activeIconNames) {
+            if (nameNoExt !in normalizedActive && file.name !in activeIconNames && file.name !in normalizedActive) {
+                val size = file.length()
+                if (file.delete()) {
+                    deletedCount++
+                    bytesFreed += size
+                }
+            }
+        }
+
+        return deletedCount to bytesFreed
+    }
+
+    /**
+     * Deletes specific custom icons by their keys.
+     * Returns Pair(number_of_files_deleted, bytes_freed).
+     */
+    fun deleteSelectedCustomIcons(context: Context, iconKeys: Set<String>): Pair<Int, Long> {
+        val customDir = File(context.filesDir, "custom_icons")
+        if (!customDir.exists()) return 0 to 0L
+
+        var deletedCount = 0
+        var bytesFreed = 0L
+
+        for (key in iconKeys) {
+            val file = getCustomIconFile(context, key)
+            if (file.exists()) {
                 val size = file.length()
                 if (file.delete()) {
                     deletedCount++
