@@ -331,6 +331,12 @@ class TabFilterPreferences private constructor(context: Context) {
             prefs.edit().putString(KEY_LABELS_SORT_ORDER, value.name).apply()
         }
 
+    var labelsCategorySegment: String = prefs.getString(KEY_LABELS_CATEGORY_SEGMENT, "HASHTAGS") ?: "HASHTAGS"
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_LABELS_CATEGORY_SEGMENT, value).apply()
+        }
+
     // ==========================================
     // 6. SAVINGS GOALS
     // ==========================================
@@ -975,6 +981,7 @@ class TabFilterPreferences private constructor(context: Context) {
         private const val KEY_LABELS_SEARCH = "labels_search"
         private const val KEY_LABELS_DATE_PRESET = "labels_date_preset"
         private const val KEY_LABELS_SORT_ORDER = "labels_sort_order"
+        private const val KEY_LABELS_CATEGORY_SEGMENT = "labels_category_segment"
 
         private const val KEY_GOALS_FILTER = "goals_filter"
         private const val KEY_GOALS_SEARCH = "goals_search"

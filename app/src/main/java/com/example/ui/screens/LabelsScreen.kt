@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,39 +20,38 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.LabelOff
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -71,7 +72,6 @@ import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
-import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
@@ -86,14 +86,10 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
+import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import androidx.compose.runtime.LaunchedEffect
 import com.example.util.TabExportHelper
 import com.example.util.TabFilterPreferences
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 private val CrimsonPink = Color(0xFFE91E63)
 private val SlateText = Color(0xFF64748B)
@@ -101,8 +97,17 @@ private val SlateText = Color(0xFF64748B)
 typealias LabelSortOption = AggregatedSortOrder
 typealias LabelDateFilterPreset = AggregatedDatePreset
 
+enum class LabelCategorySegment {
+    HASHTAGS,  // 🏷️ Explicit Labels & #Hashtags
+    NOTES,     // 📝 Notes
+    PAYEES,    // 👤 Payee / Payer
+    UNTAGGED,  // ⚠️ Unlabeled
+    ALL        // 🌐 All
+}
+
 data class AggregatedLabel(
     val labelName: String,
+    val segmentType: LabelCategorySegment = LabelCategorySegment.ALL,
     val totalExpense: Double,
     val totalIncome: Double,
     val totalSum: Double,
@@ -127,6 +132,16 @@ fun LabelsScreen(
 
     var searchQuery by remember { mutableStateOf(tabFilterPrefs.labelsSearchQuery) }
     var activeTabMode by remember { mutableStateOf(tabFilterPrefs.labelsTabMode) }
+    var selectedSegment by remember {
+        mutableStateOf(
+            try {
+                LabelCategorySegment.valueOf(tabFilterPrefs.labelsCategorySegment)
+            } catch (_: Exception) {
+                LabelCategorySegment.HASHTAGS
+            }
+        )
+    }
+
     var filterState by remember {
         mutableStateOf(
             AggregatedFilterState(
@@ -136,9 +151,10 @@ fun LabelsScreen(
         )
     }
 
-    LaunchedEffect(searchQuery, activeTabMode, filterState) {
+    LaunchedEffect(searchQuery, activeTabMode, selectedSegment, filterState) {
         tabFilterPrefs.labelsSearchQuery = searchQuery
         tabFilterPrefs.labelsTabMode = activeTabMode
+        tabFilterPrefs.labelsCategorySegment = selectedSegment.name
         tabFilterPrefs.labelsDatePreset = filterState.datePreset
         tabFilterPrefs.labelsSortOrder = filterState.sortOrder
     }
@@ -165,16 +181,15 @@ fun LabelsScreen(
     val currentTargetType = if (activeTabMode == "EXPENSE") TransactionType.EXPENSE else TransactionType.INCOME
     val effectiveType = filterState.transactionType ?: currentTargetType
 
-    // Extract tags/labels from transaction notes & referenceNo
-    val aggregatedLabels = remember(
+    // 1. Filter Transactions by Date, Type, Account, Category, Status
+    val filteredTxs = remember(
         transactions,
-        searchQuery,
         effectiveType,
         startEpochMs,
         endEpochMs,
         filterState
     ) {
-        val filteredTxs = transactions.filter { item ->
+        transactions.filter { item ->
             val tx = item.transaction
             val matchesDate = tx.dateEpochMs in startEpochMs..endEpochMs
             val matchesType = tx.type == effectiveType
@@ -188,41 +203,73 @@ fun LabelsScreen(
 
             matchesDate && matchesType && matchesAccount && matchesCategory && matchesStatus
         }
+    }
 
-        // Map: label string -> list of TransactionWithDetails
-        val labelMap = mutableMapOf<String, MutableList<TransactionWithDetails>>()
+    // 2. Segment Maps Calculation
+    val (hashtagMap, noteMap, payeeMap, untaggedList, allMap) = remember(filteredTxs, languageMode) {
+        val hashtags = mutableMapOf<String, MutableList<TransactionWithDetails>>()
+        val notes = mutableMapOf<String, MutableList<TransactionWithDetails>>()
+        val payees = mutableMapOf<String, MutableList<TransactionWithDetails>>()
+        val untagged = mutableListOf<TransactionWithDetails>()
+        val all = mutableMapOf<String, MutableList<TransactionWithDetails>>()
+
+        val hashtagRegex = Regex("#[\\w\\u0980-\\u09FF]+")
 
         for (item in filteredTxs) {
             val tx = item.transaction
-            val note = tx.note
-            val ref = tx.referenceNo
+            val note = tx.note.trim()
+            val ref = tx.referenceNo.trim()
+            val payee = tx.payeeOrPayer.trim()
 
-            // Extract hashtag tokens
-            val hashtagRegex = Regex("#[\\w\\u0980-\\u09FF]+")
-            val foundTags = hashtagRegex.findAll("$note $ref").map { it.value }.toMutableSet()
-
-            // If no hashtag found, and note is short, treat note as label
-            if (foundTags.isEmpty() && note.isNotBlank()) {
-                val cleanNote = note.trim()
-                if (cleanNote.length <= 25 && !cleanNote.contains("\n")) {
-                    foundTags.add("#$cleanNote")
-                } else if (cleanNote.isNotBlank()) {
-                    foundTags.add("#General")
+            // 1. Extract explicit hashtags from Note and Reference
+            val explicitTags = hashtagRegex.findAll("$note $ref").map { it.value }.toMutableSet()
+            if (ref.isNotBlank() && !ref.startsWith("#") && !ref.contains("TXN-") && !ref.contains("REC-")) {
+                ref.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { tag ->
+                    explicitTags.add(if (tag.startsWith("#")) tag else "#$tag")
                 }
-            } else if (foundTags.isEmpty()) {
-                val catTag = item.category?.nameEn ?: "Untagged"
-                foundTags.add("#$catTag")
             }
 
-            for (tag in foundTags) {
+            var hasExplicitTag = false
+            for (tag in explicitTags) {
                 val normalizedTag = if (tag.startsWith("#")) tag else "#$tag"
-                labelMap.getOrPut(normalizedTag) { mutableListOf() }.add(item)
+                hashtags.getOrPut(normalizedTag) { mutableListOf() }.add(item)
+                all.getOrPut(normalizedTag) { mutableListOf() }.add(item)
+                hasExplicitTag = true
+            }
+
+            // 2. Extract note without hashtags
+            val noteWithoutTags = hashtagRegex.replace(note, "").trim()
+            if (noteWithoutTags.isNotBlank()) {
+                notes.getOrPut(noteWithoutTags) { mutableListOf() }.add(item)
+                if (!hasExplicitTag) {
+                    all.getOrPut(noteWithoutTags) { mutableListOf() }.add(item)
+                }
+            }
+
+            // 3. Extract Payee / Payer
+            if (payee.isNotBlank()) {
+                payees.getOrPut(payee) { mutableListOf() }.add(item)
+            }
+
+            // 4. Untagged
+            if (!hasExplicitTag && noteWithoutTags.isBlank()) {
+                untagged.add(item)
+                val catTag = item.category?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "লেবেলহীন" else "Untagged")
+                all.getOrPut(catTag) { mutableListOf() }.add(item)
             }
         }
 
-        val totalTaggedFlow = filteredTxs.sumOf { it.transaction.amount }
+        SegmentData(hashtags, notes, payees, untagged, all)
+    }
 
-        val list = labelMap.map { (tagName, txList) ->
+    val totalTaggedFlow = filteredTxs.sumOf { it.transaction.amount }
+
+    // Helper to build sorted aggregated label list
+    fun buildAggregatedList(
+        map: Map<String, List<TransactionWithDetails>>,
+        segment: LabelCategorySegment
+    ): List<AggregatedLabel> {
+        val raw = map.map { (tagName, txList) ->
             val expenseSum = txList.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
             val incomeSum = txList.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
             val currentSum = if (effectiveType == TransactionType.EXPENSE) expenseSum else incomeSum
@@ -231,6 +278,7 @@ fun LabelsScreen(
 
             AggregatedLabel(
                 labelName = tagName,
+                segmentType = segment,
                 totalExpense = expenseSum,
                 totalIncome = incomeSum,
                 totalSum = totalSum,
@@ -248,36 +296,81 @@ fun LabelsScreen(
             matchesSearch && matchesMin && matchesMax && matchesZero
         }
 
-        when (filterState.sortOrder) {
+        return when (filterState.sortOrder) {
             AggregatedSortOrder.DEFAULT,
-            AggregatedSortOrder.AMOUNT_DESC -> list.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
-            AggregatedSortOrder.AMOUNT_ASC -> list.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
-            AggregatedSortOrder.COUNT_DESC -> list.sortedByDescending { it.transactionCount }
-            AggregatedSortOrder.COUNT_ASC -> list.sortedBy { it.transactionCount }
-            AggregatedSortOrder.AVG_DESC -> list.sortedByDescending {
+            AggregatedSortOrder.AMOUNT_DESC -> raw.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
+            AggregatedSortOrder.AMOUNT_ASC -> raw.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
+            AggregatedSortOrder.COUNT_DESC -> raw.sortedByDescending { it.transactionCount }
+            AggregatedSortOrder.COUNT_ASC -> raw.sortedBy { it.transactionCount }
+            AggregatedSortOrder.AVG_DESC -> raw.sortedByDescending {
                 val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome
                 if (it.transactionCount > 0) amt / it.transactionCount else 0.0
             }
-            AggregatedSortOrder.AVG_ASC -> list.sortedBy {
+            AggregatedSortOrder.AVG_ASC -> raw.sortedBy {
                 val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome
                 if (it.transactionCount > 0) amt / it.transactionCount else 0.0
             }
-            AggregatedSortOrder.NAME_ASC -> list.sortedBy { it.labelName.lowercase() }
-            AggregatedSortOrder.NAME_DESC -> list.sortedByDescending { it.labelName.lowercase() }
-            AggregatedSortOrder.RECENT_DATE -> list.sortedByDescending { it.transactions.firstOrNull()?.transaction?.dateEpochMs ?: 0L }
+            AggregatedSortOrder.NAME_ASC -> raw.sortedBy { it.labelName.lowercase() }
+            AggregatedSortOrder.NAME_DESC -> raw.sortedByDescending { it.labelName.lowercase() }
+            AggregatedSortOrder.RECENT_DATE -> raw.sortedByDescending { it.transactions.firstOrNull()?.transaction?.dateEpochMs ?: 0L }
         }
     }
 
-    val totalFlowOverall = remember(aggregatedLabels, activeTabMode) {
-        aggregatedLabels.sumOf { if (activeTabMode == "EXPENSE") it.totalExpense else it.totalIncome }
+    val displayedAggregatedLabels = remember(
+        selectedSegment,
+        hashtagMap,
+        noteMap,
+        payeeMap,
+        allMap,
+        searchQuery,
+        filterState,
+        effectiveType,
+        totalTaggedFlow
+    ) {
+        when (selectedSegment) {
+            LabelCategorySegment.HASHTAGS -> buildAggregatedList(hashtagMap, LabelCategorySegment.HASHTAGS)
+            LabelCategorySegment.NOTES -> buildAggregatedList(noteMap, LabelCategorySegment.NOTES)
+            LabelCategorySegment.PAYEES -> buildAggregatedList(payeeMap, LabelCategorySegment.PAYEES)
+            LabelCategorySegment.ALL -> buildAggregatedList(allMap, LabelCategorySegment.ALL)
+            LabelCategorySegment.UNTAGGED -> emptyList()
+        }
     }
 
-    val activeFilterSummary = remember(filterState, searchQuery, languageMode) {
-        val summary = filterState.buildFilterSummary(languageMode)
-        if (searchQuery.isNotBlank()) {
-            if (summary.isNotBlank()) "$summary • \"${searchQuery.trim()}\"" else "\"${searchQuery.trim()}\""
+    val filteredUntaggedTxs = remember(untaggedList, searchQuery, filterState) {
+        untaggedList.filter { item ->
+            val tx = item.transaction
+            val catName = item.category?.localizedName(languageMode) ?: ""
+            val matchesSearch = searchQuery.isBlank() || catName.contains(searchQuery, ignoreCase = true) || tx.amount.toString().contains(searchQuery)
+            val matchesMin = filterState.minAmount == null || tx.amount >= filterState.minAmount!!
+            val matchesMax = filterState.maxAmount == null || tx.amount <= filterState.maxAmount!!
+            val matchesZero = !filterState.excludeZeroAmounts || tx.amount > 0
+
+            matchesSearch && matchesMin && matchesMax && matchesZero
+        }.sortedByDescending { it.transaction.dateEpochMs }
+    }
+
+    val totalFlowOverall = remember(selectedSegment, displayedAggregatedLabels, filteredUntaggedTxs, activeTabMode) {
+        if (selectedSegment == LabelCategorySegment.UNTAGGED) {
+            filteredUntaggedTxs.sumOf { it.transaction.amount }
         } else {
-            summary
+            displayedAggregatedLabels.sumOf { if (activeTabMode == "EXPENSE") it.totalExpense else it.totalIncome }
+        }
+    }
+
+    val activeFilterSummary = remember(filterState, searchQuery, languageMode, selectedSegment) {
+        val segLabel = when (selectedSegment) {
+            LabelCategorySegment.HASHTAGS -> if (languageMode == LanguageMode.BANGLA) "হ্যাশট্যাগ ও লেবেল" else "Labels & Hashtags"
+            LabelCategorySegment.NOTES -> if (languageMode == LanguageMode.BANGLA) "নোট" else "Notes"
+            LabelCategorySegment.PAYEES -> if (languageMode == LanguageMode.BANGLA) "প্রাপক / প্রদানকারী" else "Payees"
+            LabelCategorySegment.UNTAGGED -> if (languageMode == LanguageMode.BANGLA) "লেবেলহীন" else "Unlabeled"
+            LabelCategorySegment.ALL -> if (languageMode == LanguageMode.BANGLA) "সকল" else "All"
+        }
+        val summary = filterState.buildFilterSummary(languageMode)
+        val base = "$segLabel • $summary"
+        if (searchQuery.isNotBlank()) {
+            "$base • \"${searchQuery.trim()}\""
+        } else {
+            base
         }
     }
 
@@ -289,7 +382,7 @@ fun LabelsScreen(
                 title = LanguageHelper.getString("labels", languageMode),
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
-                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ খুঁজুন..." else "Search labels/tags...",
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেবেল / নোট খুঁজুন..." else "Search labels/notes...",
                 showSearchButton = true,
                 showFilterButton = true,
                 isFilterActive = filterState.isFilterActive,
@@ -303,41 +396,115 @@ fun LabelsScreen(
                     ExportMenuButton(
                         languageMode = languageMode,
                         onExport = { format ->
-                            TabExportHelper.exportLabels(
-                                context = context,
-                                format = format,
-                                filterSubtitle = activeFilterSummary,
-                                labels = aggregatedLabels,
-                                languageMode = languageMode
-                            )
+                            if (selectedSegment == LabelCategorySegment.UNTAGGED) {
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = filteredUntaggedTxs,
+                                    filterSummary = activeFilterSummary,
+                                    languageMode = languageMode
+                                )
+                            } else {
+                                TabExportHelper.exportLabels(
+                                    context = context,
+                                    format = format,
+                                    filterSubtitle = activeFilterSummary,
+                                    labels = displayedAggregatedLabels,
+                                    languageMode = languageMode
+                                )
+                            }
                         }
                     )
                 }
             )
 
-            // Net Earnings Style Summary Card
+            // Segmented Filter Pills Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 1. Hashtags
+                SegmentPill(
+                    icon = Icons.Default.Tag,
+                    label = if (languageMode == LanguageMode.BANGLA) "হ্যাশট্যাগ ও লেবেল" else "Hashtags",
+                    count = hashtagMap.size,
+                    isSelected = selectedSegment == LabelCategorySegment.HASHTAGS,
+                    languageMode = languageMode,
+                    onClick = { selectedSegment = LabelCategorySegment.HASHTAGS }
+                )
+
+                // 2. Notes
+                SegmentPill(
+                    icon = Icons.Default.Description,
+                    label = if (languageMode == LanguageMode.BANGLA) "নোট (Notes)" else "Notes",
+                    count = noteMap.size,
+                    isSelected = selectedSegment == LabelCategorySegment.NOTES,
+                    languageMode = languageMode,
+                    onClick = { selectedSegment = LabelCategorySegment.NOTES }
+                )
+
+                // 3. Payees
+                SegmentPill(
+                    icon = Icons.Default.Person,
+                    label = if (languageMode == LanguageMode.BANGLA) "প্রাপক / ব্যক্তি" else "Payees",
+                    count = payeeMap.size,
+                    isSelected = selectedSegment == LabelCategorySegment.PAYEES,
+                    languageMode = languageMode,
+                    onClick = { selectedSegment = LabelCategorySegment.PAYEES }
+                )
+
+                // 4. Untagged
+                SegmentPill(
+                    icon = Icons.Default.LabelOff,
+                    label = if (languageMode == LanguageMode.BANGLA) "লেবেলহীন" else "Unlabeled",
+                    count = untaggedList.size,
+                    isSelected = selectedSegment == LabelCategorySegment.UNTAGGED,
+                    languageMode = languageMode,
+                    isAlertStyle = untaggedList.isNotEmpty(),
+                    onClick = { selectedSegment = LabelCategorySegment.UNTAGGED }
+                )
+
+                // 5. All
+                SegmentPill(
+                    icon = Icons.Default.Label,
+                    label = if (languageMode == LanguageMode.BANGLA) "সকল (All)" else "All",
+                    count = allMap.size,
+                    isSelected = selectedSegment == LabelCategorySegment.ALL,
+                    languageMode = languageMode,
+                    onClick = { selectedSegment = LabelCategorySegment.ALL }
+                )
+            }
+
+            // Summary Card
             Surface(
                 color = if (isLight) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        val titleText = when (selectedSegment) {
+                            LabelCategorySegment.HASHTAGS -> if (activeTabMode == "EXPENSE") (if (languageMode == LanguageMode.BANGLA) "মোট হ্যাশট্যাগ ব্যয়" else "Hashtags Expense") else (if (languageMode == LanguageMode.BANGLA) "মোট হ্যাশট্যাগ আয়" else "Hashtags Income")
+                            LabelCategorySegment.NOTES -> if (activeTabMode == "EXPENSE") (if (languageMode == LanguageMode.BANGLA) "মোট নোট ব্যয়" else "Notes Expense") else (if (languageMode == LanguageMode.BANGLA) "মোট নোট আয়" else "Notes Income")
+                            LabelCategorySegment.PAYEES -> if (activeTabMode == "EXPENSE") (if (languageMode == LanguageMode.BANGLA) "মোট প্রাপক ব্যয়" else "Payees Expense") else (if (languageMode == LanguageMode.BANGLA) "মোট প্রাপক আয়" else "Payees Income")
+                            LabelCategorySegment.UNTAGGED -> if (activeTabMode == "EXPENSE") (if (languageMode == LanguageMode.BANGLA) "লেবেলহীন ব্যয়" else "Unlabeled Expense") else (if (languageMode == LanguageMode.BANGLA) "লেবেলহীন আয়" else "Unlabeled Income")
+                            LabelCategorySegment.ALL -> if (activeTabMode == "EXPENSE") (if (languageMode == LanguageMode.BANGLA) "মোট সর্বমোট ব্যয়" else "Total Labels Expense") else (if (languageMode == LanguageMode.BANGLA) "মোট সর্বমোট আয়" else "Total Labels Income")
+                        }
                         Text(
-                            text = if (activeTabMode == "EXPENSE") {
-                                if (languageMode == LanguageMode.BANGLA) "মোট ব্যয় (Labels Expense)" else "Total Labels Expense"
-                            } else {
-                                if (languageMode == LanguageMode.BANGLA) "মোট আয় (Labels Income)" else "Total Labels Income"
-                            },
+                            text = titleText,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = SlateText
@@ -364,13 +531,21 @@ fun LabelsScreen(
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                val countLabel = when (selectedSegment) {
+                                    LabelCategorySegment.HASHTAGS -> if (languageMode == LanguageMode.BANGLA) "ট্যাগ" else "Tags"
+                                    LabelCategorySegment.NOTES -> if (languageMode == LanguageMode.BANGLA) "নোট" else "Notes"
+                                    LabelCategorySegment.PAYEES -> if (languageMode == LanguageMode.BANGLA) "প্রাপক" else "Payees"
+                                    LabelCategorySegment.UNTAGGED -> if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "Txns"
+                                    LabelCategorySegment.ALL -> if (languageMode == LanguageMode.BANGLA) "আইটেম" else "Items"
+                                }
+                                val countVal = if (selectedSegment == LabelCategorySegment.UNTAGGED) filteredUntaggedTxs.size else displayedAggregatedLabels.size
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
+                                    text = countLabel,
                                     fontSize = 9.5.sp,
                                     color = SlateText
                                 )
                                 Text(
-                                    text = LanguageHelper.formatNumber(aggregatedLabels.size.toDouble(), languageMode, false),
+                                    text = LanguageHelper.formatNumber(countVal.toDouble(), languageMode, false),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -378,69 +553,133 @@ fun LabelsScreen(
                             }
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                        ) {
-                            val totalTxCount = aggregatedLabels.sumOf { it.transactionCount }
-                            Column(
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                        if (selectedSegment != LabelCategorySegment.UNTAGGED) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                             ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "Txns",
-                                    fontSize = 9.5.sp,
-                                    color = SlateText
-                                )
-                                Text(
-                                    text = LanguageHelper.formatNumber(totalTxCount.toDouble(), languageMode, false),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                                val totalTxCount = displayedAggregatedLabels.sumOf { it.transactionCount }
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "Txns",
+                                        fontSize = 9.5.sp,
+                                        color = SlateText
+                                    )
+                                    Text(
+                                        text = LanguageHelper.formatNumber(totalTxCount.toDouble(), languageMode, false),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Labels List
-            if (aggregatedLabels.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.LocalOffer,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "কোন লেবেল পাওয়া যায়নি (নোট এ #ট্যাগ ব্যবহার করুন)" else "No labels found (use #tags in transaction notes)",
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            // Main Content Area
+            if (selectedSegment == LabelCategorySegment.UNTAGGED) {
+                // Untagged Transactions List
+                if (filteredUntaggedTxs.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = SolidIncome,
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সব লেনদেনে লেবেল বা নোট যুক্ত করা আছে! 🎉" else "All transactions have labels or notes! 🎉",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "কোনো লেবেলহীন লেনদেন নেই" else "No untagged transactions found for this period.",
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 125.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        items(filteredUntaggedTxs, key = { it.transaction.id }) { item ->
+                            UntaggedTransactionRow(
+                                item = item,
+                                languageMode = languageMode,
+                                onTagClick = { onTransactionClick(item.transaction) }
+                            )
+                        }
                     }
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 125.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    items(aggregatedLabels, key = { it.labelName }) { label ->
-                        AggregatedLabelCard(
-                            label = label,
-                            languageMode = languageMode,
-                            onClick = { selectedDrilldownLabel = label }
-                        )
+                // Aggregated Labels List
+                if (displayedAggregatedLabels.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = when (selectedSegment) {
+                                    LabelCategorySegment.HASHTAGS -> Icons.Default.Tag
+                                    LabelCategorySegment.NOTES -> Icons.Default.Description
+                                    LabelCategorySegment.PAYEES -> Icons.Default.Person
+                                    else -> Icons.Default.LocalOffer
+                                },
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            val emptyMsg = when (selectedSegment) {
+                                LabelCategorySegment.HASHTAGS -> if (languageMode == LanguageMode.BANGLA) "কোনো হ্যাশট্যাগ পাওয়া যায়নি (নোট এ #ট্যাগ ব্যবহার করুন)" else "No hashtags found (use #tags in transaction notes or form)"
+                                LabelCategorySegment.NOTES -> if (languageMode == LanguageMode.BANGLA) "কোনো নোটযুক্ত লেনদেন নেই" else "No transactions with notes found"
+                                LabelCategorySegment.PAYEES -> if (languageMode == LanguageMode.BANGLA) "কোনো প্রাপক/প্রদানকারী পাওয়া যায়নি" else "No payees/payers entered in transactions"
+                                else -> if (languageMode == LanguageMode.BANGLA) "কোনো লেবেল পাওয়া যায়নি" else "No labels found"
+                            }
+                            Text(
+                                text = emptyMsg,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 125.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        items(displayedAggregatedLabels, key = { it.labelName }) { label ->
+                            AggregatedLabelCard(
+                                label = label,
+                                languageMode = languageMode,
+                                onClick = { selectedDrilldownLabel = label }
+                            )
+                        }
                     }
                 }
             }
@@ -592,7 +831,7 @@ fun LabelsScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${label.transactionCount} transactions • Sum: ${LanguageHelper.formatCurrency(label.totalSum, languageMode)}",
+                            text = "${label.transactionCount} ${if (languageMode == LanguageMode.BANGLA) "টি লেনদেন" else "transactions"} • ${LanguageHelper.formatCurrency(label.totalSum, languageMode)}",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -677,7 +916,7 @@ fun LabelsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { selectedDrilldownLabel = null }) {
-                    Text("Done")
+                    Text(LanguageHelper.getString("done", languageMode).ifEmpty { "Done" })
                 }
             }
         )
@@ -700,6 +939,75 @@ fun LabelsScreen(
     }
 }
 
+private data class SegmentData(
+    val hashtags: Map<String, List<TransactionWithDetails>>,
+    val notes: Map<String, List<TransactionWithDetails>>,
+    val payees: Map<String, List<TransactionWithDetails>>,
+    val untagged: List<TransactionWithDetails>,
+    val all: Map<String, List<TransactionWithDetails>>
+)
+
+@Composable
+private fun SegmentPill(
+    icon: ImageVector,
+    label: String,
+    count: Int,
+    isSelected: Boolean,
+    languageMode: LanguageMode,
+    isAlertStyle: Boolean = false,
+    onClick: () -> Unit
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val activeColor = if (isAlertStyle && !isSelected && count > 0) Color(0xFFE65100) else primaryColor
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = if (isSelected) primaryColor else if (isLight) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) primaryColor else if (isAlertStyle && count > 0) Color(0xFFFFB74D) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        ),
+        shadowElevation = if (isSelected) 2.dp else 0.dp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isSelected) Color.White else activeColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = label,
+                fontSize = 11.5.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+            )
+            if (count > 0) {
+                Spacer(modifier = Modifier.width(5.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isSelected) Color.White.copy(alpha = 0.25f) else (if (isAlertStyle) Color(0xFFFFE0B2) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+                ) {
+                    Text(
+                        text = LanguageHelper.formatNumber(count.toDouble(), languageMode, false),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Color.White else (if (isAlertStyle) Color(0xFFE65100) else MaterialTheme.colorScheme.onSurfaceVariant),
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun AggregatedLabelCard(
@@ -720,6 +1028,13 @@ private fun AggregatedLabelCard(
         BorderStroke(1.3.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     } else {
         BorderStroke(1.1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    }
+
+    val iconVector = when (label.segmentType) {
+        LabelCategorySegment.HASHTAGS -> Icons.Default.Tag
+        LabelCategorySegment.NOTES -> Icons.Default.Description
+        LabelCategorySegment.PAYEES -> Icons.Default.Person
+        else -> Icons.Default.Label
     }
 
     val cardShape = RoundedCornerShape(11.dp)
@@ -753,7 +1068,7 @@ private fun AggregatedLabelCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Label,
+                        imageVector = iconVector,
                         contentDescription = null,
                         tint = typeColor,
                         modifier = Modifier.size(17.dp)
@@ -831,4 +1146,117 @@ private fun AggregatedLabelCard(
     }
 }
 
+@Composable
+private fun UntaggedTransactionRow(
+    item: TransactionWithDetails,
+    languageMode: LanguageMode,
+    onTagClick: () -> Unit
+) {
+    val tx = item.transaction
+    val isExpense = tx.type == TransactionType.EXPENSE
+    val typeColor = if (isExpense) CrimsonPink else SolidIncome
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
 
+    val cardBgColor = if (isLight) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    val cardBorder = BorderStroke(1.1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    val cardShape = RoundedCornerShape(11.dp)
+
+    Surface(
+        color = cardBgColor,
+        shape = cardShape,
+        border = cardBorder,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .clickable { onTagClick() }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Category Icon Badge
+            val catIcon = item.category?.iconName ?: "Category"
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(typeColor.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = IconHelper.getIconByName(catIcon),
+                    contentDescription = null,
+                    tint = typeColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(9.dp))
+
+            // Middle Column: Category Name + Date & Account
+            Column(modifier = Modifier.weight(1f)) {
+                val title = item.category?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "Transaction")
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                val dateStr = DateUtils.formatDate(tx.dateEpochMs, languageMode)
+                val accName = if (isExpense) item.creditAccount?.localizedName(languageMode) else item.debitAccount?.localizedName(languageMode)
+                val subtitle = if (accName != null) "$dateStr • $accName" else dateStr
+                Text(
+                    text = subtitle,
+                    fontSize = 10.5.sp,
+                    color = SlateText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Right Column: Amount + "+ Tag" Chip Button
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = LanguageHelper.formatCurrency(tx.amount, languageMode),
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = typeColor
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = SolidPrimary.copy(alpha = 0.12f),
+                    border = BorderStroke(0.8.dp, SolidPrimary.copy(alpha = 0.35f)),
+                    modifier = Modifier.clickable { onTagClick() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = SolidPrimary,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "ট্যাগ দিন" else "Add Tag",
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidPrimary
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
