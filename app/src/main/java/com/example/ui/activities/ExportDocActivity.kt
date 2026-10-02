@@ -71,16 +71,6 @@ class ExportDocActivity : ComponentActivity() {
         mimeType = intent.getStringExtra(EXTRA_MIME_TYPE) ?: "*/*"
         content = intent.getStringExtra(EXTRA_CONTENT) ?: ""
 
-        // Keep local backup copy in Budgeter/Exports folder
-        try {
-            BackupManager.saveExportToLocalFolder(
-                context = this,
-                fileName = fileName,
-                mimeType = mimeType,
-                content = content
-            )
-        } catch (_: Exception) {}
-
         // Launch system Save Document intent with initial storage URI
         try {
             val initialUri = StorageLocationHelper.getInitialStorageUri(this)
@@ -95,7 +85,15 @@ class ExportDocActivity : ComponentActivity() {
             createDocLauncher.launch(intent)
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "Export saved to Budgeter/Exports", Toast.LENGTH_SHORT).show()
+            // Fallback: save to local folder if SAF fails
+            val savedLocation = BackupManager.saveExportToLocalFolder(
+                context = this,
+                fileName = fileName,
+                mimeType = mimeType,
+                content = content
+            )
+            val feedback = if (savedLocation != null) "Saved to $savedLocation" else "Exported $fileName"
+            Toast.makeText(this, feedback, Toast.LENGTH_SHORT).show()
             finish()
         }
     }
