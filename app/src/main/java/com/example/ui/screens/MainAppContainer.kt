@@ -4,13 +4,17 @@ import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.absoluteValue
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -157,6 +161,8 @@ import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
+import androidx.compose.ui.zIndex
+import com.example.ui.components.AppOpenSplashScreen
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.AutoHidingHeaderContainer
 import com.example.ui.components.LanguageSelector
@@ -414,6 +420,8 @@ fun MainAppContainer(
         }
     }
 
+    var showAppOpenSplash by rememberSaveable { mutableStateOf(true) }
+
     val headerScrollState = rememberHeaderScrollState()
 
     val visibleTabs = tabConfig.visibleTabs
@@ -461,7 +469,10 @@ fun MainAppContainer(
         val targetIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
         if (targetIndex >= 0 && pagerState.currentPage != targetIndex && !pagerState.isScrollInProgress) {
             headerScrollState.show()
-            pagerState.scrollToPage(targetIndex)
+            pagerState.animateScrollToPage(
+                page = targetIndex,
+                animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
+            )
         }
     }
 
@@ -482,7 +493,10 @@ fun MainAppContainer(
             currentView = targetView
             if (tabIndex >= 0 && pagerState.currentPage != tabIndex) {
                 scope.launch {
-                    pagerState.scrollToPage(tabIndex)
+                    pagerState.animateScrollToPage(
+                        page = tabIndex,
+                        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                    )
                 }
             }
         }
@@ -647,13 +661,28 @@ fun MainAppContainer(
                                 HorizontalPager(
                                     state = pagerState,
                                     key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
-                                    beyondViewportPageCount = 0,
+                                    beyondViewportPageCount = 1,
                                     userScrollEnabled = !isTimelineActive,
                                     modifier = Modifier.fillMaxSize()
                                 ) { page ->
                                     val pageTab = visibleTabs.getOrNull(page)
                                     val pageView = pageTab?.toAppView() ?: AppView.DASHBOARD
-                                    ScreenRouter(
+
+                                    // Smooth page transition animation: subtle scale and alpha easing
+                                    val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+                                    val pageAlpha = (1f - (pageOffset * 0.2f)).coerceIn(0.8f, 1f)
+                                    val pageScale = (1f - (pageOffset * 0.035f)).coerceIn(0.965f, 1f)
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                alpha = pageAlpha
+                                                scaleX = pageScale
+                                                scaleY = pageScale
+                                            }
+                                    ) {
+                                        ScreenRouter(
                                         currentView = pageView,
                                         viewModel = viewModel,
                                         overview = overview,
@@ -793,6 +822,7 @@ fun MainAppContainer(
                                         openWishlistAddDialog = openWishlistAddDialogTrigger,
                                         onWishlistAddDialogOpened = { openWishlistAddDialogTrigger = false }
                                     )
+                                    }
                                 }
                             } else {
                                 ScreenRouter(
@@ -1549,6 +1579,19 @@ fun MainAppContainer(
                 viewModel.dismissFirstLaunchDialog()
             }
         )
+    }
+
+    if (showAppOpenSplash) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(100f)
+        ) {
+            AppOpenSplashScreen(
+                languageMode = languageMode,
+                onAnimationComplete = { showAppOpenSplash = false }
+            )
+        }
     }
 }
 

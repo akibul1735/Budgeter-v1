@@ -1,12 +1,17 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -70,6 +75,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -159,6 +165,56 @@ enum class AccountFilterMode {
     INACTIVE
 }
 
+/**
+ * Animated wrapper for Dashboard cards that plays a cascading waterfall entrance
+ * (slide up from +28dp, fade in, subtle scale 0.95 -> 1.0) on app open.
+ */
+@Composable
+private fun DashboardCardEntrance(
+    index: Int,
+    playAnimation: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    var hasAppeared by remember { mutableStateOf(!playAnimation) }
+
+    LaunchedEffect(playAnimation) {
+        if (playAnimation) {
+            delay((index * 42L).coerceAtMost(360L))
+            hasAppeared = true
+        }
+    }
+
+    val alpha by animateFloatAsState(
+        targetValue = if (hasAppeared) 1f else 0f,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "dash_card_alpha_$index"
+    )
+    val offsetY by animateDpAsState(
+        targetValue = if (hasAppeared) 0.dp else 28.dp,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "dash_card_offset_$index"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (hasAppeared) 1f else 0.95f,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "dash_card_scale_$index"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                this.alpha = alpha
+                this.translationY = offsetY.toPx()
+                this.scaleX = scale
+                this.scaleY = scale
+            }
+    ) {
+        content()
+    }
+}
+
 @Composable
 fun DashboardScreen(
     overview: FinancialOverview,
@@ -199,6 +255,12 @@ fun DashboardScreen(
     syncLiveStatus: SyncLiveStatus = SyncLiveStatus(),
     onTriggerSync: () -> Unit = {}
 ) {
+    var startEntranceAnimation by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(80)
+        startEntranceAnimation = true
+    }
+
     var showMasterSearchModal by remember { mutableStateOf(false) }
     var showStandAloneCalculator by remember { mutableStateOf(false) }
     var showCustomizeCardsDialog by remember { mutableStateOf(false) }
@@ -1752,244 +1814,269 @@ fun DashboardScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            var cardIndex = 0
             // Restore Banner if previous backups detected
             if (showRestoreBanner && detectedBackups.isNotEmpty()) {
+                val bannerIdx = cardIndex++
                 item(key = "card_backup_restore_banner") {
-                    DashboardBackupRestoreBanner(
-                        visible = showRestoreBanner,
-                        detectedBackups = detectedBackups,
-                        languageMode = languageMode,
-                        onOpenRestoreDialog = { showRestoreListDialog = true },
-                        onDismiss = { onDismissRestoreBanner(detectedBackups.firstOrNull()?.fileId) }
-                    )
+                    DashboardCardEntrance(index = bannerIdx, playAnimation = startEntranceAnimation) {
+                        DashboardBackupRestoreBanner(
+                            visible = showRestoreBanner,
+                            detectedBackups = detectedBackups,
+                            languageMode = languageMode,
+                            onOpenRestoreDialog = { showRestoreListDialog = true },
+                            onDismiss = { onDismissRestoreBanner(detectedBackups.firstOrNull()?.fileId) }
+                        )
+                    }
                 }
             }
 
             // Render Cards dynamically based on user configuration order and visibility
             dashboardConfig.cardOrder.forEach { cardType ->
                 if (cardType in dashboardConfig.visibleCards) {
+                    val currentIdx = cardIndex++
                     when (cardType) {
                         DashboardCardType.NET_WORTH -> {
                             item(key = "card_net_worth") {
-                                val allFlatAccounts = remember(accountsWithBalances) {
-                                    accountsWithBalances.flatMap { group ->
-                                        listOf(group.account) + group.subAccounts.map { it.account }
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    val allFlatAccounts = remember(accountsWithBalances) {
+                                        accountsWithBalances.flatMap { group ->
+                                            listOf(group.account) + group.subAccounts.map { it.account }
+                                        }
                                     }
+                                    DashboardNetWorthTrendCard(
+                                        transactions = recentTransactions,
+                                        allAccounts = allFlatAccounts,
+                                        allCategories = allCategories,
+                                        calculatedAssets = calculatedAssets,
+                                        calculatedLiabilities = calculatedLiabilities,
+                                        calculatedNetWorth = calculatedNetWorth,
+                                        languageMode = languageMode,
+                                        onNetWorthClick = { openNetWorthBreakdown(0) },
+                                        onAssetsClick = { openAssetsBreakdown(0) },
+                                        onLiabilitiesClick = { openLiabilitiesBreakdown(0) }
+                                    )
                                 }
-                                DashboardNetWorthTrendCard(
-                                    transactions = recentTransactions,
-                                    allAccounts = allFlatAccounts,
-                                    allCategories = allCategories,
-                                    calculatedAssets = calculatedAssets,
-                                    calculatedLiabilities = calculatedLiabilities,
-                                    calculatedNetWorth = calculatedNetWorth,
-                                    languageMode = languageMode,
-                                    onNetWorthClick = { openNetWorthBreakdown(0) },
-                                    onAssetsClick = { openAssetsBreakdown(0) },
-                                    onLiabilitiesClick = { openLiabilitiesBreakdown(0) }
-                                )
                             }
                         }
 
                         DashboardCardType.NET_EARNINGS -> {
                             item(key = "card_net_earnings") {
-                                val allFlatAccounts = remember(accountsWithBalances) {
-                                    accountsWithBalances.flatMap { group ->
-                                        listOf(group.account) + group.subAccounts.map { it.account }
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    val allFlatAccounts = remember(accountsWithBalances) {
+                                        accountsWithBalances.flatMap { group ->
+                                            listOf(group.account) + group.subAccounts.map { it.account }
+                                        }
                                     }
+                                    DashboardNetEarningsCard(
+                                        transactions = recentTransactions,
+                                        allAccounts = allFlatAccounts,
+                                        allCategories = allCategories,
+                                        languageMode = languageMode,
+                                        onNetEarningsClick = { openNetSavingsBreakdown() }
+                                    )
                                 }
-                                DashboardNetEarningsCard(
-                                    transactions = recentTransactions,
-                                    allAccounts = allFlatAccounts,
-                                    allCategories = allCategories,
-                                    languageMode = languageMode,
-                                    onNetEarningsClick = { openNetSavingsBreakdown() }
-                                )
                             }
                         }
 
                         DashboardCardType.DAILY_SUMMARY -> {
                             item(key = "card_daily_summary") {
-                                DailySummaryCard(
-                                    transactions = recentTransactions,
-                                    mode = dashboardConfig.dailySummaryMode,
-                                    period = dashboardConfig.dailySummaryPeriod,
-                                    chartType = dashboardConfig.dailyChartType,
-                                    showValues = dashboardConfig.dailyShowValues,
-                                    showAverages = dashboardConfig.dailyShowAverages,
-                                    decimalPrecision = dashboardConfig.dailyDecimalPrecision,
-                                    showCurrency = dashboardConfig.dailyShowCurrency,
-                                    showCurrencySymbol = dashboardConfig.dailyShowCurrencySymbol,
-                                    languageMode = languageMode,
-                                    onModeChange = { newMode ->
-                                        onUpdateDailySummarySettings(
-                                            newMode,
-                                            dashboardConfig.dailySummaryPeriod,
-                                            dashboardConfig.dailyChartType,
-                                            dashboardConfig.dailyShowValues,
-                                            dashboardConfig.dailyShowAverages,
-                                            dashboardConfig.dailyDecimalPrecision,
-                                            dashboardConfig.dailyShowCurrency,
-                                            dashboardConfig.dailyShowCurrencySymbol
-                                        )
-                                    },
-                                    onPeriodChange = { newPeriod ->
-                                        onUpdateDailySummarySettings(
-                                            dashboardConfig.dailySummaryMode,
-                                            newPeriod,
-                                            dashboardConfig.dailyChartType,
-                                            dashboardConfig.dailyShowValues,
-                                            dashboardConfig.dailyShowAverages,
-                                            dashboardConfig.dailyDecimalPrecision,
-                                            dashboardConfig.dailyShowCurrency,
-                                            dashboardConfig.dailyShowCurrencySymbol
-                                        )
-                                    },
-                                    onOpenSettings = { showDailySettingsDialog = true },
-                                    onCardClick = {
-                                        dailySummarySelectedDayEpoch = null
-                                        showDailySummaryDetail = true
-                                    },
-                                    onDayClick = { daySummary ->
-                                        dailySummarySelectedDayEpoch = daySummary.dateEpochMs
-                                        showDailySummaryDetail = true
-                                    }
-                                )
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    DailySummaryCard(
+                                        transactions = recentTransactions,
+                                        mode = dashboardConfig.dailySummaryMode,
+                                        period = dashboardConfig.dailySummaryPeriod,
+                                        chartType = dashboardConfig.dailyChartType,
+                                        showValues = dashboardConfig.dailyShowValues,
+                                        showAverages = dashboardConfig.dailyShowAverages,
+                                        decimalPrecision = dashboardConfig.dailyDecimalPrecision,
+                                        showCurrency = dashboardConfig.dailyShowCurrency,
+                                        showCurrencySymbol = dashboardConfig.dailyShowCurrencySymbol,
+                                        languageMode = languageMode,
+                                        onModeChange = { newMode ->
+                                            onUpdateDailySummarySettings(
+                                                newMode,
+                                                dashboardConfig.dailySummaryPeriod,
+                                                dashboardConfig.dailyChartType,
+                                                dashboardConfig.dailyShowValues,
+                                                dashboardConfig.dailyShowAverages,
+                                                dashboardConfig.dailyDecimalPrecision,
+                                                dashboardConfig.dailyShowCurrency,
+                                                dashboardConfig.dailyShowCurrencySymbol
+                                            )
+                                        },
+                                        onPeriodChange = { newPeriod ->
+                                            onUpdateDailySummarySettings(
+                                                dashboardConfig.dailySummaryMode,
+                                                newPeriod,
+                                                dashboardConfig.dailyChartType,
+                                                dashboardConfig.dailyShowValues,
+                                                dashboardConfig.dailyShowAverages,
+                                                dashboardConfig.dailyDecimalPrecision,
+                                                dashboardConfig.dailyShowCurrency,
+                                                dashboardConfig.dailyShowCurrencySymbol
+                                            )
+                                        },
+                                        onOpenSettings = { showDailySettingsDialog = true },
+                                        onCardClick = {
+                                            dailySummarySelectedDayEpoch = null
+                                            showDailySummaryDetail = true
+                                        },
+                                        onDayClick = { daySummary ->
+                                            dailySummarySelectedDayEpoch = daySummary.dateEpochMs
+                                            showDailySummaryDetail = true
+                                        }
+                                    )
+                                }
                             }
                         }
 
                         DashboardCardType.BUDGET_SUMMARY -> {
                             item(key = "card_budget_summary") {
-                                BudgetSummaryCard(
-                                    transactions = recentTransactions,
-                                    allCategories = allCategories,
-                                    monthlyBudgets = monthlyBudgets,
-                                    chartShape = dashboardConfig.budgetChartShape,
-                                    categoryType = dashboardConfig.budgetCategoryType,
-                                    maxCategories = dashboardConfig.budgetMaxCategories,
-                                    showPercentages = dashboardConfig.budgetShowPercentages,
-                                    showTodayPace = dashboardConfig.budgetShowTodayPace,
-                                    languageMode = languageMode,
-                                    onCategoryTypeChange = { newType ->
-                                        onUpdateBudgetSummarySettings(
-                                            dashboardConfig.budgetChartShape,
-                                            newType,
-                                            dashboardConfig.budgetMaxCategories,
-                                            dashboardConfig.budgetShowPercentages,
-                                            dashboardConfig.budgetShowTodayPace
-                                        )
-                                    },
-                                    onOpenSettings = { showBudgetSettingsDialog = true },
-                                    onCardClick = { showBudgetSummaryPreview = true }
-                                )
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    BudgetSummaryCard(
+                                        transactions = recentTransactions,
+                                        allCategories = allCategories,
+                                        monthlyBudgets = monthlyBudgets,
+                                        chartShape = dashboardConfig.budgetChartShape,
+                                        categoryType = dashboardConfig.budgetCategoryType,
+                                        maxCategories = dashboardConfig.budgetMaxCategories,
+                                        showPercentages = dashboardConfig.budgetShowPercentages,
+                                        showTodayPace = dashboardConfig.budgetShowTodayPace,
+                                        languageMode = languageMode,
+                                        onCategoryTypeChange = { newType ->
+                                            onUpdateBudgetSummarySettings(
+                                                dashboardConfig.budgetChartShape,
+                                                newType,
+                                                dashboardConfig.budgetMaxCategories,
+                                                dashboardConfig.budgetShowPercentages,
+                                                dashboardConfig.budgetShowTodayPace
+                                            )
+                                        },
+                                        onOpenSettings = { showBudgetSettingsDialog = true },
+                                        onCardClick = { showBudgetSummaryPreview = true }
+                                    )
+                                }
                             }
                         }
 
                         DashboardCardType.FAVORITE_ACCOUNTS -> {
                             item(key = "card_favorite_accounts") {
-                                FavoriteAccountsCard(
-                                    accountsWithBalances = accountsWithBalances,
-                                    favoriteAccountIds = dashboardConfig.favoriteAccountIds,
-                                    accountCalcConfig = accountCalcConfig,
-                                    accountActivityTimestamps = dashboardConfig.accountActivityTimestamps,
-                                    deselectedAccountTimestamps = dashboardConfig.deselectedAccountTimestamps,
-                                    languageMode = languageMode,
-                                    onOpenAccountPicker = { showFavoriteAccountsPicker = true },
-                                    onAccountClick = { acc ->
-                                        onAccountClick(acc)
-                                    }
-                                )
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    FavoriteAccountsCard(
+                                        accountsWithBalances = accountsWithBalances,
+                                        favoriteAccountIds = dashboardConfig.favoriteAccountIds,
+                                        accountCalcConfig = accountCalcConfig,
+                                        accountActivityTimestamps = dashboardConfig.accountActivityTimestamps,
+                                        deselectedAccountTimestamps = dashboardConfig.deselectedAccountTimestamps,
+                                        languageMode = languageMode,
+                                        onOpenAccountPicker = { showFavoriteAccountsPicker = true },
+                                        onAccountClick = { acc ->
+                                            onAccountClick(acc)
+                                        }
+                                    )
+                                }
                             }
                         }
 
                         DashboardCardType.CALENDAR_VIEW -> {
                             item(key = "card_calendar_view") {
-                                CalendarSummaryCard(
-                                    transactions = recentTransactions,
-                                    displayMode = dashboardConfig.calendarDisplayMode,
-                                    showIncome = dashboardConfig.calendarShowIncome,
-                                    showExpense = dashboardConfig.calendarShowExpense,
-                                    languageMode = languageMode,
-                                    onOpenSettings = { showCalendarSettingsDialog = true },
-                                    onTransactionClick = onTransactionClick
-                                )
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    CalendarSummaryCard(
+                                        transactions = recentTransactions,
+                                        displayMode = dashboardConfig.calendarDisplayMode,
+                                        showIncome = dashboardConfig.calendarShowIncome,
+                                        showExpense = dashboardConfig.calendarShowExpense,
+                                        languageMode = languageMode,
+                                        onOpenSettings = { showCalendarSettingsDialog = true },
+                                        onTransactionClick = onTransactionClick
+                                    )
+                                }
                             }
                         }
 
                         DashboardCardType.CASH_FLOW -> {
                             item(key = "card_cash_flow") {
-                                val allIndividualAccounts = remember(accountsWithBalances) {
-                                    accountsWithBalances.flatMap { group ->
-                                        if (group.subAccounts.isNotEmpty()) group.subAccounts.map { it.account }
-                                        else listOf(group.account)
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    val allIndividualAccounts = remember(accountsWithBalances) {
+                                        accountsWithBalances.flatMap { group ->
+                                            if (group.subAccounts.isNotEmpty()) group.subAccounts.map { it.account }
+                                            else listOf(group.account)
+                                        }
                                     }
+                                    DashboardCashFlowSummaryCard(
+                                        transactions = recentTransactions,
+                                        allAccounts = allIndividualAccounts,
+                                        allCategories = allCategories,
+                                        languageMode = languageMode,
+                                        onNavigateToCashFlow = onNavigateToCashFlow
+                                    )
                                 }
-                                DashboardCashFlowSummaryCard(
-                                    transactions = recentTransactions,
-                                    allAccounts = allIndividualAccounts,
-                                    allCategories = allCategories,
-                                    languageMode = languageMode,
-                                    onNavigateToCashFlow = onNavigateToCashFlow
-                                )
                             }
                         }
 
                         DashboardCardType.FINANCIAL_OVERVIEW -> {
                             item(key = "card_financial_overview") {
-                                RedesignedFinancialOverviewCard(
-                                    overview = overview,
-                                    languageMode = languageMode,
-                                    calculatedAssets = calculatedAssets,
-                                    calculatedLiabilities = calculatedLiabilities,
-                                    calculatedNetWorth = calculatedNetWorth,
-                                    inactiveAssets = inactiveAssets,
-                                    inactiveLiabilities = inactiveLiabilities,
-                                    inactiveNetWorth = inactiveNetWorth,
-                                    excludedAssets = excludedAssets,
-                                    excludedLiabilities = excludedLiabilities,
-                                    excludedNetWorth = excludedNetWorth,
-                                    onExpendableClick = { openExpendableBreakdown() },
-                                    onExpectedExpendableClick = { openExpectedExpendableBreakdown() },
-                                    onAssetsClick = { tab -> openAssetsBreakdown(tab) },
-                                    onLiabilitiesClick = { tab -> openLiabilitiesBreakdown(tab) },
-                                    onRemainingExpensesClick = { openRemainingExpensesBreakdown() },
-                                    onAdditionalCostClick = { openAdditionalCostBreakdown() },
-                                    onNetWorthClick = { tab -> openNetWorthBreakdown(tab) },
-                                    onNetEarningsClick = { openNetSavingsBreakdown() }
-                                )
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    RedesignedFinancialOverviewCard(
+                                        overview = overview,
+                                        languageMode = languageMode,
+                                        calculatedAssets = calculatedAssets,
+                                        calculatedLiabilities = calculatedLiabilities,
+                                        calculatedNetWorth = calculatedNetWorth,
+                                        inactiveAssets = inactiveAssets,
+                                        inactiveLiabilities = inactiveLiabilities,
+                                        inactiveNetWorth = inactiveNetWorth,
+                                        excludedAssets = excludedAssets,
+                                        excludedLiabilities = excludedLiabilities,
+                                        excludedNetWorth = excludedNetWorth,
+                                        onExpendableClick = { openExpendableBreakdown() },
+                                        onExpectedExpendableClick = { openExpectedExpendableBreakdown() },
+                                        onAssetsClick = { tab -> openAssetsBreakdown(tab) },
+                                        onLiabilitiesClick = { tab -> openLiabilitiesBreakdown(tab) },
+                                        onRemainingExpensesClick = { openRemainingExpensesBreakdown() },
+                                        onAdditionalCostClick = { openAdditionalCostBreakdown() },
+                                        onNetWorthClick = { tab -> openNetWorthBreakdown(tab) },
+                                        onNetEarningsClick = { openNetSavingsBreakdown() }
+                                    )
+                                }
                             }
                         }
 
                         DashboardCardType.QUICK_ACTIONS -> {
                             item(key = "card_quick_actions") {
-                                QuickActionsRow(
-                                    languageMode = languageMode,
-                                    onAddTransactionClick = onAddTransactionClick,
-                                    onOpenCalculator = { showStandAloneCalculator = true }
-                                )
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    QuickActionsRow(
+                                        languageMode = languageMode,
+                                        onAddTransactionClick = onAddTransactionClick,
+                                        onOpenCalculator = { showStandAloneCalculator = true }
+                                    )
+                                }
                             }
                         }
 
                         DashboardCardType.RECENT_TRANSACTIONS -> {
                             item(key = "card_recent_transactions") {
-                                RecentTransactionsCard(
-                                    recentTransactions = recentTransactions,
-                                    itemImageCacheMap = itemImageCacheMap,
-                                    languageMode = languageMode,
-                                    onTransactionClick = onTransactionClick,
-                                    onViewAllClick = onViewAllTransactionsClick,
-                                    onAmountClick = { txItem ->
-                                        showAmountDetail(
-                                            AmountDetailInfo(
-                                                title = txItem.category?.localizedName(languageMode) ?: "Transaction",
-                                                subtitle = DateUtils.formatDate(txItem.transaction.dateEpochMs, languageMode),
-                                                totalAmount = txItem.transaction.amount,
-                                                formulaExplanation = "Note: ${txItem.transaction.note.ifBlank { "N/A" }}\nPayee/Payer: ${txItem.transaction.payeeOrPayer.ifBlank { "N/A" }}",
-                                                relatedTransactions = listOf(txItem)
+                                DashboardCardEntrance(index = currentIdx, playAnimation = startEntranceAnimation) {
+                                    RecentTransactionsCard(
+                                        recentTransactions = recentTransactions,
+                                        itemImageCacheMap = itemImageCacheMap,
+                                        languageMode = languageMode,
+                                        onTransactionClick = onTransactionClick,
+                                        onViewAllClick = onViewAllTransactionsClick,
+                                        onAmountClick = { txItem ->
+                                            showAmountDetail(
+                                                AmountDetailInfo(
+                                                    title = txItem.category?.localizedName(languageMode) ?: "Transaction",
+                                                    subtitle = DateUtils.formatDate(txItem.transaction.dateEpochMs, languageMode),
+                                                    totalAmount = txItem.transaction.amount,
+                                                    formulaExplanation = "Note: ${txItem.transaction.note.ifBlank { "N/A" }}\nPayee/Payer: ${txItem.transaction.payeeOrPayer.ifBlank { "N/A" }}",
+                                                    relatedTransactions = listOf(txItem)
+                                                )
                                             )
-                                        )
-                                    }
-                                )
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -1998,27 +2085,30 @@ fun DashboardScreen(
 
             // Bottom Customize Cards Button
             item(key = "bottom_customize_cards_button") {
-                OutlinedButton(
-                    onClick = { showCustomizeCardsDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DashboardCustomize,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = LanguageHelper.getString("customize_cards", languageMode),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                val btnIdx = cardIndex++
+                DashboardCardEntrance(index = btnIdx, playAnimation = startEntranceAnimation) {
+                    OutlinedButton(
+                        onClick = { showCustomizeCardsDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DashboardCustomize,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = LanguageHelper.getString("customize_cards", languageMode),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }
