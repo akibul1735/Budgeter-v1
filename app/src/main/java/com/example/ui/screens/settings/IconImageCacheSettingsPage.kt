@@ -160,6 +160,8 @@ fun IconImageCacheSettingsPage(
     val cachedItems by viewModel.allItemImageCaches.collectAsStateWithLifecycle()
     val transactions by viewModel.transactionsWithDetails.collectAsStateWithLifecycle()
     val categories by viewModel.allCategories.collectAsStateWithLifecycle()
+    val allAccounts by viewModel.allAccounts.collectAsStateWithLifecycle()
+    val savingsGoals by viewModel.savingsGoalsWithDetails.collectAsStateWithLifecycle()
 
     var selectedPageTab by remember { mutableStateOf(ItemsIconTab.ITEMS) }
 
@@ -175,6 +177,7 @@ fun IconImageCacheSettingsPage(
     var showCleanUnusedConfirmDialog by remember { mutableStateOf(false) }
 
     var iconCacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
+    var unusedIconsList by remember { mutableStateOf<List<IconHelper.CustomIconFileInfo>>(emptyList()) }
     var isCleaningCache by remember { mutableStateOf(false) }
 
     // Unified Online Search states (shared search query preserved between section switches)
@@ -203,16 +206,34 @@ fun IconImageCacheSettingsPage(
     var showCropEditor by remember { mutableStateOf(false) }
 
     // Custom icons list & management states
-    var customIconsList by remember { mutableStateOf<List<File>>(emptyList()) }
+    var customIconsList by remember { mutableStateOf<List<File>>(IconHelper.getCustomIcons(context)) }
     var customIconsSearchQuery by remember { mutableStateOf("") }
     var iconToDelete by remember { mutableStateOf<String?>(null) }
 
     fun refreshCustomIconsAndStats() {
         customIconsList = IconHelper.getCustomIcons(context)
-        viewModel.viewModelScope.launch {
-            try {
-                iconCacheStats = viewModel.getIconCacheStats()
-            } catch (_: Exception) {}
+        coroutineScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val active = IconHelper.queryAllActiveIconNames(context)
+                    val stats = IconHelper.getUnusedCustomIconsStats(context, active)
+                    val list = IconHelper.getUnusedCustomIconsList(context, active)
+                    withContext(Dispatchers.Main) {
+                        iconCacheStats = stats
+                        unusedIconsList = list
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshCustomIconsAndStats()
+    }
+
+    LaunchedEffect(selectedPageTab) {
+        if (selectedPageTab == ItemsIconTab.CUSTOM) {
+            refreshCustomIconsAndStats()
         }
     }
 
@@ -421,10 +442,12 @@ fun IconImageCacheSettingsPage(
         result
     }
 
-    val activeCustomIconKeys = remember(cachedItems, categories) {
+    val activeCustomIconKeys: Set<String> = remember(cachedItems, categories, allAccounts, savingsGoals) {
         val catIcons = categories.map { it.iconName }
+        val accIcons = allAccounts.map { it.iconName }
+        val goalIcons = savingsGoals.map { it.goal.iconName }
         val itemIcons = cachedItems.map { it.iconKey }
-        (catIcons + itemIcons).filter { IconHelper.isCustomIcon(it) }.toSet()
+        (catIcons + accIcons + goalIcons + itemIcons).filter { IconHelper.isCustomIcon(it) }.toSet()
     }
 
     val filteredCustomIcons = remember(customIconsList, customIconsSearchQuery) {
@@ -1883,32 +1906,20 @@ fun IconImageCacheSettingsPage(
         )
     }
 
-    // Dialog: Clear Unused Cache Confirm
+    // Dialog: Clear Unused Cache Visual Preview & Management
     if (showCleanUnusedConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showCleanUnusedConfirmDialog = false },
-            title = {
-                Text(
-                    text = if (isBangla) "অব্যবহৃত ক্যাশ পরিষ্কার করুন" else "Clean Unused Icons",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = if (isBangla)
-                        "বর্তমানে কোনো লেনদেন বা ক্যাটাগরিতে ব্যবহার হচ্ছে না এমন পুরানো ক্যাশ করা ইমেজ ফাইলগুলো নিরাপদে মুছে ফেলা হবে।"
-                    else
-                        "Safely delete orphan icon cache files that are no longer assigned to any transactions or categories."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showCleanUnusedConfirmDialog = false
-                        isCleaningCache = true
-                        coroutineScope.launch {
-                            val (cleanedCount, freedBytes) = viewModel.clearUnusedIconCache()
-                            iconCacheStats = viewModel.getIconCacheStats()
+        com.example.ui.components.UnusedCustomIconsDialog(
+            unusedIcons = unusedIconsList,
+            onDeleteSelected = { keysToDelete ->
+                showCleanUnusedConfirmDialog = false
+                isCleaningCache = true
+                coroutineScope.launch {
+                    withContext(Dispatchers.IO) {
+                        val (cleanedCount, freedBytes) = IconHelper.deleteSelectedCustomIcons(context, keysToDelete)
+                        val updatedIcons = IconHelper.getCustomIcons(context)
+                        withContext(Dispatchers.Main) {
+                            customIconsList = updatedIcons
+                            refreshCustomIconsAndStats()
                             isCleaningCache = false
                             val freedKb = (freedBytes / 1024).coerceAtLeast(1)
                             Toast.makeText(
@@ -1919,15 +1930,9 @@ fun IconImageCacheSettingsPage(
                             ).show()
                         }
                     }
-                ) {
-                    Text(if (isBangla) "পরিষ্কার করুন" else "Clean Now")
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showCleanUnusedConfirmDialog = false }) {
-                    Text(if (isBangla) "বাতিল" else "Cancel")
-                }
-            }
+            onDismiss = { showCleanUnusedConfirmDialog = false }
         )
     }
 
