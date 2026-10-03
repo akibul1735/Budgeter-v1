@@ -17,8 +17,8 @@ android {
     applicationId = "com.budgeter.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 82
-    versionName = "3.70"
+    versionCode = 83
+    versionName = "3.71"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "GEMINI_API_KEY", "\"\"")
@@ -70,8 +70,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = true
-      isMinifyEnabled = true
-      isShrinkResources = true
+      isMinifyEnabled = false
+      isShrinkResources = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       val releaseKeystore = signingConfigs.findByName("release")?.storeFile
       if (releaseKeystore != null && releaseKeystore.exists() && hasReleaseSecret) {

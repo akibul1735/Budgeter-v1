@@ -658,7 +658,7 @@ fun MainAppContainer(
                                 HorizontalPager(
                                     state = pagerState,
                                     key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
-                                    beyondViewportPageCount = 0,
+                                    beyondViewportPageCount = 1,
                                     userScrollEnabled = !isTimelineActive,
                                     flingBehavior = rememberFluidPagerFlingBehavior(pagerState = pagerState),
                                     modifier = Modifier.fillMaxSize()
