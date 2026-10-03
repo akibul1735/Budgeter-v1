@@ -605,8 +605,23 @@ class BudgetRepository(
             }
 
             when (item.account.type) {
-                AccountType.ASSET -> totalAssets += effectiveBalance
-                AccountType.LIABILITY -> totalLiabilities += Math.abs(effectiveBalance)
+                AccountType.ASSET -> {
+                    if (effectiveBalance >= 0) {
+                        totalAssets += effectiveBalance
+                    } else {
+                        // Negative asset balance (e.g. bank overdraft) is an obligation / liability
+                        totalLiabilities += -effectiveBalance
+                    }
+                }
+                AccountType.LIABILITY -> {
+                    if (effectiveBalance < 0) {
+                        // Negative balance on liability is standard debt (e.g. -5000 -> 5000 debt)
+                        totalLiabilities += -effectiveBalance
+                    } else {
+                        // Positive balance on liability is an overpayment / asset-like advance credit
+                        totalAssets += effectiveBalance
+                    }
+                }
                 else -> {}
             }
         }

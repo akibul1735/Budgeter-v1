@@ -365,14 +365,20 @@ object BalanceSheetHelper {
         val rawAssetGroups = buildGroups(AccountType.ASSET)
         val rawLiabilityGroups = buildGroups(AccountType.LIABILITY)
 
-        val totalAssetsBase = rawAssetGroups.sumOf { it.effectiveBaseBalance }
-        val totalAssetsCurrent = rawAssetGroups.sumOf { it.effectiveCurrentBalance }
+        val totalAssetsBase = rawAssetGroups.filter { it.effectiveBaseBalance > 0 }.sumOf { it.effectiveBaseBalance } +
+            rawLiabilityGroups.filter { it.effectiveBaseBalance > 0 }.sumOf { it.effectiveBaseBalance }
 
-        val totalLiabilitiesBase = rawLiabilityGroups.sumOf { Math.abs(it.effectiveBaseBalance) }
-        val totalLiabilitiesCurrent = rawLiabilityGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
+        val totalAssetsCurrent = rawAssetGroups.filter { it.effectiveCurrentBalance > 0 }.sumOf { it.effectiveCurrentBalance } +
+            rawLiabilityGroups.filter { it.effectiveCurrentBalance > 0 }.sumOf { it.effectiveCurrentBalance }
 
-        val totalAssetsPool = if (Math.abs(totalAssetsCurrent) > 0.001) Math.abs(totalAssetsCurrent) else rawAssetGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
-        val totalLiabilitiesPool = if (Math.abs(totalLiabilitiesCurrent) > 0.001) Math.abs(totalLiabilitiesCurrent) else rawLiabilityGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
+        val totalLiabilitiesBase = rawLiabilityGroups.filter { it.effectiveBaseBalance < 0 }.sumOf { -it.effectiveBaseBalance } +
+            rawAssetGroups.filter { it.effectiveBaseBalance < 0 }.sumOf { -it.effectiveBaseBalance }
+
+        val totalLiabilitiesCurrent = rawLiabilityGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance } +
+            rawAssetGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance }
+
+        val totalAssetsPool = if (Math.abs(totalAssetsCurrent) > 0.001) Math.abs(totalAssetsCurrent) else (rawAssetGroups.sumOf { Math.abs(it.effectiveCurrentBalance) } + rawLiabilityGroups.filter { it.effectiveCurrentBalance > 0 }.sumOf { it.effectiveCurrentBalance })
+        val totalLiabilitiesPool = if (Math.abs(totalLiabilitiesCurrent) > 0.001) Math.abs(totalLiabilitiesCurrent) else (rawLiabilityGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance } + rawAssetGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance })
 
         val netWorthBase = totalAssetsBase - totalLiabilitiesBase
         val netWorthCurrent = totalAssetsCurrent - totalLiabilitiesCurrent

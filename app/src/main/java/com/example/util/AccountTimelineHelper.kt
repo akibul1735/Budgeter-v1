@@ -233,11 +233,15 @@ object AccountTimelineHelper {
         val liabilityGroups = buildTimelineGroups(AccountType.LIABILITY)
 
         val totalAssetsByPeriod = periods.indices.map { pIdx ->
-            assetGroups.sumOf { it.groupBalances[pIdx] }
+            val assetPos = assetGroups.map { it.groupBalances[pIdx] }.filter { it > 0 }.sumOf { it }
+            val liabPos = liabilityGroups.map { it.groupBalances[pIdx] }.filter { it > 0 }.sumOf { it }
+            assetPos + liabPos
         }
 
         val totalLiabilitiesByPeriod = periods.indices.map { pIdx ->
-            liabilityGroups.sumOf { Math.abs(it.groupBalances[pIdx]) }
+            val liabNeg = liabilityGroups.map { it.groupBalances[pIdx] }.filter { it < 0 }.sumOf { -it }
+            val assetNeg = assetGroups.map { it.groupBalances[pIdx] }.filter { it < 0 }.sumOf { -it }
+            liabNeg + assetNeg
         }
 
         val netWorthByPeriod = periods.indices.map { pIdx ->

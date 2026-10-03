@@ -247,19 +247,51 @@ fun AccountsScreen(
 
     // Actual Totals (Unmodified active accounts)
     val actualTotalAssets = remember(activeAccounts) {
-        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeActualGroupBalance(it) }
+        val assetPos = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeActualGroupBalance(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        val liabPos = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeActualGroupBalance(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        assetPos + liabPos
     }
     val actualTotalLiabilities = remember(activeAccounts) {
-        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(computeActualGroupBalance(it)) }
+        val liabNeg = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeActualGroupBalance(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        val assetNeg = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeActualGroupBalance(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        liabNeg + assetNeg
     }
     val actualNetWorth = actualTotalAssets - actualTotalLiabilities
 
     // Calculated Totals (Reflecting Include/Exclude & Adjustments)
     val calculatedTotalAssets = remember(activeAccounts, accountCalcConfig) {
-        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeEffectiveGroupBalance(it) }
+        val assetPos = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeEffectiveGroupBalance(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        val liabPos = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeEffectiveGroupBalance(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        assetPos + liabPos
     }
     val calculatedTotalLiabilities = remember(activeAccounts, accountCalcConfig) {
-        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(computeEffectiveGroupBalance(it)) }
+        val liabNeg = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeEffectiveGroupBalance(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        val assetNeg = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeEffectiveGroupBalance(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        liabNeg + assetNeg
     }
     val calculatedNetWorth = calculatedTotalAssets - calculatedTotalLiabilities
 

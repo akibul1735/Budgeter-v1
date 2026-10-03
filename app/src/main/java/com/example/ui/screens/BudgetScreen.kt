@@ -858,11 +858,14 @@ fun BudgetScreen(
             val groupSetting = accountCalcConfig.getSetting(group.account.id)
             if (group.subAccounts.isEmpty()) {
                 if (groupSetting.isIncluded) {
-                    val eff = Math.abs(computeGroupEffective(group))
+                    val rawEff = computeGroupEffective(group)
+                    val eff = Math.abs(rawEff)
+                    val isPositive = rawEff > 0.001
+                    val baseNote = if (isPositive) (if (languageMode == LanguageMode.BANGLA) "অগ্রিম ক্রেডিট (+)" else "Advance Credit (+)") else null
                     val adjNote = if (groupSetting.adjustmentAmount != 0.0) {
                         val sign = if (groupSetting.adjustmentAmount > 0) "+" else ""
                         "Adj: $sign${LanguageHelper.formatCurrency(groupSetting.adjustmentAmount, languageMode)}"
-                    } else null
+                    } else baseNote
                     list.add(
                         BudgetAccountItemHolder(
                             accountWithBal = group,
@@ -880,15 +883,19 @@ fun BudgetScreen(
                 if (groupSetting.isIncluded) {
                     val activeSubs = group.subAccounts.filter { it.account.isActive && accountCalcConfig.isIncluded(it.account.id) }
                     if (activeSubs.isNotEmpty()) {
-                        val eff = Math.abs(computeGroupEffective(group))
-                        val noteText = if (activeSubs.size > 1) {
+                        val rawEff = computeGroupEffective(group)
+                        val eff = Math.abs(rawEff)
+                        val isPositive = rawEff > 0.001
+                        val noteText = if (isPositive) {
+                            if (languageMode == LanguageMode.BANGLA) "অগ্রিম ক্রেডিট (+)" else "Advance Credit (+)"
+                        } else if (activeSubs.size > 1) {
                             "${activeSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি সাব-একাউন্ট" else "sub-accounts"}"
                         } else null
                         list.add(
                             BudgetAccountItemHolder(
                                 accountWithBal = group,
                                 displayName = group.account.localizedName(languageMode),
-                                balance = Math.abs(group.currentBalance),
+                                balance = Math.abs(activeSubs.sumOf { it.currentBalance }),
                                 effectiveBalance = eff,
                                 note = noteText,
                                 iconName = group.account.iconName,
