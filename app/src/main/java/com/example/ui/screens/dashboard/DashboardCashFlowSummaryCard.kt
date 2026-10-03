@@ -1450,9 +1450,10 @@ fun AccountMultiSelectFilterDialog(
                                         .background(Color(android.graphics.Color.parseColor(acc.colorHex.ifBlank { "#1976D2" }))),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(acc.iconName),
-                                        contentDescription = null,
+                                    IconHelper.AppIcon(
+                                        iconName = acc.iconName,
+                                        fallbackName = acc.nameEn,
+                                        contentDescription = acc.nameEn,
                                         tint = Color.White,
                                         modifier = Modifier.size(18.dp)
                                     )

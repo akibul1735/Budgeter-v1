@@ -260,11 +260,12 @@ internal fun PaymentSourceSelectorDialog(
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                             if (group != null) {
-                                                Icon(
-                                                    imageVector = IconHelper.getIconByName(group.iconName),
-                                                    contentDescription = null,
+                                                IconHelper.AppIcon(
+                                                    iconName = group.iconName,
+                                                    fallbackName = group.nameEn,
+                                                    contentDescription = group.nameEn,
                                                     tint = SolidPrimary,
-                                                    modifier = Modifier.size(16.dp)
+                                                    modifier = Modifier.size(18.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
@@ -334,7 +335,7 @@ internal fun PaymentSourceSelectorDialog(
                             // Sub-accounts in this group (selectable)
                             items(accounts, key = { "sub_acc_${it.id}" }) { acc ->
                                 val isChecked = selectedIds.contains(acc.id)
-                                val balance = balanceMap[acc.id] ?: 0.0
+                                val balance = balanceMap[acc.id] ?: acc.initialBalance
                                 val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
 
                                 Surface(
@@ -1038,11 +1039,12 @@ internal fun SelectCategoryForAccountDialog(
                                                 .background(catColor.copy(alpha = 0.16f)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(cat.iconName),
-                                                contentDescription = null,
+                                            IconHelper.AppIcon(
+                                                iconName = cat.iconName,
+                                                fallbackName = cat.nameEn,
+                                                contentDescription = cat.nameEn,
                                                 tint = catColor,
-                                                modifier = Modifier.size(16.dp)
+                                                modifier = Modifier.size(18.dp)
                                             )
                                         }
 

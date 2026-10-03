@@ -297,11 +297,12 @@ fun PaymentSourcesSettingsPage(
                                         modifier = Modifier.size(40.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(acc.iconName),
-                                                contentDescription = null,
+                                            IconHelper.AppIcon(
+                                                iconName = acc.iconName,
+                                                fallbackName = acc.nameEn,
+                                                contentDescription = acc.nameEn,
                                                 tint = if (isSource) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier.size(20.dp)
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         }
                                     }
@@ -461,11 +462,12 @@ fun PaymentSourcesSettingsPage(
                                             modifier = Modifier.size(36.dp)
                                         ) {
                                             Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = IconHelper.getIconByName(acc.iconName),
-                                                    contentDescription = null,
+                                                IconHelper.AppIcon(
+                                                    iconName = acc.iconName,
+                                                    fallbackName = acc.nameEn,
+                                                    contentDescription = acc.nameEn,
                                                     tint = MaterialTheme.colorScheme.secondary,
-                                                    modifier = Modifier.size(18.dp)
+                                                    modifier = Modifier.size(20.dp)
                                                 )
                                             }
                                         }
@@ -732,9 +734,10 @@ private fun EditAccountLinksBottomSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(src.iconName),
-                                    contentDescription = null,
+                                IconHelper.AppIcon(
+                                    iconName = src.iconName,
+                                    fallbackName = src.nameEn,
+                                    contentDescription = src.nameEn,
                                     tint = if (isChecked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.size(18.dp)
                                 )

@@ -2142,11 +2142,12 @@ fun MaterialBalanceSheetFilterDialog(
                                     }
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(acc.iconName),
-                                    contentDescription = null,
+                                IconHelper.AppIcon(
+                                    iconName = acc.iconName,
+                                    fallbackName = acc.nameEn,
+                                    contentDescription = acc.nameEn,
                                     tint = if (acc.type == AccountType.ASSET) MaterialTheme.colorScheme.primary else SolidExpense,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Column {

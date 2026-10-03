@@ -1764,7 +1764,7 @@ fun SingleAccountCard(
                     )
                 }
 
-                val isCustomOrDrawable = IconHelper.isCustomIcon(acc.iconName) || IconHelper.isDrawableIcon(acc.iconName)
+                val isCustomOrDrawable = IconHelper.isFullSurfaceIcon(acc.iconName)
                 Box(
                     modifier = Modifier
                         .size(42.dp)
@@ -1774,7 +1774,8 @@ fun SingleAccountCard(
                 ) {
                     IconHelper.AppIcon(
                         iconName = acc.iconName,
-                        contentDescription = null,
+                        fallbackName = acc.localizedName(languageMode),
+                        contentDescription = acc.localizedName(languageMode),
                         tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
                         modifier = if (isCustomOrDrawable) Modifier.fillMaxSize() else Modifier.size(24.dp)
                     )
@@ -2016,7 +2017,7 @@ fun AccountGroupCard(
                     }
 
                     // Group Icon Box
-                    val isGroupCustomOrDrawable = IconHelper.isCustomIcon(group.iconName) || IconHelper.isDrawableIcon(group.iconName)
+                    val isGroupCustomOrDrawable = IconHelper.isFullSurfaceIcon(group.iconName)
                     Box(
                         modifier = Modifier
                             .size(44.dp)
@@ -2026,7 +2027,8 @@ fun AccountGroupCard(
                     ) {
                         IconHelper.AppIcon(
                             iconName = group.iconName,
-                            contentDescription = null,
+                            fallbackName = group.localizedName(languageMode),
+                            contentDescription = group.localizedName(languageMode),
                             tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
                             modifier = if (isGroupCustomOrDrawable) Modifier.fillMaxSize() else Modifier.size(26.dp)
                         )
@@ -2272,7 +2274,8 @@ fun AccountGroupCard(
 
                                             IconHelper.AppIcon(
                                                 iconName = sub.iconName,
-                                                contentDescription = null,
+                                                fallbackName = sub.localizedName(languageMode),
+                                                contentDescription = sub.localizedName(languageMode),
                                                 tint = if (sub.isActive && subIncluded) SolidPrimary else MaterialTheme.colorScheme.outline,
                                                 modifier = Modifier.size(22.dp)
                                             )

@@ -340,9 +340,10 @@ fun AddEditWishlistDialog(
                                         .background(parsedColor.copy(alpha = 0.18f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = catIcon,
-                                        contentDescription = null,
+                                    IconHelper.AppIcon(
+                                        iconName = activeCat.iconName,
+                                        fallbackName = activeCat.nameEn,
+                                        contentDescription = activeCat.nameEn,
                                         modifier = Modifier.size(16.dp),
                                         tint = parsedColor
                                     )

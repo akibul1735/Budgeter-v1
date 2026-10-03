@@ -227,11 +227,12 @@ internal fun CategoryAccountSplitDialog(
                                 .background(catColor.copy(alpha = 0.16f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(categoryAllocation.category.iconName),
-                                contentDescription = null,
+                            IconHelper.AppIcon(
+                                iconName = categoryAllocation.category.iconName,
+                                fallbackName = categoryAllocation.category.nameEn,
+                                contentDescription = categoryAllocation.category.nameEn,
                                 tint = catColor,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))

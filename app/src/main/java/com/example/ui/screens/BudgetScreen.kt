@@ -3785,9 +3785,10 @@ private fun BudgetItemRow(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = IconHelper.getIconByName(item.iconName),
-                            contentDescription = null,
+                        IconHelper.AppIcon(
+                            iconName = item.iconName,
+                            fallbackName = item.nameEn,
+                            contentDescription = item.nameEn,
                             tint = parsedColor,
                             modifier = Modifier.size(20.dp)
                         )

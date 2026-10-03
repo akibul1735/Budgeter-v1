@@ -539,9 +539,10 @@ fun CalendarSummaryCard(
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                             val iconName = txItem.category?.iconName ?: if (tx.type == TransactionType.TRANSFER) "SwapHoriz" else "Payments"
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(iconName),
-                                                contentDescription = null,
+                                            IconHelper.AppIcon(
+                                                iconName = iconName,
+                                                fallbackName = txItem.category?.nameEn ?: tx.type.name,
+                                                contentDescription = txItem.category?.nameEn ?: tx.type.name,
                                                 tint = when (tx.type) {
                                                     TransactionType.EXPENSE -> SolidExpense
                                                     TransactionType.INCOME -> SolidIncome

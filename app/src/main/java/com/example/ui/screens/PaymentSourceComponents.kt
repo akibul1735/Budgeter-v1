@@ -96,7 +96,8 @@ internal fun ItemGroupHeader(
                 ) {
                     IconHelper.AppIcon(
                         iconName = iconName,
-                        contentDescription = null,
+                        fallbackName = title,
+                        contentDescription = title,
                         tint = color,
                         modifier = Modifier.size(if (isImg) 22.dp else 13.dp)
                     )
@@ -250,7 +251,8 @@ internal fun OtherAccountAllocationCard(
                     ) {
                         IconHelper.AppIcon(
                             iconName = acc.iconName,
-                            contentDescription = null,
+                            fallbackName = acc.localizedName(languageMode),
+                            contentDescription = acc.localizedName(languageMode),
                             tint = if (allocation.isActive) accColor else MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(if (isImg) 40.dp else 22.dp)
                         )
@@ -382,7 +384,7 @@ internal fun OtherAccountAllocationCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
+                                    val isSplitImg = IconHelper.isFullSurfaceIcon(split.account.iconName)
                                     Box(
                                         modifier = Modifier
                                             .size(16.dp)
@@ -392,7 +394,8 @@ internal fun OtherAccountAllocationCard(
                                     ) {
                                         IconHelper.AppIcon(
                                             iconName = split.account.iconName,
-                                            contentDescription = null,
+                                            fallbackName = split.account.localizedName(languageMode),
+                                            contentDescription = split.account.localizedName(languageMode),
                                             tint = SolidPrimary,
                                             modifier = Modifier.size(if (isSplitImg) 16.dp else 12.dp)
                                         )
@@ -459,7 +462,7 @@ internal fun AccountRequirementCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    val isImg = IconHelper.isDrawableIcon(analysis.account.iconName) || IconHelper.isCustomIcon(analysis.account.iconName)
+                    val isImg = IconHelper.isFullSurfaceIcon(analysis.account.iconName)
                     Box(
                         modifier = Modifier
                             .size(42.dp)
@@ -469,7 +472,8 @@ internal fun AccountRequirementCard(
                     ) {
                         IconHelper.AppIcon(
                             iconName = analysis.account.iconName,
-                            contentDescription = null,
+                            fallbackName = analysis.account.localizedName(languageMode),
+                            contentDescription = analysis.account.localizedName(languageMode),
                             tint = SolidPrimary,
                             modifier = Modifier.size(if (isImg) 42.dp else 24.dp)
                         )
@@ -668,11 +672,12 @@ internal fun ItemizedRequirementRow(
                     .background(itemColor.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = IconHelper.getIconByName(item.iconName),
-                    contentDescription = null,
+                IconHelper.AppIcon(
+                    iconName = item.iconName,
+                    fallbackName = item.title,
+                    contentDescription = item.title,
                     tint = itemColor,
-                    modifier = Modifier.size(11.dp)
+                    modifier = Modifier.size(14.dp)
                 )
             }
             Spacer(modifier = Modifier.width(6.dp))
@@ -786,11 +791,12 @@ internal fun CategoryAllocationCard(
                             .background(if (allocation.isActive) catColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = IconHelper.getIconByName(cat.iconName),
-                            contentDescription = null,
+                        IconHelper.AppIcon(
+                            iconName = cat.iconName,
+                            fallbackName = cat.nameEn,
+                            contentDescription = cat.nameEn,
                             tint = if (allocation.isActive) catColor else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
@@ -896,7 +902,7 @@ internal fun CategoryAllocationCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
+                                    val isSplitImg = IconHelper.isFullSurfaceIcon(split.account.iconName)
                                     Box(
                                         modifier = Modifier
                                             .size(16.dp)
@@ -906,7 +912,8 @@ internal fun CategoryAllocationCard(
                                     ) {
                                         IconHelper.AppIcon(
                                             iconName = split.account.iconName,
-                                            contentDescription = null,
+                                            fallbackName = split.account.localizedName(languageMode),
+                                            contentDescription = split.account.localizedName(languageMode),
                                             tint = SolidPrimary,
                                             modifier = Modifier.size(if (isSplitImg) 16.dp else 12.dp)
                                         )
@@ -1094,7 +1101,8 @@ internal fun CompactAssignedItemRow(
                 ) {
                     IconHelper.AppIcon(
                         iconName = iconName,
-                        contentDescription = null,
+                        fallbackName = title,
+                        contentDescription = title,
                         tint = if (isImg) Color.Unspecified else iconColor,
                         modifier = Modifier.size(if (isImg) 32.dp else 17.dp)
                     )

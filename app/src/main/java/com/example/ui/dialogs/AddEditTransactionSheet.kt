@@ -63,6 +63,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
@@ -2957,26 +2958,36 @@ fun AddEditTransactionSheet(
                                             }
                                         }
 
-                                        // Replaced floating Save button with the transaction form's bottom Save button
+                                        // Save Button with increased length: fits nicely with expense, income, and transfer
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
                                             color = saveActionColor,
                                             shadowElevation = 3.dp,
                                             modifier = Modifier
-                                                .size(42.dp)
+                                                .height(42.dp)
+                                                .widthIn(min = 68.dp)
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .clickable { executeSave() }
                                                 .testTag("save_transaction_btn")
                                         ) {
-                                            Box(
-                                                contentAlignment = Alignment.Center,
-                                                modifier = Modifier.fillMaxSize()
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier.padding(horizontal = 8.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Save,
                                                     contentDescription = "Save",
                                                     tint = Color.White,
-                                                    modifier = Modifier.size(22.dp)
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = LanguageHelper.getString("save", languageMode).ifEmpty { "Save" },
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    maxLines = 1
                                                 )
                                             }
                                         }
@@ -2984,7 +2995,7 @@ fun AddEditTransactionSheet(
                                 }
                             }
                         } else {
-                            // Keyboard hidden: Full-width bottom bar with Expense (orange), Income (green), Transfer (blue), and Save (green icon button fixed at bottom-right)
+                            // Keyboard hidden: Full-width bottom bar with Expense (orange), Income (green), Transfer (blue), and Save (increased length, perfectly fitting)
                             Surface(
                                 color = MaterialTheme.colorScheme.surface,
                                 tonalElevation = 6.dp,
@@ -3000,77 +3011,82 @@ fun AddEditTransactionSheet(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         // Segmented Type Buttons: EXPENSE (Orange), INCOME (Green), TRANSFER (Blue)
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            val types = listOf(
-                                                Triple(TransactionType.EXPENSE, LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }, expenseActionColor),
-                                                Triple(TransactionType.INCOME, LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }, incomeActionColor),
-                                                Triple(TransactionType.TRANSFER, LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }, transferActionColor)
-                                            )
+                                        val types = listOf(
+                                            Triple(TransactionType.EXPENSE, LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }, expenseActionColor),
+                                            Triple(TransactionType.INCOME, LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }, incomeActionColor),
+                                            Triple(TransactionType.TRANSFER, LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }, transferActionColor)
+                                        )
 
-                                            types.forEach { (type, label, color) ->
-                                                val isSelected = txType == type
-                                                Surface(
-                                                    shape = RoundedCornerShape(12.dp),
-                                                    color = if (isSelected) color else color.copy(alpha = 0.10f),
-                                                    border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.30f)),
-                                                    shadowElevation = if (isSelected) 3.dp else 0.dp,
+                                        types.forEach { (type, label, color) ->
+                                            val isSelected = txType == type
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) color else color.copy(alpha = 0.10f),
+                                                border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.30f)),
+                                                shadowElevation = if (isSelected) 3.dp else 0.dp,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(42.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable { switchActionType(type) }
+                                            ) {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
                                                     modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(42.dp)
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .clickable { switchActionType(type) }
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 2.dp)
                                                 ) {
-                                                    Box(
-                                                        contentAlignment = Alignment.Center,
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .padding(horizontal = 4.dp)
-                                                    ) {
-                                                        Text(
-                                                            text = label,
-                                                            fontSize = 12.5.sp,
-                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                                            color = if (isSelected) Color.White else color,
-                                                            textAlign = TextAlign.Center,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                    }
+                                                    Text(
+                                                        text = label,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                                        color = if (isSelected) Color.White else color,
+                                                        textAlign = TextAlign.Center,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                 }
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.width(10.dp))
-
-                                        // Save Button: Fixed green icon button at bottom-right
+                                        // Save Button: Increased length fitting alongside expense, income, and transfer buttons
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
                                             color = saveActionColor,
                                             shadowElevation = 3.dp,
                                             modifier = Modifier
-                                                .size(42.dp)
+                                                .weight(1.05f)
+                                                .height(42.dp)
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .clickable { executeSave() }
                                                 .testTag("save_transaction_btn")
                                         ) {
-                                            Box(
-                                                contentAlignment = Alignment.Center,
-                                                modifier = Modifier.fillMaxSize()
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 4.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Save,
                                                     contentDescription = "Save",
                                                     tint = Color.White,
-                                                    modifier = Modifier.size(22.dp)
+                                                    modifier = Modifier.size(17.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Text(
+                                                    text = LanguageHelper.getString("save", languageMode).ifEmpty { "Save" },
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }

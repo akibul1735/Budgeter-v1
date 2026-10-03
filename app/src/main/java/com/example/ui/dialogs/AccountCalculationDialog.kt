@@ -173,9 +173,10 @@ fun AccountCalculationDialog(
                                     .background(typeColor.copy(alpha = 0.15f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(account.iconName),
-                                    contentDescription = null,
+                                IconHelper.AppIcon(
+                                    iconName = account.iconName,
+                                    fallbackName = account.localizedName(languageMode),
+                                    contentDescription = account.localizedName(languageMode),
                                     tint = typeColor,
                                     modifier = Modifier.size(18.dp)
                                 )

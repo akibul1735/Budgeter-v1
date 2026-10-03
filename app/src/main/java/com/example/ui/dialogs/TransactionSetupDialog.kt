@@ -1083,9 +1083,10 @@ private fun GroupedSelectorRow(
                                 .padding(horizontal = 14.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(iconName),
-                                contentDescription = null,
+                            IconHelper.AppIcon(
+                                iconName = iconName,
+                                fallbackName = groupName,
+                                contentDescription = groupName,
                                 tint = tintColor,
                                 modifier = Modifier.size(16.dp)
                             )

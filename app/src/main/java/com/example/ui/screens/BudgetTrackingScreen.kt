@@ -2798,9 +2798,10 @@ private fun CategoryGroupSection(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = groupIcon,
-                                contentDescription = null,
+                            IconHelper.AppIcon(
+                                iconName = group.parentCategory?.iconName,
+                                fallbackName = group.groupNameEn,
+                                contentDescription = group.groupNameEn,
                                 tint = groupColor,
                                 modifier = Modifier.size(22.dp)
                             )
@@ -3104,9 +3105,10 @@ private fun CategoryRow(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = IconHelper.getIconByName(item.category.iconName),
-                        contentDescription = null,
+                    IconHelper.AppIcon(
+                        iconName = item.category.iconName,
+                        fallbackName = item.category.nameEn,
+                        contentDescription = item.category.nameEn,
                         tint = parsedColor,
                         modifier = Modifier.size(20.dp)
                     )
@@ -3931,9 +3933,10 @@ private fun CategorySetBudgetDialog(
                                 .background(catColor.copy(alpha = 0.16f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(item.category.iconName),
-                                contentDescription = null,
+                            IconHelper.AppIcon(
+                                iconName = item.category.iconName,
+                                fallbackName = item.category.nameEn,
+                                contentDescription = item.category.nameEn,
                                 tint = catColor,
                                 modifier = Modifier.size(20.dp)
                             )

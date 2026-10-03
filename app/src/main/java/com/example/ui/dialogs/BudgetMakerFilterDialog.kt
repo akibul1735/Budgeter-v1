@@ -879,13 +879,12 @@ private fun CategoryTabFilterSection(
                                                 },
                                                 label = { Text(catName, fontSize = 11.5.sp) },
                                                 leadingIcon = {
-                                                    if (cat.iconName.isNotBlank()) {
-                                                        Icon(
-                                                            imageVector = IconHelper.getIconByName(cat.iconName),
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(13.dp)
-                                                        )
-                                                    }
+                                                    IconHelper.AppIcon(
+                                                        iconName = cat.iconName,
+                                                        fallbackName = catName,
+                                                        contentDescription = catName,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
                                                 },
                                                 colors = FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = accentColor.copy(alpha = 0.15f),
@@ -1146,13 +1145,12 @@ private fun AccountTabFilterSection(
                                                 },
                                                 label = { Text(accName, fontSize = 11.5.sp) },
                                                 leadingIcon = {
-                                                    if (acc.iconName.isNotBlank()) {
-                                                        Icon(
-                                                            imageVector = IconHelper.getIconByName(acc.iconName),
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(13.dp)
-                                                        )
-                                                    }
+                                                    IconHelper.AppIcon(
+                                                        iconName = acc.iconName,
+                                                        fallbackName = accName,
+                                                        contentDescription = accName,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
                                                 },
                                                 colors = FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = accentColor.copy(alpha = 0.15f),

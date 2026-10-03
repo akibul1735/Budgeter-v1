@@ -747,7 +747,7 @@ fun CategoriesScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            val isParentCustom = IconHelper.isCustomIcon(parent.iconName) || IconHelper.isDrawableIcon(parent.iconName)
+                                            val isParentCustom = IconHelper.isFullSurfaceIcon(parent.iconName)
                                             Box(
                                                 modifier = Modifier
                                                     .size(44.dp)
@@ -758,7 +758,8 @@ fun CategoriesScreen(
                                             ) {
                                                 IconHelper.AppIcon(
                                                     iconName = parent.iconName,
-                                                    contentDescription = null,
+                                                    fallbackName = parent.localizedName(languageMode),
+                                                    contentDescription = parent.localizedName(languageMode),
                                                     tint = parentColor,
                                                     modifier = if (isParentCustom) Modifier.fillMaxSize() else Modifier.size(24.dp)
                                                 )
@@ -885,7 +886,7 @@ fun CategoriesScreen(
                                                                 verticalAlignment = Alignment.CenterVertically,
                                                                 modifier = Modifier.weight(1f)
                                                             ) {
-                                                                val isSubCustom = IconHelper.isCustomIcon(subCat.iconName) || IconHelper.isDrawableIcon(subCat.iconName)
+                                                                val isSubCustom = IconHelper.isFullSurfaceIcon(subCat.iconName)
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .size(28.dp)
@@ -895,7 +896,8 @@ fun CategoriesScreen(
                                                                 ) {
                                                                     IconHelper.AppIcon(
                                                                         iconName = subCat.iconName,
-                                                                        contentDescription = null,
+                                                                        fallbackName = subCat.localizedName(languageMode),
+                                                                        contentDescription = subCat.localizedName(languageMode),
                                                                         tint = subColor,
                                                                         modifier = if (isSubCustom) Modifier.fillMaxSize() else Modifier.size(17.dp)
                                                                     )
@@ -982,7 +984,8 @@ fun CategoriesScreen(
                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                             IconHelper.AppIcon(
                                                 iconName = parent.iconName,
-                                                contentDescription = null,
+                                                fallbackName = parent.localizedName(languageMode),
+                                                contentDescription = parent.localizedName(languageMode),
                                                 tint = MaterialTheme.colorScheme.outline,
                                                 modifier = Modifier.size(26.dp)
                                             )
@@ -1290,7 +1293,8 @@ fun SingleCategoryCard(
                 ) {
                     IconHelper.AppIcon(
                         iconName = cat.iconName,
-                        contentDescription = null,
+                        fallbackName = cat.localizedName(languageMode),
+                        contentDescription = cat.localizedName(languageMode),
                         tint = if (isInactive) MaterialTheme.colorScheme.outline else catColor,
                         modifier = Modifier.size(16.dp)
                     )

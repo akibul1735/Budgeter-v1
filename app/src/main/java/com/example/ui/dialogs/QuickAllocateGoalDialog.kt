@@ -151,8 +151,9 @@ fun QuickAllocateGoalDialog(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                imageVector = selectedAccountPair?.first?.let { IconHelper.getIconByName(it.iconName) } ?: Icons.Default.AccountBalance,
+                            IconHelper.AppIcon(
+                                iconName = selectedAccountPair?.first?.iconName,
+                                fallbackName = selectedAccountPair?.first?.let { LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode) },
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)

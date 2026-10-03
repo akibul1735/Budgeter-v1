@@ -574,15 +574,14 @@ private fun CalculationBreakdownView(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            if (item.iconName != null) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(item.iconName),
-                                    contentDescription = null,
-                                    tint = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.primary),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
+                            IconHelper.AppIcon(
+                                iconName = item.iconName,
+                                fallbackName = item.name,
+                                contentDescription = item.name,
+                                tint = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
                                     text = item.name,
@@ -837,15 +836,14 @@ private fun TabbedBreakdownContentView(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            if (item.iconName != null) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(item.iconName),
-                                    contentDescription = null,
-                                    tint = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.primary),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                            }
+                            IconHelper.AppIcon(
+                                iconName = item.iconName,
+                                fallbackName = item.name,
+                                contentDescription = item.name,
+                                tint = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
                                     text = item.name,

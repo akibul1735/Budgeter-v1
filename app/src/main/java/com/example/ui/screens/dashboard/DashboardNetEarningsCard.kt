@@ -1308,9 +1308,10 @@ fun CategoryMultiSelectFilterDialog(
                                     .background(Color(android.graphics.Color.parseColor(cat.colorHex.ifBlank { "#E83F6F" }))),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(cat.iconName),
-                                    contentDescription = null,
+                                IconHelper.AppIcon(
+                                    iconName = cat.iconName,
+                                    fallbackName = cat.nameEn,
+                                    contentDescription = cat.nameEn,
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )

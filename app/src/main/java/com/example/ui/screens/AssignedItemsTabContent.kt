@@ -464,11 +464,12 @@ internal fun AssignedItemsTabContent(
                                     },
                                     label = acc.localizedName(languageMode),
                                     leadingIcon = {
-                                        Icon(
-                                            IconHelper.getIconByName(acc.iconName),
-                                            contentDescription = null,
+                                        IconHelper.AppIcon(
+                                            iconName = acc.iconName,
+                                            fallbackName = acc.nameEn,
+                                            contentDescription = acc.nameEn,
                                             tint = if (selectedAccountId == acc.id) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(12.dp)
+                                            modifier = Modifier.size(14.dp)
                                         )
                                     }
                                 )
@@ -684,11 +685,12 @@ internal fun AssignedItemsTabContent(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    IconHelper.getIconByName(selectedAccount.iconName),
-                                    contentDescription = null,
+                                IconHelper.AppIcon(
+                                    iconName = selectedAccount.iconName,
+                                    fallbackName = selectedAccount.nameEn,
+                                    contentDescription = selectedAccount.nameEn,
                                     tint = SolidPrimary,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
@@ -1187,9 +1189,10 @@ internal fun AssignedItemsTabContent(
                                     modifier = Modifier.padding(10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        IconHelper.getIconByName(acc.iconName),
-                                        contentDescription = null,
+                                    IconHelper.AppIcon(
+                                        iconName = acc.iconName,
+                                        fallbackName = acc.nameEn,
+                                        contentDescription = acc.nameEn,
                                         modifier = Modifier.size(24.dp),
                                         tint = SolidPrimary
                                     )

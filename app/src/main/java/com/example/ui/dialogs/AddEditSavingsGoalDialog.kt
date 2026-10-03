@@ -709,9 +709,10 @@ fun AddEditSavingsGoalDialog(
                                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                             modifier = Modifier.weight(1f)
                                                         ) {
-                                                            Icon(
-                                                                imageVector = IconHelper.getIconByName(acc.iconName),
-                                                                contentDescription = null,
+                                                            IconHelper.AppIcon(
+                                                                iconName = acc.iconName,
+                                                                fallbackName = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
+                                                                contentDescription = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
                                                                 tint = MaterialTheme.colorScheme.primary,
                                                                 modifier = Modifier.size(18.dp)
                                                             )

@@ -72,18 +72,11 @@ object PaymentSourceCalculator {
         val subAccountsByParent = allAccounts.filter { it.parentId != null }.groupBy { it.parentId!! }
 
         val balanceMap = allAccounts.associate { acc ->
-            val flatBal = flatAwbMap[acc.id]
-            val adj = accountCalcConfig?.getAdjustment(acc.id) ?: 0.0
-            val finalBal = if (flatBal != null) {
-                flatBal + adj
+            val subs = subAccountsByParent[acc.id] ?: emptyList()
+            val finalBal = if (subs.isNotEmpty()) {
+                (directBalances[acc.id] ?: 0.0) + subs.sumOf { directBalances[it.id] ?: 0.0 }
             } else {
-                val subs = subAccountsByParent[acc.id] ?: emptyList()
-                val bal = if (subs.isNotEmpty()) {
-                    (directBalances[acc.id] ?: 0.0) + subs.sumOf { directBalances[it.id] ?: 0.0 }
-                } else {
-                    directBalances[acc.id] ?: 0.0
-                }
-                bal
+                directBalances[acc.id] ?: (flatAwbMap[acc.id]?.let { it + (accountCalcConfig?.getAdjustment(acc.id) ?: 0.0) } ?: acc.initialBalance)
             }
             acc.id to finalBal
         }

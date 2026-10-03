@@ -88,7 +88,7 @@ object IconHelper {
         IconItem("BankUpay", "BD Banks & MFS", listOf("upay", "উপায়", "ucb", "mobile bank", "mfs", "cyan", "bangladesh"), false),
         IconItem("BankUpayAlt", "BD Banks & MFS", listOf("upay", "উপায়", "navy", "badge", "mfs", "bangladesh"), false),
         IconItem("BankCellfin", "BD Banks & MFS", listOf("cellfin", "সেলফিন", "ibbl", "islami bank", "wallet", "app", "bangladesh"), false),
-        IconItem("BankCellfinAlt", "BD Banks & MFS", listOf("cellfin", "সেলফিন", "digital", "coin", "mfs", "bangladesh"), false),
+        IconItem("BankCellfinAlt", "BD Banks & MFS", listOf("cellfin", "সেলফিন", "coin", "mfs", "bangladesh"), false),
         IconItem("BankDBBL", "BD Banks & MFS", listOf("dbbl", "dutch bangla", "ডাচ বাংলা", "bank", "banyan", "leaf", "bangladesh"), false),
         IconItem("BankDBBLAlt", "BD Banks & MFS", listOf("dbbl", "dutch bangla", "crest", "vault", "bank", "bangladesh"), false),
         IconItem("BankIBBL", "BD Banks & MFS", listOf("ibbl", "islami bank", "ইসলামী ব্যাংক", "crescent", "wheat", "bank", "bangladesh"), false),
@@ -96,7 +96,7 @@ object IconHelper {
         IconItem("BankBRAC", "BD Banks & MFS", listOf("brac", "brac bank", "ব্র্যাক ব্যাংক", "square", "yellow", "blue", "bank", "bangladesh"), false),
         IconItem("BankAstha", "BD Banks & MFS", listOf("astha", "brac astha", "আস্থা", "mobile app", "shield", "bank", "bangladesh"), false),
         IconItem("BankCity", "BD Banks & MFS", listOf("city bank", "সিটি ব্যাংক", "cube", "red", "bank", "bangladesh"), false),
-        IconItem("BankCitytouch", "BD Banks & MFS", listOf("citytouch", "city touch", "সিটি টাচ", "digital", "diamond", "bank", "bangladesh"), false),
+        IconItem("BankCitytouch", "BD Banks & MFS", listOf("citytouch", "city touch", "সিটি টাচ", "diamond", "bank", "bangladesh"), false),
         IconItem("BankSonali", "BD Banks & MFS", listOf("sonali bank", "সোনালী ব্যাংক", "sun", "wheat", "gold", "public bank", "bangladesh"), false),
         IconItem("BankSonaliSheba", "BD Banks & MFS", listOf("sonali sheba", "সোনালী সেবা", "star", "green", "bank", "bangladesh"), false),
         IconItem("BankEBL", "BD Banks & MFS", listOf("ebl", "eastern bank", "ইস্টার্ন ব্যাংক", "ribbon", "blue", "bank", "bangladesh"), false),
@@ -975,7 +975,28 @@ object IconHelper {
 
         // 2. Keyword-based matching in vast in-app icon library
         val suggested = suggestIconForName(name)
-        return if (suggested != "Category") suggested else null
+        if (suggested != "Category" && suggested != "Folder") return suggested
+
+        // 3. Word token matching across built-in icon tags (tokens >= 3 chars, skipping stop words)
+        val tokens = clean.split(Regex("[\\s\\-_/,.&()]+")).filter { it.length >= 3 && !IGNORED_INITIAL_WORDS.contains(it) }
+        for (token in tokens) {
+            val tokenMatch = BUILTIN_ICONS.firstOrNull { icon ->
+                icon.name.equals(token, ignoreCase = true) ||
+                icon.tags.any { tag -> tag.equals(token, ignoreCase = true) }
+            }
+            if (tokenMatch != null) return tokenMatch.name
+        }
+
+        // 4. Substring tag matching for near matches (tags with length >= 4, non-generic)
+        for (icon in BUILTIN_ICONS) {
+            for (tag in icon.tags) {
+                if (tag.length >= 4 && clean.contains(tag.lowercase()) && !IGNORED_INITIAL_WORDS.contains(tag.lowercase())) {
+                    return icon.name
+                }
+            }
+        }
+
+        return null
     }
 
     /**
@@ -995,11 +1016,25 @@ object IconHelper {
             clean.contains("dbbl") || clean.contains("ডাচ বাংলা") -> "BankDBBL"
             clean.contains("ibbl") || clean.contains("ইসলামী ব্যাংক") -> "BankIBBL"
             clean.contains("brac") || clean.contains("ব্র্যাক") -> "BankBRAC"
-            clean.contains("city bank") || clean.contains("সিটি ব্যাংক") -> "BankCity"
+            clean.contains("city bank") || clean.contains("সিটি ব্যাংক") || clean.contains("citybank") -> "BankCity"
             clean.contains("sonali") || clean.contains("সোনালী") -> "BankSonali"
             clean.contains("ebl") || clean.contains("ইস্টার্ন") -> "BankEBL"
             clean.contains("scb") || clean.contains("standard chartered") -> "BankSCB"
             clean.contains("hsbc") -> "BankHSBC"
+            clean.contains("pubali") || clean.contains("পূবালী") -> "BankPubali"
+            clean.contains("agrani") || clean.contains("অগ্রণী") -> "BankAgrani"
+            clean.contains("janata") || clean.contains("জনতা") -> "BankJanata"
+            clean.contains("dhaka bank") || clean.contains("ঢাকা ব্যাংক") -> "BankDhaka"
+            clean.contains("trust bank") || clean.contains("ট্রাস্ট ব্যাংক") -> "BankTrust"
+
+            // Core Financial & Account Terms
+            clean.contains("cash") || clean.contains("ক্যাশ") || clean.contains("নগদ টাকা") -> "AccountBalanceWallet"
+            clean.contains("wallet") || clean.contains("ওয়ালেট") || clean.contains("মানিব্যাগ") -> "Wallet"
+            clean.contains("bank") || clean.contains("ব্যাংক") || clean.contains("হিসাব") -> "AccountBalance"
+            clean.contains("card") || clean.contains("কার্ড") || clean.contains("visa") || clean.contains("mastercard") -> "CreditCard"
+            clean.contains("saving") || clean.contains("সঞ্চয়") || clean.contains("সঞ্চয়") || clean.contains("ডিপিএস") || clean.contains("dps") || clean.contains("fdr") -> "Savings"
+            clean.contains("loan") || clean.contains("debt") || clean.contains("ঋণ") || clean.contains("ধার") || clean.contains("কর্জ") -> "Handshake"
+            clean.contains("equity") || clean.contains("owner") || clean.contains("opening balance") || clean.contains("মালিকানা") -> "AccountBalanceWallet"
 
             // Apps & Subscriptions
             clean.contains("app") || clean.contains("subscription") || clean.contains("সাবস্ক্রিপশন") || clean.contains("live mcq") || clean.contains("software") -> "Subscriptions"
@@ -1995,7 +2030,27 @@ object IconHelper {
     }
 
     /**
+     * Checks if the icon identifier represents a known valid icon in the application.
+     */
+    fun isKnownIcon(iconName: String?): Boolean {
+        if (iconName.isNullOrBlank()) return false
+        if (iconName == "Category" || iconName == "Folder" || iconName.equals("none", ignoreCase = true) || iconName.equals("null", ignoreCase = true) || iconName.equals("NA", ignoreCase = true)) return false
+        if (isInitialsIcon(iconName)) return true
+        if (isDrawableIcon(iconName)) return true
+        if (isCustomIcon(iconName)) return true
+        return BUILTIN_ICONS.any { it.name.equals(iconName, ignoreCase = true) }
+    }
+
+    /**
+     * Checks if the icon requires edge-to-edge / full surface rendering (e.g. logos, custom images, initials).
+     */
+    fun isFullSurfaceIcon(iconName: String?): Boolean {
+        return isCustomIcon(iconName) || isDrawableIcon(iconName) || isInitialsIcon(iconName)
+    }
+
+    /**
      * Universal Composable to render either a built-in Material Icon, a Drawable Bank Logo, a Custom Image Icon, or an Initials Monogram Avatar.
+     * Guaranteed to never render empty or broken icons.
      */
     @Composable
     fun AppIcon(
@@ -2005,10 +2060,14 @@ object IconHelper {
         tint: Color = LocalContentColor.current,
         fallbackName: String? = null
     ) {
-        val effectiveIcon = if ((iconName.isNullOrBlank() || iconName == "Category") && !fallbackName.isNullOrBlank()) {
-            resolveBestIconOrInitials(fallbackName)
-        } else {
-            iconName
+        val effectiveIcon = when {
+            isKnownIcon(iconName) && iconName != "AccountBalance" && iconName != "Category" && iconName != "Folder" -> iconName!!
+            !fallbackName.isNullOrBlank() && (iconName.isNullOrBlank() || iconName == "AccountBalance" || iconName == "Category" || iconName == "Folder") -> resolveBestIconOrInitials(fallbackName)
+            isKnownIcon(iconName) -> iconName!!
+            !fallbackName.isNullOrBlank() -> resolveBestIconOrInitials(fallbackName)
+            !contentDescription.isNullOrBlank() -> resolveBestIconOrInitials(contentDescription)
+            !iconName.isNullOrBlank() && iconName != "Category" && iconName != "Folder" && !iconName.equals("none", ignoreCase = true) && !iconName.equals("null", ignoreCase = true) -> resolveBestIconOrInitials(iconName)
+            else -> "AccountBalanceWallet"
         }
 
         val drawableRes = getDrawableResId(effectiveIcon)
@@ -2025,17 +2084,30 @@ object IconHelper {
         if (isInitialsIcon(effectiveIcon)) {
             val initials = getInitialsFromIconName(effectiveIcon)
             val bgCol = getInitialsColor(initials)
-            Box(
+            androidx.compose.foundation.layout.BoxWithConstraints(
                 modifier = modifier
                     .clip(CircleShape)
                     .background(bgCol),
                 contentAlignment = Alignment.Center
             ) {
+                val minDim = if (maxWidth != androidx.compose.ui.unit.Dp.Unspecified && maxHeight != androidx.compose.ui.unit.Dp.Unspecified) {
+                    minOf(maxWidth, maxHeight)
+                } else if (maxWidth != androidx.compose.ui.unit.Dp.Unspecified) {
+                    maxWidth
+                } else {
+                    24.dp
+                }
+                val rawSp = when {
+                    initials.length == 1 -> (minDim.value * 0.52f).coerceIn(9f, 24f)
+                    initials.length == 2 -> (minDim.value * 0.44f).coerceIn(8f, 20f)
+                    else -> (minDim.value * 0.35f).coerceIn(7f, 16f)
+                }
+                val fontSize = rawSp.sp
                 Text(
                     text = initials,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
+                    fontSize = fontSize,
                     maxLines = 1,
                     textAlign = TextAlign.Center
                 )
@@ -2045,12 +2117,12 @@ object IconHelper {
 
         if (isCustomIcon(effectiveIcon)) {
             val context = LocalContext.current
-            val model: Any = if (effectiveIcon?.startsWith("http://") == true || effectiveIcon?.startsWith("https://") == true) {
+            val model: Any = if (effectiveIcon.startsWith("http://") || effectiveIcon.startsWith("https://")) {
                 effectiveIcon
-            } else if (effectiveIcon?.startsWith("content://") == true || effectiveIcon?.startsWith("file://") == true) {
+            } else if (effectiveIcon.startsWith("content://") || effectiveIcon.startsWith("file://")) {
                 android.net.Uri.parse(effectiveIcon)
             } else {
-                getCustomIconFile(context, effectiveIcon ?: "")
+                getCustomIconFile(context, effectiveIcon)
             }
             AsyncImage(
                 model = model,

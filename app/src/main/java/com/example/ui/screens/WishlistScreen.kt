@@ -780,11 +780,11 @@ fun WishlistScreen(
                                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                                     modifier = Modifier.padding(top = 2.dp)
                                                 ) {
-                                                    val catIcon = IconHelper.getIconByName(category.iconName)
-                                                    Icon(
-                                                        imageVector = catIcon,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(12.dp),
+                                                    IconHelper.AppIcon(
+                                                        iconName = category.iconName,
+                                                        fallbackName = category.nameEn,
+                                                        contentDescription = category.nameEn,
+                                                        modifier = Modifier.size(13.dp),
                                                         tint = runCatching { Color(android.graphics.Color.parseColor(category.colorHex)) }
                                                             .getOrDefault(MaterialTheme.colorScheme.primary)
                                                     )

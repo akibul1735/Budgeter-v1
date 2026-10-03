@@ -619,9 +619,10 @@ fun AccountDeleteConfirmDialog(
                                                                             )
                                                                         },
                                                                         leadingIcon = {
-                                                                            Icon(
-                                                                                imageVector = IconHelper.getIconByName(group.iconName),
-                                                                                contentDescription = null,
+                                                                            IconHelper.AppIcon(
+                                                                                iconName = group.iconName,
+                                                                                fallbackName = group.localizedName(languageMode),
+                                                                                contentDescription = group.localizedName(languageMode),
                                                                                 tint = MaterialTheme.colorScheme.primary,
                                                                                 modifier = Modifier.size(18.dp)
                                                                             )
@@ -646,9 +647,10 @@ fun AccountDeleteConfirmDialog(
                                                                         leadingIcon = {
                                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                                 Spacer(modifier = Modifier.width(14.dp))
-                                                                                Icon(
-                                                                                    imageVector = IconHelper.getIconByName(child.iconName),
-                                                                                    contentDescription = null,
+                                                                                IconHelper.AppIcon(
+                                                                                    iconName = child.iconName,
+                                                                                    fallbackName = child.localizedName(languageMode),
+                                                                                    contentDescription = child.localizedName(languageMode),
                                                                                     tint = if (child.id == assignedTargetId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                                     modifier = Modifier.size(15.dp)
                                                                                 )
@@ -820,9 +822,10 @@ fun AccountDeleteConfirmDialog(
                                                             )
                                                         },
                                                         leadingIcon = {
-                                                            Icon(
-                                                                imageVector = IconHelper.getIconByName(group.iconName),
-                                                                contentDescription = null,
+                                                            IconHelper.AppIcon(
+                                                                iconName = group.iconName,
+                                                                fallbackName = group.localizedName(languageMode),
+                                                                contentDescription = group.localizedName(languageMode),
                                                                 tint = MaterialTheme.colorScheme.primary,
                                                                 modifier = Modifier.size(18.dp)
                                                             )
@@ -847,9 +850,10 @@ fun AccountDeleteConfirmDialog(
                                                         leadingIcon = {
                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                 Spacer(modifier = Modifier.width(14.dp))
-                                                                Icon(
-                                                                    imageVector = IconHelper.getIconByName(child.iconName),
-                                                                    contentDescription = null,
+                                                                IconHelper.AppIcon(
+                                                                    iconName = child.iconName,
+                                                                    fallbackName = child.localizedName(languageMode),
+                                                                    contentDescription = child.localizedName(languageMode),
                                                                     tint = if (child.id == selectedTargetAccountId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                     modifier = Modifier.size(15.dp)
                                                                 )
@@ -1482,9 +1486,10 @@ fun CategoryDeleteConfirmDialog(
                                                                             )
                                                                         },
                                                                         leadingIcon = {
-                                                                            Icon(
-                                                                                imageVector = IconHelper.getIconByName(group.iconName),
-                                                                                contentDescription = null,
+                                                                            IconHelper.AppIcon(
+                                                                                iconName = group.iconName,
+                                                                                fallbackName = group.localizedName(languageMode),
+                                                                                contentDescription = group.localizedName(languageMode),
                                                                                 tint = MaterialTheme.colorScheme.primary,
                                                                                 modifier = Modifier.size(18.dp)
                                                                             )
@@ -1509,9 +1514,10 @@ fun CategoryDeleteConfirmDialog(
                                                                         leadingIcon = {
                                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                                 Spacer(modifier = Modifier.width(14.dp))
-                                                                                Icon(
-                                                                                    imageVector = IconHelper.getIconByName(child.iconName),
-                                                                                    contentDescription = null,
+                                                                                IconHelper.AppIcon(
+                                                                                    iconName = child.iconName,
+                                                                                    fallbackName = child.localizedName(languageMode),
+                                                                                    contentDescription = child.localizedName(languageMode),
                                                                                     tint = if (child.id == assignedTargetId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                                     modifier = Modifier.size(15.dp)
                                                                                 )
@@ -1683,9 +1689,10 @@ fun CategoryDeleteConfirmDialog(
                                                             )
                                                         },
                                                         leadingIcon = {
-                                                            Icon(
-                                                                imageVector = IconHelper.getIconByName(group.iconName),
-                                                                contentDescription = null,
+                                                            IconHelper.AppIcon(
+                                                                iconName = group.iconName,
+                                                                fallbackName = group.localizedName(languageMode),
+                                                                contentDescription = group.localizedName(languageMode),
                                                                 tint = MaterialTheme.colorScheme.primary,
                                                                 modifier = Modifier.size(18.dp)
                                                             )
@@ -1710,9 +1717,10 @@ fun CategoryDeleteConfirmDialog(
                                                         leadingIcon = {
                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                 Spacer(modifier = Modifier.width(14.dp))
-                                                                Icon(
-                                                                    imageVector = IconHelper.getIconByName(child.iconName),
-                                                                    contentDescription = null,
+                                                                IconHelper.AppIcon(
+                                                                    iconName = child.iconName,
+                                                                    fallbackName = child.localizedName(languageMode),
+                                                                    contentDescription = child.localizedName(languageMode),
                                                                     tint = if (child.id == selectedTargetCategoryId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                     modifier = Modifier.size(15.dp)
                                                                 )

@@ -769,11 +769,12 @@ private fun AggregatedItemCard(
                         .background(typeColor.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = IconHelper.getIconByName(item.iconName ?: if (isExpense) "ShoppingBag" else "TrendingUp"),
-                        contentDescription = null,
+                    IconHelper.AppIcon(
+                        iconName = item.iconName,
+                        fallbackName = item.name,
+                        contentDescription = item.name,
                         tint = typeColor,
-                        modifier = Modifier.size(17.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 

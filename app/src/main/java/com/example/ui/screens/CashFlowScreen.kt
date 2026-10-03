@@ -1147,11 +1147,12 @@ fun CashFlowCategoryListCard(
                                         .background(catColor.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(catItem.iconName),
-                                        contentDescription = null,
+                                    IconHelper.AppIcon(
+                                        iconName = catItem.iconName,
+                                        fallbackName = catItem.nameEn,
+                                        contentDescription = catItem.nameEn,
                                         tint = catColor,
-                                        modifier = Modifier.size(15.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                                 Text(

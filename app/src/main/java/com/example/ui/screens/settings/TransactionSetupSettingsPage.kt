@@ -1126,9 +1126,10 @@ private fun AccountPickerBottomSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(acc.iconName),
-                                    contentDescription = null,
+                                IconHelper.AppIcon(
+                                    iconName = acc.iconName,
+                                    fallbackName = acc.nameEn,
+                                    contentDescription = acc.nameEn,
                                     tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -1294,9 +1295,10 @@ private fun CategoryPickerBottomSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(cat.iconName),
-                                    contentDescription = null,
+                                IconHelper.AppIcon(
+                                    iconName = cat.iconName,
+                                    fallbackName = cat.nameEn,
+                                    contentDescription = cat.nameEn,
                                     tint = if (isSelected) themeColor else MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.size(18.dp)
                                 )

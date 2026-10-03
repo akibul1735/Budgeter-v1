@@ -1186,9 +1186,10 @@ private fun UntaggedTransactionRow(
                     .background(typeColor.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = IconHelper.getIconByName(catIcon),
-                    contentDescription = null,
+                IconHelper.AppIcon(
+                    iconName = item.category?.iconName,
+                    fallbackName = item.category?.nameEn,
+                    contentDescription = item.category?.nameEn,
                     tint = typeColor,
                     modifier = Modifier.size(18.dp)
                 )

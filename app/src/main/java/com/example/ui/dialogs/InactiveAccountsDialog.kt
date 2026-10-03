@@ -318,9 +318,10 @@ fun InactiveAccountsDialog(
                                             .background(accColor.copy(alpha = 0.15f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = iconVector,
-                                            contentDescription = null,
+                                        IconHelper.AppIcon(
+                                            iconName = acc.iconName,
+                                            fallbackName = acc.nameEn,
+                                            contentDescription = acc.nameEn,
                                             tint = accColor,
                                             modifier = Modifier.size(20.dp)
                                         )

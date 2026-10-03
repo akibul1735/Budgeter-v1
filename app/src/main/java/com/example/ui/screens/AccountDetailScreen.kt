@@ -3372,7 +3372,6 @@ private fun BatchChangeCategoryDialog(
             ) {
                 items(allCategories, key = { it.id }) { cat ->
                     val catName = if (languageMode == LanguageMode.BANGLA && cat.nameBn.isNotBlank()) cat.nameBn else cat.nameEn
-                    val catIcon = IconHelper.getIconByName(cat.iconName)
                     val catColor = try {
                         if (!cat.colorHex.isNullOrBlank()) Color(android.graphics.Color.parseColor(cat.colorHex)) else SolidIncome
                     } catch (e: Exception) { SolidIncome }
@@ -3391,7 +3390,13 @@ private fun BatchChangeCategoryDialog(
                                 .background(catColor),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(catIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            IconHelper.AppIcon(
+                                iconName = cat.iconName,
+                                fallbackName = cat.nameEn,
+                                contentDescription = cat.nameEn,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(catName, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)

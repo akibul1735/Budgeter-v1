@@ -157,6 +157,7 @@ sealed class MasterSearchResult {
     abstract val groupTag: String
     abstract val iconVector: ImageVector
     abstract val iconTint: Color?
+    open val iconName: String? = null
 
     data class TransactionItem(
         val transactionWithDetails: TransactionWithDetails,
@@ -168,7 +169,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color?
+        override val iconTint: Color?,
+        override val iconName: String? = resolvedIconName
     ) : MasterSearchResult()
 
     data class AccountItem(
@@ -179,7 +181,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color?
+        override val iconTint: Color?,
+        override val iconName: String? = account.iconName
     ) : MasterSearchResult()
 
     data class CategoryItem(
@@ -190,7 +193,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color?
+        override val iconTint: Color?,
+        override val iconName: String? = category.iconName
     ) : MasterSearchResult()
 
     data class BudgetItem(
@@ -206,7 +210,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color?
+        override val iconTint: Color?,
+        override val iconName: String? = null
     ) : MasterSearchResult()
 
     data class SavingsGoalItem(
@@ -219,7 +224,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color?
+        override val iconTint: Color?,
+        override val iconName: String? = goalWithDetails.goal.iconName
     ) : MasterSearchResult()
 
     data class RecurringBillItem(
@@ -230,7 +236,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color?
+        override val iconTint: Color?,
+        override val iconName: String? = billWithDetails.category?.iconName ?: "ReceiptLong"
     ) : MasterSearchResult()
 
     data class WishlistResultItem(
@@ -241,7 +248,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color?
+        override val iconTint: Color?,
+        override val iconName: String? = wishlistItem.category?.iconName
     ) : MasterSearchResult()
 
     data class NavigationActionItem(
@@ -256,7 +264,8 @@ sealed class MasterSearchResult {
         override val subtitle: String?,
         override val groupTag: String,
         override val iconVector: ImageVector,
-        override val iconTint: Color? = null
+        override val iconTint: Color? = null,
+        override val iconName: String? = null
     ) : MasterSearchResult()
 }
 
@@ -1644,11 +1653,12 @@ private fun MasterSearchResultRow(
                 modifier = Modifier.size(38.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = result.iconVector,
-                        contentDescription = null,
+                    IconHelper.AppIcon(
+                        iconName = result.iconName,
+                        fallbackName = result.title,
+                        contentDescription = result.title,
                         tint = result.iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
