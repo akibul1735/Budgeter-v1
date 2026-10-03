@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.example.ui.theme.rememberFluidFlingBehavior
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -653,6 +654,7 @@ fun AccountsScreen(
 
             LazyColumn(
                 state = listState,
+                flingBehavior = rememberFluidFlingBehavior(),
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)

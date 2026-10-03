@@ -11,6 +11,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
@@ -103,10 +104,17 @@ fun MyApplicationTheme(
         }
     }
 
+    val fluidFling = rememberFluidFlingBehavior()
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = typography,
         shapes = shapes,
-        content = content
+        content = {
+            CompositionLocalProvider(
+                LocalSmoothFlingBehavior provides fluidFling,
+                content = content
+            )
+        }
     )
 }

@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import com.example.ui.theme.rememberFluidPagerFlingBehavior
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -2071,6 +2072,7 @@ fun BudgetScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
+                flingBehavior = rememberFluidPagerFlingBehavior(pagerState = pagerState),
                 beyondViewportPageCount = 1
             ) { pageIndex ->
                 when (pageIndex) {

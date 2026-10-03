@@ -79,6 +79,7 @@ import com.example.ui.dialogs.AppUpdatePermissionDialog
 import com.example.ui.theme.ThemePreferences
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
+import com.example.ui.theme.rememberFluidPagerFlingBehavior
 import com.example.util.PermissionHelper
 import com.example.util.PermissionPreferences
 import androidx.compose.material.icons.filled.Payments
@@ -659,6 +660,7 @@ fun MainAppContainer(
                                     key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
                                     beyondViewportPageCount = 1,
                                     userScrollEnabled = !isTimelineActive,
+                                    flingBehavior = rememberFluidPagerFlingBehavior(pagerState = pagerState),
                                     modifier = Modifier.fillMaxSize()
                                 ) { page ->
                                     val pageTab = visibleTabs.getOrNull(page)
