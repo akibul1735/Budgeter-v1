@@ -72,15 +72,17 @@ object PaymentSourceCalculator {
         val subAccountsByParent = allAccounts.filter { it.parentId != null }.groupBy { it.parentId!! }
 
         val balanceMap = allAccounts.associate { acc ->
-            val subs = subAccountsByParent[acc.id] ?: emptyList()
-            val bal = if (subs.isNotEmpty()) {
-                (directBalances[acc.id] ?: 0.0) + subs.sumOf { directBalances[it.id] ?: 0.0 }
+            val flatBal = flatAwbMap[acc.id]
+            val adj = accountCalcConfig?.getAdjustment(acc.id) ?: 0.0
+            val finalBal = if (flatBal != null) {
+                flatBal + adj
             } else {
-                directBalances[acc.id] ?: 0.0
-            }
-            val finalBal = if (Math.abs(bal) < 0.0001 && flatAwbMap.containsKey(acc.id)) {
-                flatAwbMap[acc.id] ?: bal
-            } else {
+                val subs = subAccountsByParent[acc.id] ?: emptyList()
+                val bal = if (subs.isNotEmpty()) {
+                    (directBalances[acc.id] ?: 0.0) + subs.sumOf { directBalances[it.id] ?: 0.0 }
+                } else {
+                    directBalances[acc.id] ?: 0.0
+                }
                 bal
             }
             acc.id to finalBal
@@ -710,15 +712,13 @@ object PaymentSourceCalculator {
             val totalExplicitBudget = explicitSplits.sumOf { it.budgetedAmount }
             val totalObligationBudget = obligationsForAcc.sumOf { it.amount }
 
-            val defaultBudget = if (totalExplicitBudget > 0) {
-                totalExplicitBudget
-            } else if (totalObligationBudget > 0) {
-                totalObligationBudget
-            } else {
-                Math.abs(currentBal)
+            val absCurrentBal = Math.abs(currentBal)
+            val effectiveBudget = when {
+                absCurrentBal > 0.0 -> absCurrentBal
+                totalExplicitBudget > 0.0 -> totalExplicitBudget
+                totalObligationBudget > 0.0 -> totalObligationBudget
+                else -> 0.0
             }
-
-            val effectiveBudget = defaultBudget
 
             val totalActualSettled = if (isExpense) {
                 settledByOtherAccAndPaymentSource.filter { it.key.first == otherAcc.id }.values.sum()
@@ -740,9 +740,16 @@ object PaymentSourceCalculator {
                 // accSplits remains empty
             } else if (explicitSplits.isNotEmpty()) {
                 val validSplits = explicitSplits.filter { it.itemId > 0L }
+                val splitCount = validSplits.size
                 for (splitEntry in validSplits) {
                     val srcAcc = validAccountsMap[splitEntry.itemId] ?: continue
-                    val allocatedAmt = splitEntry.budgetedAmount
+                    val allocatedAmt = if (splitCount == 1 && effectiveBudget > 0.0) {
+                        effectiveBudget
+                    } else if (totalExplicitBudget > 0.0 && effectiveBudget > 0.0) {
+                        (splitEntry.budgetedAmount / totalExplicitBudget) * effectiveBudget
+                    } else {
+                        splitEntry.budgetedAmount
+                    }
                     val actualSettled = if (isExpense) {
                         settledByOtherAccAndPaymentSource[otherAcc.id to srcAcc.id] ?: 0.0
                     } else {
@@ -813,9 +820,16 @@ object PaymentSourceCalculator {
                     )
                 }
             } else if (obligationsForAcc.isNotEmpty()) {
+                val obCount = obligationsForAcc.size
                 for (ob in obligationsForAcc) {
                     val srcAcc = validAccountsMap[ob.sourceAccountId] ?: continue
-                    val allocatedAmt = ob.amount
+                    val allocatedAmt = if (obCount == 1 && effectiveBudget > 0.0) {
+                        effectiveBudget
+                    } else if (totalObligationBudget > 0.0 && effectiveBudget > 0.0) {
+                        (ob.amount / totalObligationBudget) * effectiveBudget
+                    } else {
+                        ob.amount
+                    }
                     val actualSettled = if (isExpense) {
                         settledByOtherAccAndPaymentSource[otherAcc.id to srcAcc.id] ?: 0.0
                     } else {
