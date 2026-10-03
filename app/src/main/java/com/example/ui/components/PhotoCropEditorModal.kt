@@ -76,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
@@ -751,28 +752,44 @@ fun PhotoCropEditorModal(
                                 Icon(Icons.Default.Rotate90DegreesCw, contentDescription = "Rotate +90°", modifier = Modifier.size(19.dp))
                             }
 
-                            IconButton(
-                                onClick = { flipHorizontal = !flipHorizontal },
+                            // Flip Horizontal
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (flipHorizontal) SolidPrimary.copy(alpha = 0.18f) else Color.Transparent,
                                 modifier = Modifier.size(36.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.Flip,
-                                    contentDescription = "Flip Horizontal",
-                                    modifier = Modifier.size(19.dp),
-                                    tint = if (flipHorizontal) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                                )
+                                IconButton(
+                                    onClick = { flipHorizontal = !flipHorizontal },
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Icon(
+                                        Icons.Default.Flip,
+                                        contentDescription = "Flip Horizontal",
+                                        modifier = Modifier.size(19.dp),
+                                        tint = if (flipHorizontal) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
 
-                            IconButton(
-                                onClick = { flipVertical = !flipVertical },
+                            // Flip Vertical
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (flipVertical) SolidPrimary.copy(alpha = 0.18f) else Color.Transparent,
                                 modifier = Modifier.size(36.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = "Flip Vertical",
-                                    modifier = Modifier.size(19.dp),
-                                    tint = if (flipVertical) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                                )
+                                IconButton(
+                                    onClick = { flipVertical = !flipVertical },
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Icon(
+                                        Icons.Default.Flip,
+                                        contentDescription = "Flip Vertical",
+                                        modifier = Modifier
+                                            .size(19.dp)
+                                            .rotate(90f),
+                                        tint = if (flipVertical) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
 
                             IconButton(
@@ -795,13 +812,18 @@ fun PhotoCropEditorModal(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.ZoomOut,
-                                contentDescription = "Zoom",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            IconButton(
+                                onClick = { userScale = (userScale - 0.25f).coerceAtLeast(0.3f) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ZoomOut,
+                                    contentDescription = "Zoom Out",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Zoom: ${(userScale * 100).roundToInt()}%",
                                 fontSize = 11.5.sp,

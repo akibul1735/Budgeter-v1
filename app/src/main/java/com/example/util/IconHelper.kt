@@ -2127,8 +2127,8 @@ object IconHelper {
             AsyncImage(
                 model = model,
                 contentDescription = contentDescription,
-                modifier = modifier.clip(CircleShape),
-                contentScale = ContentScale.Crop
+                modifier = modifier,
+                contentScale = ContentScale.Fit
             )
             return
         } else {
