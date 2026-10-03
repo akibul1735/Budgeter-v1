@@ -2965,7 +2965,7 @@ fun AddEditTransactionSheet(
                                             shadowElevation = 3.dp,
                                             modifier = Modifier
                                                 .height(42.dp)
-                                                .widthIn(min = 68.dp)
+                                                .widthIn(min = 84.dp)
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .clickable { executeSave() }
                                                 .testTag("save_transaction_btn")
@@ -3060,7 +3060,7 @@ fun AddEditTransactionSheet(
                                             color = saveActionColor,
                                             shadowElevation = 3.dp,
                                             modifier = Modifier
-                                                .weight(1.05f)
+                                                .weight(1.35f)
                                                 .height(42.dp)
                                                 .clip(RoundedCornerShape(12.dp))
                                                 .clickable { executeSave() }

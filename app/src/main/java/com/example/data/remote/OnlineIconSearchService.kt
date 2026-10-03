@@ -106,6 +106,8 @@ object OnlineIconSearchService {
         "ata" to "flour", "aata" to "flour", "moyda" to "flour", "maida" to "flour", "flor" to "flour",
         "ruti" to "bread", "roti" to "bread", "pau" to "bread", "paoruti" to "bread", "bred" to "bread",
         "mach" to "fish", "maach" to "fish", "fishs" to "fish", "fsh" to "fish", "ilish" to "fish", "rui" to "fish",
+        "chingri" to "shrimp", "chingree" to "shrimp", "cingri" to "shrimp", "chingli" to "shrimp",
+        "shrimps" to "shrimp", "prawns" to "shrimp", "prawn" to "shrimp", "চিংড়ি" to "shrimp", "চিংড়ি" to "shrimp",
         "goru" to "beef", "gorur" to "beef", "gosh" to "meat", "gosht" to "meat", "bef" to "beef", "beaf" to "beef",
         "khashi" to "mutton", "khasir" to "mutton", "muton" to "mutton", "chagol" to "mutton",
         "mangsho" to "meat", "mangso" to "meat", "met" to "meat",
@@ -178,6 +180,7 @@ object OnlineIconSearchService {
         "avocado", "potato", "tomato", "onion", "garlic", "ginger", "chili", "carrot", "cucumber",
         "broccoli", "cabbage", "spinach", "mushroom", "eggplant", "pumpkin", "beans", "lentils", "peas",
         "meat", "beef", "chicken", "pork", "mutton", "steak", "bacon", "sausage", "fish", "seafood",
+        "shrimp", "shrimps", "prawn", "prawns", "crab", "lobster", "salmon", "tuna", "squid", "clam", "oyster",
         "coffee", "tea", "juice", "water", "soda", "drink", "drinks", "beverage", "beverages", "icecream",
         "chocolate", "cookie", "biscuit", "cake", "candy", "dessert", "snack", "chips", "honey", "jam",
         "sauce", "oil", "spice",
@@ -237,7 +240,8 @@ object OnlineIconSearchService {
     }
 
     /**
-     * Resolves a query token by checking direct typo/phonetic dictionary first, then applying Levenshtein fuzzy match.
+     * Resolves a query token by checking direct typo/phonetic dictionary first, otherwise returns the token as-is.
+     * Never mutates or distorts arbitrary English/non-English words against a restricted vocabulary.
      */
     fun fuzzyCorrectToken(token: String): String? {
         val lower = token.lowercase().trim()
@@ -246,25 +250,8 @@ object OnlineIconSearchService {
         // 1. Direct typo or Banglish transliteration map check
         TYPO_AND_TRANSLITERATION_MAP[lower]?.let { return it }
 
-        // 2. Already an exact canonical keyword
-        if (lower in CANONICAL_KEYWORDS_SET) return lower
-
-        // 3. Levenshtein fuzzy distance matching against canonical English icon vocabulary
-        val maxDist = if (lower.length <= 4) 1 else 2
-        var bestMatch: String? = null
-        var bestDist = maxDist + 1
-
-        for (cand in CANONICAL_KEYWORDS) {
-            if (kotlin.math.abs(cand.length - lower.length) > maxDist) continue
-            val dist = levenshteinDistance(lower, cand)
-            if (dist <= maxDist) {
-                if (dist < bestDist || (dist == bestDist && cand.first() == lower.first())) {
-                    bestDist = dist
-                    bestMatch = cand
-                }
-            }
-        }
-        return bestMatch
+        // 2. Return the token as-is so EVERY word in any language is preserved cleanly
+        return lower
     }
 
     private val SYNONYM_MAP: Map<String, List<String>> = mapOf(
@@ -413,6 +400,10 @@ object OnlineIconSearchService {
         "dal" to listOf("lentils", "pulses", "beans", "grain", "soup", "grocery"),
         "milk" to listOf("milk", "dairy", "bottle", "cow", "drink", "grocery"),
         "fish" to listOf("seafood", "meat", "grocery", "market"),
+        "shrimp" to listOf("shrimp", "prawn", "prawns", "seafood", "fish", "chingri"),
+        "prawn" to listOf("prawn", "shrimp", "seafood", "fish", "chingri"),
+        "chingri" to listOf("shrimp", "prawn", "seafood", "fish"),
+        "seafood" to listOf("fish", "shrimp", "prawn", "crab", "lobster", "food"),
         "meat" to listOf("beef", "chicken", "grocery", "food", "steak"),
         "chicken" to listOf("meat", "poultry", "food", "grocery"),
         "beef" to listOf("meat", "steak", "food", "grocery"),
@@ -674,9 +665,9 @@ object OnlineIconSearchService {
 
     /**
      * Splits query into 3 sequential search tiers:
-     * 1. Exact full query (the whole word / phrase / normalized anchor core)
-     * 2. Split individual words (prioritizing corrected anchor keywords over modifiers)
-     * 3. Synonyms & domain keywords
+     * 1. Exact full query (the exact user phrase cleaned of stop keywords)
+     * 2. Split individual words (sub-phrases and token components)
+     * 3. Synonyms & transliterations (expanded companions)
      */
     fun generateSearchKeywordTiers(rawQuery: String): SearchKeywordTiers {
         val clean = cleanSearchQuery(rawQuery).trim()
@@ -684,7 +675,7 @@ object OnlineIconSearchService {
 
         val cleanLower = clean.lowercase()
 
-        // 1. Direct Brand / Named entity check
+        // 1. Direct Brand / Named entity check (e.g. "bkash", "nagad", "netflix")
         for ((brandKey, brandExpansions) in BRAND_ALIAS_MAP) {
             if (cleanLower == brandKey || cleanLower.contains(brandKey)) {
                 val primaryExact = clean
@@ -708,94 +699,56 @@ object OnlineIconSearchService {
             )
         }
 
-        // 3. Typo / Transliteration mapping check
-        val wholeQueryCorrection = TYPO_AND_TRANSLITERATION_MAP[cleanLower]
-            ?: if (!cleanLower.contains(" ")) fuzzyCorrectToken(cleanLower) else null
+        // 3. Typo / Transliteration check for full query
+        val mappedWhole = TYPO_AND_TRANSLITERATION_MAP[cleanLower]
 
+        // 4. Tokenize query into distinct meaningful words
         val allTokens = clean.split(Regex("[\\s,_\\-]+"))
             .map { it.trim().lowercase() }
-            .filter { it.isNotBlank() }
+            .filter { it.length >= 2 && !isGenericStopWord(it) }
 
-        val isSingleLetterPrefix = allTokens.size > 1 && allTokens.first().length == 1
-        val mainTokens = if (isSingleLetterPrefix) allTokens.drop(1) else allTokens
-
-        // Token categorization: Distinctive Subject vs Qualifier vs Category Anchor vs Modifier
-        val distinctiveTokens = mutableListOf<String>()
-        val qualifierTokens = mutableListOf<String>()
-        val anchorTokens = mutableListOf<String>()
-
-        for (t in mainTokens) {
-            val corrected = fuzzyCorrectToken(t) ?: t
-            if (isGenericStopWord(t) || t in MODIFIER_WORDS) {
-                continue
-            }
-            if (corrected in GENERIC_QUALIFIER_WORDS || t in GENERIC_QUALIFIER_WORDS) {
-                qualifierTokens.add(corrected)
-            } else if (isAnchorKeyword(corrected) && corrected !in GENERIC_QUALIFIER_WORDS) {
-                anchorTokens.add(corrected)
-            } else {
-                distinctiveTokens.add(corrected)
-                if (corrected != t) distinctiveTokens.add(t)
-            }
-        }
-
-        // Case A: Query has distinctive subject tokens (e.g. brand names, unique items)
-        if (distinctiveTokens.isNotEmpty()) {
-            val primarySubject = distinctiveTokens.first()
-            val subjectPhrase = distinctiveTokens.joinToString(" ")
-            val exactWord = clean
-            val splitList = mutableListOf<String>()
-
-            if (primarySubject != exactWord.lowercase()) {
-                splitList.add(primarySubject)
-            }
-            if (subjectPhrase != exactWord.lowercase() && subjectPhrase != primarySubject) {
-                splitList.add(subjectPhrase)
-            }
-            if (qualifierTokens.isNotEmpty()) {
-                splitList.add("$primarySubject ${qualifierTokens.first()}")
-            }
-            splitList.add("$primarySubject logo")
-
-            return SearchKeywordTiers(
-                exactWord = exactWord,
-                splitWords = splitList.distinct(),
-                synonyms = emptyList() // Do NOT inject random generic synonyms for brand/subject queries!
-            )
-        }
-
-        // Case B: Query is generic category words (e.g. "cooking oil", "vegetable food", "medicine")
-        val primaryAnchor = wholeQueryCorrection
-            ?: anchorTokens.firstOrNull()
-            ?: qualifierTokens.firstOrNull()
-            ?: cleanLower
-
-        val exactWord = if (wholeQueryCorrection != null && wholeQueryCorrection != cleanLower) {
-            wholeQueryCorrection
-        } else {
-            clean
-        }
-
-        val splitList = mutableListOf<String>()
-        if (primaryAnchor.isNotBlank() && primaryAnchor != exactWord.lowercase()) {
-            splitList.add(primaryAnchor)
-        }
-        for (a in anchorTokens) {
-            if (a !in splitList && a != exactWord.lowercase()) splitList.add(a)
-        }
-
+        val splitWords = mutableListOf<String>()
         val synList = mutableListOf<String>()
-        val synonymLookups = listOf(cleanLower, exactWord.lowercase(), primaryAnchor) + anchorTokens
-        for (key in synonymLookups.distinct()) {
-            SYNONYM_MAP[key]?.let { synList.addAll(it) }
+
+        // If a known transliteration/typo exists for the whole query, include it in splitWords
+        if (mappedWhole != null && mappedWhole != cleanLower) {
+            splitWords.add(mappedWhole)
+            SYNONYM_MAP[mappedWhole]?.let { synList.addAll(it) }
         }
 
-        val excludeSet = (listOf(cleanLower, exactWord.lowercase()) + splitList.map { it.lowercase() }).toSet()
+        // If the query has multiple words, add the individual tokens to splitWords
+        if (allTokens.size > 1) {
+            for (t in allTokens) {
+                if (t != cleanLower && t !in splitWords) {
+                    splitWords.add(t)
+                }
+                val mappedT = TYPO_AND_TRANSLITERATION_MAP[t]
+                if (mappedT != null && mappedT != t && mappedT !in splitWords) {
+                    splitWords.add(mappedT)
+                }
+                SYNONYM_MAP[t]?.let { synList.addAll(it) }
+                if (mappedT != null) {
+                    SYNONYM_MAP[mappedT]?.let { synList.addAll(it) }
+                }
+            }
+        } else if (allTokens.size == 1) {
+            val single = allTokens.first()
+            val mappedSingle = TYPO_AND_TRANSLITERATION_MAP[single]
+            if (mappedSingle != null && mappedSingle != single && mappedSingle !in splitWords) {
+                splitWords.add(mappedSingle)
+            }
+            SYNONYM_MAP[single]?.let { synList.addAll(it) }
+            if (mappedSingle != null) {
+                SYNONYM_MAP[mappedSingle]?.let { synList.addAll(it) }
+            }
+        }
+
+        val excludeSet = (listOf(cleanLower) + splitWords.map { it.lowercase() }).toSet()
         val finalSynonyms = synList.distinct().filter { it.lowercase() !in excludeSet }
 
         return SearchKeywordTiers(
-            exactWord = exactWord,
-            splitWords = splitList.distinct(),
+            exactWord = clean,
+            splitWords = splitWords.distinct(),
             synonyms = finalSynonyms
         )
     }
@@ -1349,13 +1302,17 @@ object OnlineIconSearchService {
         val queryLower = query.lowercase().trim()
         val queryTokens = queryLower.split(Regex("[\\s,_\\-]+")).filter { it.length >= 2 }
         val distinctiveTokens = queryTokens.filter { it !in GENERIC_QUALIFIER_WORDS && it !in GENERIC_STOP_WORDS }
+        val mappedTokens = (TYPO_AND_TRANSLITERATION_MAP[queryLower]?.split(Regex("[\\s,_\\-]+")).orEmpty() +
+                tiers.exactWord.lowercase().split(Regex("[\\s,_\\-]+")) +
+                tiers.splitWords.flatMap { it.lowercase().split(Regex("[\\s,_\\-]+")) }).filter { it.length >= 2 }
+        val allDistinctiveTokens = (distinctiveTokens + mappedTokens).distinct()
 
-        val filteredResults = if (distinctiveTokens.isNotEmpty()) {
+        val filteredResults = if (allDistinctiveTokens.isNotEmpty()) {
             results.filter { item ->
                 val titleLower = item.title.lowercase()
                 val urlLower = item.imageUrl.lowercase()
                 val sourceLower = item.sourceName.lowercase()
-                distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
+                allDistinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
                         queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
                         sourceLower in setOf("svgl", "brandfetch", "vectorlogozone")
             }
@@ -1363,11 +1320,13 @@ object OnlineIconSearchService {
             results
         }
 
-        filteredResults.sortedWith(
+        val finalResults = if (filteredResults.isNotEmpty()) filteredResults else results
+
+        finalResults.sortedWith(
             compareByDescending<OnlineIconResult> { item ->
                 val titleLower = item.title.lowercase()
                 val urlLower = item.imageUrl.lowercase()
-                if (distinctiveTokens.isNotEmpty() && distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 3
+                if (allDistinctiveTokens.isNotEmpty() && allDistinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 3
                 else if (queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 2
                 else 1
             }.thenByDescending { it.isColorful }
@@ -1823,19 +1782,7 @@ object OnlineIconSearchService {
     private suspend fun fetchBingImages(term: String, page: Int, limit: Int = 20): List<OnlineImageResult> = withContext(Dispatchers.IO) {
         try {
             val cleanLower = term.trim().lowercase()
-            val corrected = fuzzyCorrectToken(cleanLower) ?: cleanLower
-            val queryTerm = when (corrected) {
-                "sugar", "suger" -> "sugar food"
-                "rice" -> "rice grain food"
-                "oil" -> "cooking oil"
-                "salt" -> "salt food"
-                "flour" -> "flour wheat food"
-                "beverages", "beverage" -> "beverages drinks"
-                "donate", "donation", "donations" -> "donation charity"
-                "charity" -> "charity donation"
-                "vegetable", "vegetables" -> "fresh vegetables"
-                else -> corrected
-            }
+            val queryTerm = cleanLower
             val searchQuery = "$queryTerm -site:blogspot.com -site:wordpress.com"
             val encoded = URLEncoder.encode(searchQuery, "UTF-8")
             val first = ((page - 1) * limit) + 1
@@ -1861,16 +1808,7 @@ object OnlineIconSearchService {
     private suspend fun fetchDuckDuckGoImages(term: String, page: Int, limit: Int = 16): List<OnlineImageResult> = withContext(Dispatchers.IO) {
         try {
             val cleanLower = term.trim().lowercase()
-            val corrected = fuzzyCorrectToken(cleanLower) ?: cleanLower
-            val queryTerm = when (corrected) {
-                "sugar", "suger" -> "sugar food"
-                "rice" -> "rice grain food"
-                "oil" -> "cooking oil"
-                "salt" -> "salt food"
-                "flour" -> "flour wheat food"
-                "vegetable", "vegetables" -> "fresh vegetables"
-                else -> corrected
-            }
+            val queryTerm = cleanLower
             val vqd = getDuckDuckGoVqd(queryTerm) ?: return@withContext emptyList()
             val encoded = URLEncoder.encode(queryTerm, "UTF-8")
             val p = if (page <= 1) 1 else page
@@ -2056,25 +1994,34 @@ object OnlineIconSearchService {
         val queryLower = query.lowercase().trim()
         val queryTokens = queryLower.split(Regex("[\\s,_\\-]+")).filter { it.length >= 2 }
         val distinctiveTokens = queryTokens.filter { it !in GENERIC_QUALIFIER_WORDS && it !in GENERIC_STOP_WORDS }
+        val mappedTokens = (TYPO_AND_TRANSLITERATION_MAP[queryLower]?.split(Regex("[\\s,_\\-]+")).orEmpty() +
+                tiers.exactWord.lowercase().split(Regex("[\\s,_\\-]+")) +
+                tiers.splitWords.flatMap { it.lowercase().split(Regex("[\\s,_\\-]+")) }).filter { it.length >= 2 }
+        val allDistinctiveTokens = (distinctiveTokens + mappedTokens).distinct()
 
-        val filteredResults = if (distinctiveTokens.isNotEmpty()) {
+        val reputableSources = setOf("wikimedia", "wikipedia", "unsplash", "openverse", "flickr", "rawpixel", "pixabay", "pexels")
+
+        val filteredResults = if (allDistinctiveTokens.isNotEmpty()) {
             results.filter { item ->
                 val titleLower = item.title.lowercase()
                 val urlLower = item.imageUrl.lowercase()
                 val sourceLower = item.sourceName.lowercase()
-                distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
+                allDistinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
                         queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) } ||
-                        sourceLower in setOf("wikimedia", "wikipedia", "unsplash", "openverse")
+                        sourceLower in reputableSources ||
+                        reputableSources.any { sourceLower.contains(it) }
             }
         } else {
             results
         }
 
-        filteredResults.sortedWith(
+        val finalResults = if (filteredResults.isNotEmpty()) filteredResults else results
+
+        finalResults.sortedWith(
             compareByDescending<OnlineImageResult> { item ->
                 val titleLower = item.title.lowercase()
                 val urlLower = item.imageUrl.lowercase()
-                if (distinctiveTokens.isNotEmpty() && distinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 3
+                if (allDistinctiveTokens.isNotEmpty() && allDistinctiveTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 3
                 else if (queryTokens.any { tok -> titleLower.contains(tok) || urlLower.contains(tok) }) 2
                 else 1
             }
