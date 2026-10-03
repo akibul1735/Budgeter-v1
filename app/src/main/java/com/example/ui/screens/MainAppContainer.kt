@@ -658,7 +658,7 @@ fun MainAppContainer(
                                 HorizontalPager(
                                     state = pagerState,
                                     key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
-                                    beyondViewportPageCount = 1,
+                                    beyondViewportPageCount = 0,
                                     userScrollEnabled = !isTimelineActive,
                                     flingBehavior = rememberFluidPagerFlingBehavior(pagerState = pagerState),
                                     modifier = Modifier.fillMaxSize()
@@ -666,16 +666,13 @@ fun MainAppContainer(
                                     val pageTab = visibleTabs.getOrNull(page)
                                     val pageView = pageTab?.toAppView() ?: AppView.DASHBOARD
 
-                                    // Smooth page transition animation: subtle scale and alpha easing
-                                    val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-                                    val pageAlpha = (1f - (pageOffset * 0.2f)).coerceIn(0.8f, 1f)
-                                    val pageScale = (1f - (pageOffset * 0.035f)).coerceIn(0.965f, 1f)
-
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .graphicsLayer {
-                                                alpha = pageAlpha
+                                                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+                                                alpha = (1f - (pageOffset * 0.2f)).coerceIn(0.8f, 1f)
+                                                val pageScale = (1f - (pageOffset * 0.035f)).coerceIn(0.965f, 1f)
                                                 scaleX = pageScale
                                                 scaleY = pageScale
                                             }

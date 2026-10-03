@@ -2073,7 +2073,7 @@ fun BudgetScreen(
                     .fillMaxWidth()
                     .weight(1f),
                 flingBehavior = rememberFluidPagerFlingBehavior(pagerState = pagerState),
-                beyondViewportPageCount = 1
+                beyondViewportPageCount = 0
             ) { pageIndex ->
                 when (pageIndex) {
                     0 -> {
