@@ -894,6 +894,85 @@ fun AddEditTransactionSheet(
             }
         } else if (matchedTx.type == TransactionType.TRANSFER) {
             txType = TransactionType.TRANSFER
+
+            // Find previous linked transfer fee transactions or recorded fee preferences for this transfer payee
+            val targetPayee = matchedTx.payeeOrPayer.trim()
+            val pastTransfersWithPayee = if (targetPayee.isNotBlank()) {
+                allTransactions.filter { item ->
+                    item.transaction.type == TransactionType.TRANSFER &&
+                    item.transaction.payeeOrPayer.trim().equals(targetPayee, ignoreCase = true)
+                }
+            } else emptyList()
+
+            val linkedFees = pastTransfersWithPayee.mapNotNull { item ->
+                com.example.util.TransactionLinkHelper.findLinkedFeeTransaction(item.transaction, allTransactions)?.transaction
+            }
+
+            val matchingDirectFees = if (targetPayee.isNotBlank()) {
+                allTransactions.mapNotNull { item ->
+                    val t = item.transaction
+                    if (t.type == TransactionType.EXPENSE && (
+                        t.payeeOrPayer.equals("$targetPayee (Fee)", ignoreCase = true) ||
+                        t.payeeOrPayer.startsWith("$targetPayee (Fee", ignoreCase = true) ||
+                        t.note.contains("Transfer fee for $targetPayee", ignoreCase = true) ||
+                        (t.note.contains(targetPayee, ignoreCase = true) && (t.referenceNo.contains("Fee", ignoreCase = true) || t.payeeOrPayer.contains("Fee", ignoreCase = true)))
+                    )) t else null
+                }
+            } else emptyList()
+
+            val allPastFeesForThisPayee = (linkedFees + matchingDirectFees).distinctBy { it.id }
+            val rememberedCatId = if (targetPayee.isNotBlank()) transferFeePrefs.getFeeCategoryForPayee(targetPayee) else null
+            val rememberedSubCatId = if (targetPayee.isNotBlank()) transferFeePrefs.getFeeSubCategoryForPayee(targetPayee) else null
+
+            if (allPastFeesForThisPayee.isNotEmpty() || rememberedCatId != null) {
+                hasTransferFee = true
+
+                val latestFee = allPastFeesForThisPayee.maxByOrNull { it.dateEpochMs }
+                val rawFeeCatId = latestFee?.categoryId ?: rememberedCatId
+                val rawFeeSubCatId = latestFee?.subCategoryId ?: rememberedSubCatId
+
+                if (rawFeeCatId != null) {
+                    val catObj = categories.firstOrNull { it.id == rawFeeCatId }
+                    if (catObj != null && catObj.parentId != null) {
+                        transferFeeCategoryId = catObj.parentId
+                        transferFeeSubCategoryId = catObj.id
+                    } else {
+                        transferFeeCategoryId = rawFeeCatId
+                        transferFeeSubCategoryId = rawFeeSubCatId
+                    }
+                }
+
+                // Default Fee Account to From Account or remembered fee account
+                transferFeeAccountId = latestFee?.creditAccountId ?: matchedTx.creditAccountId
+
+                // Fee Amount autofill: If different transfer amounts on single name and their fee is equal, autofill fee amount
+                val feeAmounts = allPastFeesForThisPayee.map { Math.abs(it.amount) }.filter { it > 0.0 }
+                if (feeAmounts.isNotEmpty()) {
+                    val firstFeeAmt = feeAmounts.first()
+                    val allFeesEqual = feeAmounts.all { Math.abs(it - firstFeeAmt) < 0.001 }
+                    if (allFeesEqual) {
+                        transferFeeAmount = firstFeeAmt
+                        val formatted = LanguageHelper.formatAmountNumber(
+                            value = firstFeeAmt,
+                            mode = LanguageMode.ENGLISH,
+                            groupingSeparator = amountFormatConfig.effectiveGroupingSeparator,
+                            decimalSeparator = amountFormatConfig.effectiveDecimalSeparator,
+                            groupingStyle = amountFormatConfig.effectiveGroupingStyle,
+                            decimalPlaces = 2
+                        )
+                        transferFeeAmountText = formatted
+                        transferFeeTextFieldValue = TextFieldValue(
+                            text = formatted,
+                            selection = TextRange(0, formatted.length)
+                        )
+                    } else {
+                        // Varying fee amounts: only transfer fee enabled and category autofilled
+                        transferFeeAmount = 0.0
+                        transferFeeAmountText = ""
+                        transferFeeTextFieldValue = TextFieldValue("")
+                    }
+                }
+            }
         }
 
         if (autofillConfig.autofillAccount) {
@@ -935,9 +1014,19 @@ fun AddEditTransactionSheet(
     fun onSelectPayeeSuggestion(suggestedPayee: String) {
         payee = suggestedPayee
         showNameDropdown = false
-        val latestMatch = allTransactions.firstOrNull {
-            it.transaction.payeeOrPayer.equals(suggestedPayee, ignoreCase = true)
-        }?.transaction
+        val latestMatch = if (txType == TransactionType.TRANSFER) {
+            allTransactions.firstOrNull {
+                it.transaction.type == TransactionType.TRANSFER && it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
+            }?.transaction ?: allTransactions.firstOrNull {
+                it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
+            }?.transaction
+        } else {
+            allTransactions.firstOrNull {
+                it.transaction.type == txType && it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
+            }?.transaction ?: allTransactions.firstOrNull {
+                it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
+            }?.transaction
+        }
 
         if (latestMatch != null) {
             applyAutofillFromTransaction(latestMatch)
@@ -1122,11 +1211,11 @@ fun AddEditTransactionSheet(
             }
             onSave(tx)
 
-            // If transfer with fee, create fee transaction as well
+            // If transfer with fee, create or update fee transaction as well
             if (txType == TransactionType.TRANSFER && hasTransferFee && transferFeeAmount > 0) {
                 val feeAccId = transferFeeAccountId ?: creditAccountId
                 val feeTx = Transaction(
-                    id = 0,
+                    id = existingFeeTx?.id ?: 0L,
                     type = TransactionType.EXPENSE,
                     amount = transferFeeAmount,
                     dateEpochMs = selectedDateEpochMs,
@@ -1150,6 +1239,8 @@ fun AddEditTransactionSheet(
                         transferFeeSubCategoryId
                     )
                 }
+            } else if (existingFeeTx != null && (!hasTransferFee || transferFeeAmount <= 0.0)) {
+                onDelete?.invoke(existingFeeTx)
             }
         }
 
@@ -1485,9 +1576,21 @@ fun AddEditTransactionSheet(
                                 payee = it
                                 showNameDropdown = it.isNotBlank()
                                 if (existingTransaction == null && it.isNotBlank()) {
-                                    val exactMatch = allTransactions.firstOrNull { txWithDetails ->
-                                        txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
-                                    }?.transaction
+                                    val exactMatch = if (txType == TransactionType.TRANSFER) {
+                                        allTransactions.firstOrNull { txWithDetails ->
+                                            txWithDetails.transaction.type == TransactionType.TRANSFER &&
+                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
+                                        }?.transaction ?: allTransactions.firstOrNull { txWithDetails ->
+                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
+                                        }?.transaction
+                                    } else {
+                                        allTransactions.firstOrNull { txWithDetails ->
+                                            txWithDetails.transaction.type == txType &&
+                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
+                                        }?.transaction ?: allTransactions.firstOrNull { txWithDetails ->
+                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
+                                        }?.transaction
+                                    }
                                     if (exactMatch != null) {
                                         applyAutofillFromTransaction(exactMatch)
                                     }
@@ -2421,7 +2524,27 @@ fun AddEditTransactionSheet(
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable { hasTransferFee = !hasTransferFee }
+                                                .clickable {
+                                                    val nextState = !hasTransferFee
+                                                    hasTransferFee = nextState
+                                                    if (nextState) {
+                                                        if (transferFeeAccountId == null) transferFeeAccountId = creditAccountId
+                                                        if (transferFeeCategoryId == null && payee.isNotBlank()) {
+                                                            val remCat = transferFeePrefs.getFeeCategoryForPayee(payee)
+                                                            val remSubCat = transferFeePrefs.getFeeSubCategoryForPayee(payee)
+                                                            if (remCat != null) {
+                                                                val catObj = categories.firstOrNull { it.id == remCat }
+                                                                if (catObj != null && catObj.parentId != null) {
+                                                                    transferFeeCategoryId = catObj.parentId
+                                                                    transferFeeSubCategoryId = catObj.id
+                                                                } else {
+                                                                    transferFeeCategoryId = remCat
+                                                                    transferFeeSubCategoryId = remSubCat
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                                 .padding(horizontal = 14.dp, vertical = 10.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
@@ -2444,7 +2567,26 @@ fun AddEditTransactionSheet(
 
                                             androidx.compose.material3.Switch(
                                                 checked = hasTransferFee,
-                                                onCheckedChange = { hasTransferFee = it },
+                                                onCheckedChange = { checked ->
+                                                    hasTransferFee = checked
+                                                    if (checked) {
+                                                        if (transferFeeAccountId == null) transferFeeAccountId = creditAccountId
+                                                        if (transferFeeCategoryId == null && payee.isNotBlank()) {
+                                                            val remCat = transferFeePrefs.getFeeCategoryForPayee(payee)
+                                                            val remSubCat = transferFeePrefs.getFeeSubCategoryForPayee(payee)
+                                                            if (remCat != null) {
+                                                                val catObj = categories.firstOrNull { it.id == remCat }
+                                                                if (catObj != null && catObj.parentId != null) {
+                                                                    transferFeeCategoryId = catObj.parentId
+                                                                    transferFeeSubCategoryId = catObj.id
+                                                                } else {
+                                                                    transferFeeCategoryId = remCat
+                                                                    transferFeeSubCategoryId = remSubCat
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
                                                 colors = androidx.compose.material3.SwitchDefaults.colors(
                                                     checkedThumbColor = Color.White,
                                                     checkedTrackColor = SolidTransfer
