@@ -364,10 +364,18 @@ fun AccountTransactionsDetailDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
+                                val dynamicTypeBadge = when {
+                                    account.type == AccountType.LIABILITY && currentLatestBalance > 0.0001 -> if (languageMode == LanguageMode.BANGLA) "দায় (অগ্রিম সম্পদ)" else "Liability (Advance Asset)"
+                                    account.type == AccountType.ASSET && currentLatestBalance < -0.0001 -> if (languageMode == LanguageMode.BANGLA) "সম্পদ (ঘাটতি দায়)" else "Asset (Overdrawn Liability)"
+                                    account.type == AccountType.ASSET -> if (languageMode == LanguageMode.BANGLA) "সম্পদ হিসাব" else "Asset Account"
+                                    account.type == AccountType.LIABILITY -> if (languageMode == LanguageMode.BANGLA) "দায় হিসাব" else "Liability Account"
+                                    else -> account.type.name
+                                }
                                 Text(
-                                    text = if (account.type == AccountType.ASSET) "Asset Account" else "Liability Account",
+                                    text = dynamicTypeBadge,
                                     fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
+                                    fontWeight = if (account.type == AccountType.LIABILITY && currentLatestBalance > 0.0001 || account.type == AccountType.ASSET && currentLatestBalance < -0.0001) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (account.type == AccountType.LIABILITY && currentLatestBalance > 0.0001) SolidIncome else if (account.type == AccountType.ASSET && currentLatestBalance < -0.0001) SolidExpense else MaterialTheme.colorScheme.outline
                                 )
                                 Text(text = "•", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                                 Text(

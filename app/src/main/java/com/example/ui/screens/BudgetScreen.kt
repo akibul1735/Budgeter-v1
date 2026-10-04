@@ -707,10 +707,26 @@ fun BudgetScreen(
     }
 
     val calculatedAssets = remember(activeAccounts, accountCalcConfig) {
-        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeGroupEffective(it) }
+        val assetPos = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeGroupEffective(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        val liabPos = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeGroupEffective(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        assetPos + liabPos
     }
     val calculatedLiabilities = remember(activeAccounts, accountCalcConfig) {
-        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(computeGroupEffective(it)) }
+        val liabNeg = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeGroupEffective(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        val assetNeg = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeGroupEffective(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        liabNeg + assetNeg
     }
 
     val calculatedAssetHolders = remember(activeAccounts, accountCalcConfig, languageMode) {

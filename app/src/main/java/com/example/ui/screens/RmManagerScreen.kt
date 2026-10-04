@@ -1646,24 +1646,27 @@ private fun RmModernDetailView(
                         // Status Badge
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = when (entity.status) {
-                                RmRepaymentStatus.SETTLED -> SolidIncome.copy(alpha = 0.15f)
-                                RmRepaymentStatus.PARTIALLY_REPAID -> Color(0xFFFFF3E0)
-                                RmRepaymentStatus.UNPAID -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
+                            color = when {
+                                entity.netBalance > 0.001 -> SolidIncome.copy(alpha = 0.18f)
+                                entity.status == RmRepaymentStatus.SETTLED -> SolidIncome.copy(alpha = 0.15f)
+                                entity.status == RmRepaymentStatus.PARTIALLY_REPAID -> Color(0xFFFFF3E0)
+                                else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
                             }
                         ) {
                             Text(
-                                text = when (entity.status) {
-                                    RmRepaymentStatus.SETTLED -> LanguageHelper.getString("fully_settled", languageMode)
-                                    RmRepaymentStatus.PARTIALLY_REPAID -> "${(entity.repaymentProgressPercent * 100).toInt()}% ${if (languageMode == LanguageMode.BANGLA) "পরিশোধ" else "Repaid"}"
-                                    RmRepaymentStatus.UNPAID -> if (languageMode == LanguageMode.BANGLA) "বকেয়া" else "Pending"
+                                text = when {
+                                    entity.netBalance > 0.001 -> if (languageMode == LanguageMode.BANGLA) "অগ্রিম (সম্পদ)" else "Advance (Asset)"
+                                    entity.status == RmRepaymentStatus.SETTLED -> LanguageHelper.getString("fully_settled", languageMode)
+                                    entity.status == RmRepaymentStatus.PARTIALLY_REPAID -> "${(entity.repaymentProgressPercent * 100).toInt()}% ${if (languageMode == LanguageMode.BANGLA) "পরিশোধ" else "Repaid"}"
+                                    else -> if (languageMode == LanguageMode.BANGLA) "বকেয়া" else "Pending"
                                 },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = when (entity.status) {
-                                    RmRepaymentStatus.SETTLED -> SolidIncome
-                                    RmRepaymentStatus.PARTIALLY_REPAID -> Color(0xFFE65100)
-                                    RmRepaymentStatus.UNPAID -> MaterialTheme.colorScheme.onErrorContainer
+                                color = when {
+                                    entity.netBalance > 0.001 -> SolidIncome
+                                    entity.status == RmRepaymentStatus.SETTLED -> SolidIncome
+                                    entity.status == RmRepaymentStatus.PARTIALLY_REPAID -> Color(0xFFE65100)
+                                    else -> MaterialTheme.colorScheme.onErrorContainer
                                 },
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
@@ -1672,13 +1675,13 @@ private fun RmModernDetailView(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Negative Net Balance (জের)
+                    // Negative / Positive Net Balance (জের)
                     Row(
                         verticalAlignment = Alignment.Bottom,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = if (entity.netBalance < 0) "-৳" else "৳",
+                            text = if (entity.netBalance < 0) "-৳" else if (entity.netBalance > 0.001) "+৳" else "৳",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (entity.netBalance < 0) MaterialTheme.colorScheme.error else SolidIncome,
@@ -1692,7 +1695,11 @@ private fun RmModernDetailView(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "বর্তমান জের (বকেয়া)" else "Current Balance (Jer)",
+                            text = if (entity.netBalance > 0.001) {
+                                if (languageMode == LanguageMode.BANGLA) "বর্তমান জের (অগ্রিম সম্পদ)" else "Current Balance (Advance Asset)"
+                            } else {
+                                if (languageMode == LanguageMode.BANGLA) "বর্তমান জের (বকেয়া)" else "Current Balance (Jer)"
+                            },
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(bottom = 3.dp)

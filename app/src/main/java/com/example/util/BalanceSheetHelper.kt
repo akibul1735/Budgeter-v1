@@ -36,7 +36,8 @@ data class BalanceSheetAccountRow(
     val adjustmentAmount: Double = 0.0,
     val effectiveBaseBalance: Double = baseBalance,
     val effectiveCurrentBalance: Double = currentBalance,
-    val totalPercentageShare: Double = 0.0
+    val totalPercentageShare: Double = 0.0,
+    val dynamicTag: String? = null
 )
 
 data class BalanceSheetGroup(
@@ -49,7 +50,8 @@ data class BalanceSheetGroup(
     val isIncludedInCalc: Boolean = true,
     val adjustmentAmount: Double = 0.0,
     val effectiveBaseBalance: Double = baseBalance,
-    val effectiveCurrentBalance: Double = currentBalance
+    val effectiveCurrentBalance: Double = currentBalance,
+    val dynamicTag: String? = null
 )
 
 data class BalanceSheetComparisonData(
@@ -365,27 +367,95 @@ object BalanceSheetHelper {
         val rawAssetGroups = buildGroups(AccountType.ASSET)
         val rawLiabilityGroups = buildGroups(AccountType.LIABILITY)
 
-        val totalAssetsBase = rawAssetGroups.filter { it.effectiveBaseBalance > 0 }.sumOf { it.effectiveBaseBalance } +
-            rawLiabilityGroups.filter { it.effectiveBaseBalance > 0 }.sumOf { it.effectiveBaseBalance }
+        val fromLiabilityTag = if (languageMode == LanguageMode.BANGLA) "দায় থেকে" else "From Liability"
+        val fromAssetTag = if (languageMode == LanguageMode.BANGLA) "সম্পদ থেকে" else "From Asset"
 
-        val totalAssetsCurrent = rawAssetGroups.filter { it.effectiveCurrentBalance > 0 }.sumOf { it.effectiveCurrentBalance } +
-            rawLiabilityGroups.filter { it.effectiveCurrentBalance > 0 }.sumOf { it.effectiveCurrentBalance }
+        // 1. Asset Section:
+        // Include natural assets with balance >= 0 AND liabilities with positive balance > 0 (overpaid payables)
+        val naturalAssets = rawAssetGroups.filter { it.effectiveCurrentBalance >= 0 }.map { group ->
+            val updatedSubs = group.subAccounts.map { sub ->
+                if (sub.effectiveCurrentBalance < -0.0001) {
+                    sub.copy(dynamicTag = fromAssetTag)
+                } else sub
+            }
+            group.copy(subAccounts = updatedSubs)
+        }
 
-        val totalLiabilitiesBase = rawLiabilityGroups.filter { it.effectiveBaseBalance < 0 }.sumOf { -it.effectiveBaseBalance } +
-            rawAssetGroups.filter { it.effectiveBaseBalance < 0 }.sumOf { -it.effectiveBaseBalance }
+        val positiveLiabilitiesAsAssets = rawLiabilityGroups.filter { it.effectiveCurrentBalance > 0.0001 }.map { group ->
+            val updatedSubs = group.subAccounts.map { sub ->
+                sub.copy(dynamicTag = fromLiabilityTag)
+            }
+            group.copy(
+                dynamicTag = fromLiabilityTag,
+                subAccounts = updatedSubs
+            )
+        }
 
-        val totalLiabilitiesCurrent = rawLiabilityGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance } +
-            rawAssetGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance }
+        val combinedAssetGroups = naturalAssets + positiveLiabilitiesAsAssets
 
-        val totalAssetsPool = if (Math.abs(totalAssetsCurrent) > 0.001) Math.abs(totalAssetsCurrent) else (rawAssetGroups.sumOf { Math.abs(it.effectiveCurrentBalance) } + rawLiabilityGroups.filter { it.effectiveCurrentBalance > 0 }.sumOf { it.effectiveCurrentBalance })
-        val totalLiabilitiesPool = if (Math.abs(totalLiabilitiesCurrent) > 0.001) Math.abs(totalLiabilitiesCurrent) else (rawLiabilityGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance } + rawAssetGroups.filter { it.effectiveCurrentBalance < 0 }.sumOf { -it.effectiveCurrentBalance })
+        // 2. Liability Section:
+        // Include natural liabilities with debt balance <= 0 (converted to positive liability representation)
+        // AND assets with negative overdraft/due balance < 0 (converted to positive liability representation)
+        val naturalLiabilities = rawLiabilityGroups.filter { it.effectiveCurrentBalance <= 0.0001 }.map { group ->
+            val updatedSubs = group.subAccounts.map { sub ->
+                sub.copy(
+                    effectiveBaseBalance = -sub.effectiveBaseBalance,
+                    effectiveCurrentBalance = -sub.effectiveCurrentBalance,
+                    baseBalance = -sub.baseBalance,
+                    currentBalance = -sub.currentBalance,
+                    delta = -sub.delta,
+                    dynamicTag = if (sub.effectiveCurrentBalance > 0.0001) fromLiabilityTag else null
+                )
+            }
+            group.copy(
+                effectiveBaseBalance = -group.effectiveBaseBalance,
+                effectiveCurrentBalance = -group.effectiveCurrentBalance,
+                baseBalance = -group.baseBalance,
+                currentBalance = -group.currentBalance,
+                delta = -group.delta,
+                subAccounts = updatedSubs
+            )
+        }
+
+        val negativeAssetsAsLiabilities = rawAssetGroups.filter { it.effectiveCurrentBalance < -0.0001 }.map { group ->
+            val updatedSubs = group.subAccounts.map { sub ->
+                sub.copy(
+                    effectiveBaseBalance = -sub.effectiveBaseBalance,
+                    effectiveCurrentBalance = -sub.effectiveCurrentBalance,
+                    baseBalance = -sub.baseBalance,
+                    currentBalance = -sub.currentBalance,
+                    delta = -sub.delta,
+                    dynamicTag = fromAssetTag
+                )
+            }
+            group.copy(
+                effectiveBaseBalance = -group.effectiveBaseBalance,
+                effectiveCurrentBalance = -group.effectiveCurrentBalance,
+                baseBalance = -group.baseBalance,
+                currentBalance = -group.currentBalance,
+                delta = -group.delta,
+                dynamicTag = fromAssetTag,
+                subAccounts = updatedSubs
+            )
+        }
+
+        val combinedLiabilityGroups = naturalLiabilities + negativeAssetsAsLiabilities
+
+        val totalAssetsBase = combinedAssetGroups.sumOf { it.effectiveBaseBalance }
+        val totalAssetsCurrent = combinedAssetGroups.sumOf { it.effectiveCurrentBalance }
+
+        val totalLiabilitiesBase = combinedLiabilityGroups.sumOf { it.effectiveBaseBalance }
+        val totalLiabilitiesCurrent = combinedLiabilityGroups.sumOf { it.effectiveCurrentBalance }
+
+        val totalAssetsPool = if (Math.abs(totalAssetsCurrent) > 0.001) Math.abs(totalAssetsCurrent) else combinedAssetGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
+        val totalLiabilitiesPool = if (Math.abs(totalLiabilitiesCurrent) > 0.001) Math.abs(totalLiabilitiesCurrent) else combinedLiabilityGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
 
         val netWorthBase = totalAssetsBase - totalLiabilitiesBase
         val netWorthCurrent = totalAssetsCurrent - totalLiabilitiesCurrent
         val netWorthDelta = netWorthCurrent - netWorthBase
 
         // Compute percentage shares
-        val rawMappedAssets = rawAssetGroups.map { group ->
+        val rawMappedAssets = combinedAssetGroups.map { group ->
             val groupEffective = Math.abs(group.effectiveCurrentBalance)
             val groupShare = if (totalAssetsPool > 0.0001 && group.isIncludedInCalc) (groupEffective / totalAssetsPool) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->
@@ -403,7 +473,7 @@ object BalanceSheetHelper {
             )
         }
 
-        val rawMappedLiabilities = rawLiabilityGroups.map { group ->
+        val rawMappedLiabilities = combinedLiabilityGroups.map { group ->
             val groupEffective = Math.abs(group.effectiveCurrentBalance)
             val groupShare = if (totalLiabilitiesPool > 0.0001 && group.isIncludedInCalc) (groupEffective / totalLiabilitiesPool) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->

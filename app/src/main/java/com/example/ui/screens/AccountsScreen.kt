@@ -1865,6 +1865,28 @@ fun SingleAccountCard(
                                     .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             )
+                        } else if (acc.type == AccountType.LIABILITY && item.effectiveBalance > 0.0001) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সম্পদ (অগ্রিম)" else "Asset (Advance)",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidIncome,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(SolidIncome.copy(alpha = 0.15f))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        } else if (acc.type == AccountType.ASSET && item.effectiveBalance < -0.0001) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "দায় (ঘাটতি)" else "Liability (Due)",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidExpense,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(SolidExpense.copy(alpha = 0.15f))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
                         }
                     }
 
@@ -1917,7 +1939,8 @@ fun SingleAccountCard(
                         fontWeight = FontWeight.ExtraBold,
                         textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                         color = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline
-                        else if (acc.type == AccountType.LIABILITY) SolidExpense else SolidIncome
+                        else if (item.effectiveBalance < -0.0001 || (acc.type == AccountType.LIABILITY && item.effectiveBalance <= 0.0001)) SolidExpense
+                        else SolidIncome
                     )
                     if (isAdjusted && isIncluded) {
                         Text(
@@ -2119,6 +2142,28 @@ fun AccountGroupCard(
                                         .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
                                         .padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
+                            } else if (group.type == AccountType.LIABILITY && effectiveBalance > 0.0001) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পদ (অগ্রিম)" else "Asset (Advance)",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidIncome,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(SolidIncome.copy(alpha = 0.15f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            } else if (group.type == AccountType.ASSET && effectiveBalance < -0.0001) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "দায় (ঘাটতি)" else "Liability (Due)",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidExpense,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(SolidExpense.copy(alpha = 0.15f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
                             }
                         }
 
@@ -2170,7 +2215,8 @@ fun AccountGroupCard(
                             fontWeight = FontWeight.ExtraBold,
                             textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                             color = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline
-                            else if (group.type == AccountType.LIABILITY) SolidExpense else SolidIncome
+                            else if (effectiveBalance < -0.0001 || (group.type == AccountType.LIABILITY && effectiveBalance <= 0.0001)) SolidExpense
+                            else SolidIncome
                         )
 
                         // Original Balance if adjusted
@@ -2355,6 +2401,30 @@ fun AccountGroupCard(
                                                             color = Color(0xFFD97706),
                                                             fontWeight = FontWeight.Bold
                                                         )
+                                                    } else if (sub.type == AccountType.LIABILITY && subEffectiveBal > 0.0001) {
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Asset",
+                                                            fontSize = 9.sp,
+                                                            color = SolidIncome,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(4.dp))
+                                                                .background(SolidIncome.copy(alpha = 0.15f))
+                                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        )
+                                                    } else if (sub.type == AccountType.ASSET && subEffectiveBal < -0.0001) {
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = if (languageMode == LanguageMode.BANGLA) "দায়" else "Liability",
+                                                            fontSize = 9.sp,
+                                                            color = SolidExpense,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(4.dp))
+                                                                .background(SolidExpense.copy(alpha = 0.15f))
+                                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        )
                                                     }
                                                 }
                                                 if (subAdjusted && subIncluded) {
@@ -2379,7 +2449,8 @@ fun AccountGroupCard(
                                                     fontWeight = FontWeight.Bold,
                                                     textDecoration = if (!subIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                                     color = if (!sub.isActive || !subIncluded) MaterialTheme.colorScheme.outline
-                                                    else MaterialTheme.colorScheme.onSurface
+                                                    else if (subEffectiveBal < -0.0001 || (sub.type == AccountType.LIABILITY && subEffectiveBal <= 0.0001)) SolidExpense
+                                                    else SolidIncome
                                                 )
                                                 if (subAdjusted && subIncluded) {
                                                     Text(

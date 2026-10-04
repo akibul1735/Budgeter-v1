@@ -359,23 +359,29 @@ fun InactiveAccountsDialog(
                                         ) {
                                             Surface(
                                                 shape = RoundedCornerShape(4.dp),
-                                                color = when (acc.type) {
-                                                    AccountType.ASSET -> SolidIncome.copy(alpha = 0.12f)
-                                                    AccountType.LIABILITY -> SolidExpense.copy(alpha = 0.12f)
+                                                color = when {
+                                                    acc.type == AccountType.LIABILITY && currentBalance > 0.0001 -> SolidIncome.copy(alpha = 0.15f)
+                                                    acc.type == AccountType.ASSET && currentBalance < -0.0001 -> SolidExpense.copy(alpha = 0.15f)
+                                                    acc.type == AccountType.ASSET -> SolidIncome.copy(alpha = 0.12f)
+                                                    acc.type == AccountType.LIABILITY -> SolidExpense.copy(alpha = 0.12f)
                                                     else -> SolidPrimary.copy(alpha = 0.12f)
                                                 }
                                             ) {
                                                 Text(
-                                                    text = when (acc.type) {
-                                                        AccountType.ASSET -> if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "ASSET"
-                                                        AccountType.LIABILITY -> if (languageMode == LanguageMode.BANGLA) "দায়" else "LIABILITY"
+                                                    text = when {
+                                                        acc.type == AccountType.LIABILITY && currentBalance > 0.0001 -> if (languageMode == LanguageMode.BANGLA) "সম্পদ (অগ্রিম)" else "Asset (Advance)"
+                                                        acc.type == AccountType.ASSET && currentBalance < -0.0001 -> if (languageMode == LanguageMode.BANGLA) "দায় (ঘাটতি)" else "Liability (Due)"
+                                                        acc.type == AccountType.ASSET -> if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "ASSET"
+                                                        acc.type == AccountType.LIABILITY -> if (languageMode == LanguageMode.BANGLA) "দায়" else "LIABILITY"
                                                         else -> acc.type.name
                                                     },
                                                     fontSize = 9.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = when (acc.type) {
-                                                        AccountType.ASSET -> SolidIncome
-                                                        AccountType.LIABILITY -> SolidExpense
+                                                    color = when {
+                                                        acc.type == AccountType.LIABILITY && currentBalance > 0.0001 -> SolidIncome
+                                                        acc.type == AccountType.ASSET && currentBalance < -0.0001 -> SolidExpense
+                                                        acc.type == AccountType.ASSET -> SolidIncome
+                                                        acc.type == AccountType.LIABILITY -> SolidExpense
                                                         else -> SolidPrimary
                                                     },
                                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)

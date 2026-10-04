@@ -3180,6 +3180,23 @@ private fun BalanceSheetGroupItem(
                                             )
                                         }
                                     }
+
+                                    // Dynamic Reverse Group Tag (e.g. From Liability / From Asset)
+                                    if (group.dynamicTag != null) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = SolidIncome.copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                text = group.dynamicTag,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = SolidIncome,
+                                                modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(2.dp))
@@ -3414,6 +3431,23 @@ private fun BalanceSheetGroupItem(
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = SolidExpense,
+                                        modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+
+                            // Dynamic Reverse Group Tag (e.g. From Liability / From Asset)
+                            if (group.dynamicTag != null) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = SolidIncome.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = group.dynamicTag,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidIncome,
                                         modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 1.dp)
                                     )
                                 }
@@ -3664,6 +3698,23 @@ private fun SubAccountRowItem(
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = SolidExpense,
+                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+
+                        // Dynamic Reverse Account Tag (e.g. From Liability / From Asset)
+                        if (row.dynamicTag != null) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = SolidIncome.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = row.dynamicTag,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidIncome,
                                     modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                                 )
                             }

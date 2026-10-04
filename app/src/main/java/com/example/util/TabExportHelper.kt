@@ -992,9 +992,11 @@ object TabExportHelper {
                 val grpArrow = if (grpDelta > 0) "▲" else if (grpDelta < 0) "▼" else "—"
                 val grpPctStr = if (Math.abs(grp.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0) else "-"
 
+                val grpTagBadge = if (grp.dynamicTag != null) """ <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">${grp.dynamicTag}</span>""" else ""
+
                 sb.append("""
                     <tr class="group-row">
-                        <td><strong>📁 $grpName</strong></td>
+                        <td><strong>📁 $grpName</strong>$grpTagBadge</td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveBaseBalance, languageMode)}</td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
                         <td style="text-align: right; font-weight: bold;" class="$grpDeltaClass">$grpDeltaSign৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
@@ -1003,6 +1005,7 @@ object TabExportHelper {
                 """.trimIndent())
                 for (sub in grp.subAccounts) {
                     val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    val subTagBadge = if (sub.dynamicTag != null) """ <span style="background: #e0f2fe; color: #0369a1; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">${sub.dynamicTag}</span>""" else ""
                     val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
                     val subDeltaSign = if (subDelta > 0) "+" else ""
                     val subDeltaClass = if (subDelta >= 0) "text-success" else "text-danger"
@@ -1012,7 +1015,7 @@ object TabExportHelper {
 
                     sb.append("""
                         <tr>
-                            <td style="padding-left: 24px;">↳ $subName</td>
+                            <td style="padding-left: 24px;">↳ $subName$subTagBadge</td>
                             <td style="text-align: right; color: #64748b;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
                             <td style="text-align: right; font-weight: 600;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
                             <td style="text-align: right;" class="$subDeltaClass">$subDeltaSign৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
@@ -1030,6 +1033,7 @@ object TabExportHelper {
 
             for (grp in liabilityGroups) {
                 val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                val grpTagBadge = if (grp.dynamicTag != null) """ <span style="background: #fef2f2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">${grp.dynamicTag}</span>""" else ""
                 val grpDelta = grp.effectiveCurrentBalance - grp.effectiveBaseBalance
                 val grpDeltaSign = if (grpDelta > 0) "+" else ""
                 val grpDeltaClass = if (grpDelta <= 0) "text-success" else "text-danger"
@@ -1039,7 +1043,7 @@ object TabExportHelper {
 
                 sb.append("""
                     <tr class="group-row">
-                        <td><strong>📁 $grpName</strong></td>
+                        <td><strong>📁 $grpName</strong>$grpTagBadge</td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveBaseBalance, languageMode)}</td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
                         <td style="text-align: right; font-weight: bold;" class="$grpDeltaClass">$grpDeltaSign৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
@@ -1048,6 +1052,7 @@ object TabExportHelper {
                 """.trimIndent())
                 for (sub in grp.subAccounts) {
                     val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    val subTagBadge = if (sub.dynamicTag != null) """ <span style="background: #fef2f2; color: #b91c1c; padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold;">${sub.dynamicTag}</span>""" else ""
                     val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
                     val subDeltaSign = if (subDelta > 0) "+" else ""
                     val subDeltaClass = if (subDelta <= 0) "text-success" else "text-danger"
@@ -1057,7 +1062,7 @@ object TabExportHelper {
 
                     sb.append("""
                         <tr>
-                            <td style="padding-left: 24px;">↳ $subName</td>
+                            <td style="padding-left: 24px;">↳ $subName$subTagBadge</td>
                             <td style="text-align: right; color: #64748b;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
                             <td style="text-align: right; font-weight: 600;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
                             <td style="text-align: right;" class="$subDeltaClass">$subDeltaSign৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
