@@ -578,7 +578,16 @@ fun AddEditTransactionSheet(
 
     // Payee suggestions from previous entries with partial matching
     val pastPayees = remember(allTransactions) {
-        allTransactions.mapNotNull { it.transaction.payeeOrPayer.takeIf { p -> p.isNotBlank() } }
+        allTransactions
+            .map { it.transaction }
+            .filter { tx ->
+                tx.payeeOrPayer.isNotBlank() &&
+                !tx.payeeOrPayer.endsWith("(Fee)", ignoreCase = true) &&
+                !tx.payeeOrPayer.equals("Transfer Fee", ignoreCase = true) &&
+                !tx.note.contains("[TransferTx:") &&
+                !tx.note.startsWith("Transfer fee for", ignoreCase = true)
+            }
+            .map { it.payeeOrPayer.trim() }
             .groupingBy { it }
             .eachCount()
             .entries
@@ -879,24 +888,68 @@ fun AddEditTransactionSheet(
         TransactionType.TRANSFER -> if (isDarkTheme) SolidTransfer.copy(alpha = 0.22f) else SolidTransferContainer
     }
 
+    fun isTransferFeeTransaction(tx: Transaction): Boolean {
+        return tx.type == TransactionType.EXPENSE && (
+            tx.payeeOrPayer.endsWith("(Fee)", ignoreCase = true) ||
+            tx.payeeOrPayer.equals("Transfer Fee", ignoreCase = true) ||
+            tx.note.contains("[TransferTx:") ||
+            tx.note.startsWith("Transfer fee for", ignoreCase = true) ||
+            (tx.referenceNo.equals("Fee", ignoreCase = true) && tx.debitAccountId == null && tx.note.contains("Transfer fee", ignoreCase = true))
+        )
+    }
+
+    fun findLatestTransactionForPayee(name: String): Transaction? {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return null
+        return allTransactions
+            .asSequence()
+            .map { it.transaction }
+            .filter { !isTransferFeeTransaction(it) }
+            .firstOrNull { it.payeeOrPayer.trim().equals(trimmed, ignoreCase = true) }
+            ?: allTransactions
+                .asSequence()
+                .map { it.transaction }
+                .firstOrNull { it.payeeOrPayer.trim().equals(trimmed, ignoreCase = true) }
+    }
+
     // Unified function to apply smart autofill from a matched previous transaction respecting user preferences
     fun applyAutofillFromTransaction(matchedTx: Transaction) {
-        if (autofillConfig.autofillCategory && matchedTx.type != TransactionType.TRANSFER) {
-            txType = matchedTx.type
-            val targetCatId = matchedTx.subCategoryId ?: matchedTx.categoryId
-            val targetCat = categories.firstOrNull { it.id == targetCatId }
-            if (targetCat != null && targetCat.parentId != null) {
-                selectedCategoryId = targetCat.parentId
-                selectedSubCategoryId = targetCat.id
-            } else {
-                selectedCategoryId = matchedTx.categoryId
-                selectedSubCategoryId = matchedTx.subCategoryId
+        // Always switch transaction type to the matched transaction's type
+        txType = matchedTx.type
+
+        if (matchedTx.type != TransactionType.TRANSFER) {
+            // Revert transfer fee state if switching from transfer to expense/income
+            hasTransferFee = false
+            transferFeeAmount = 0.0
+            transferFeeAmountText = ""
+            transferFeeTextFieldValue = TextFieldValue("")
+            transferFeeAccountId = null
+            transferFeeCategoryId = null
+            transferFeeSubCategoryId = null
+
+            if (autofillConfig.autofillCategory) {
+                val targetCatId = matchedTx.subCategoryId ?: matchedTx.categoryId
+                val targetCat = categories.firstOrNull { it.id == targetCatId }
+                if (targetCat != null && targetCat.parentId != null) {
+                    selectedCategoryId = targetCat.parentId
+                    selectedSubCategoryId = targetCat.id
+                } else {
+                    selectedCategoryId = matchedTx.categoryId
+                    selectedSubCategoryId = matchedTx.subCategoryId
+                }
             }
-        } else if (matchedTx.type == TransactionType.TRANSFER) {
-            txType = TransactionType.TRANSFER
+        } else {
+            // Matched a TRANSFER
+            selectedCategoryId = null
+            selectedSubCategoryId = null
 
             // Find previous linked transfer fee transactions or recorded fee preferences for this transfer payee
             val targetPayee = matchedTx.payeeOrPayer.trim()
+
+            // 1. Direct linked fee for this specific matchedTx
+            val directLinkedFee = com.example.util.TransactionLinkHelper.findLinkedFeeTransaction(matchedTx, allTransactions)?.transaction
+
+            // 2. All past transfers for this payee and their linked fees
             val pastTransfersWithPayee = if (targetPayee.isNotBlank()) {
                 allTransactions.filter { item ->
                     item.transaction.type == TransactionType.TRANSFER &&
@@ -911,16 +964,16 @@ fun AddEditTransactionSheet(
             val matchingDirectFees = if (targetPayee.isNotBlank()) {
                 allTransactions.mapNotNull { item ->
                     val t = item.transaction
-                    if (t.type == TransactionType.EXPENSE && (
+                    if (isTransferFeeTransaction(t) && (
                         t.payeeOrPayer.equals("$targetPayee (Fee)", ignoreCase = true) ||
                         t.payeeOrPayer.startsWith("$targetPayee (Fee", ignoreCase = true) ||
                         t.note.contains("Transfer fee for $targetPayee", ignoreCase = true) ||
-                        (t.note.contains(targetPayee, ignoreCase = true) && (t.referenceNo.contains("Fee", ignoreCase = true) || t.payeeOrPayer.contains("Fee", ignoreCase = true)))
+                        t.note.contains(targetPayee, ignoreCase = true)
                     )) t else null
                 }
             } else emptyList()
 
-            val allPastFeesForThisPayee = (linkedFees + matchingDirectFees).distinctBy { it.id }
+            val allPastFeesForThisPayee = (listOfNotNull(directLinkedFee) + linkedFees + matchingDirectFees).distinctBy { it.id }
             val rememberedCatId = if (targetPayee.isNotBlank()) transferFeePrefs.getFeeCategoryForPayee(targetPayee) else null
             val rememberedSubCatId = if (targetPayee.isNotBlank()) transferFeePrefs.getFeeSubCategoryForPayee(targetPayee) else null
 
@@ -971,7 +1024,19 @@ fun AddEditTransactionSheet(
                         transferFeeAmountText = ""
                         transferFeeTextFieldValue = TextFieldValue("")
                     }
+                } else {
+                    transferFeeAmount = 0.0
+                    transferFeeAmountText = ""
+                    transferFeeTextFieldValue = TextFieldValue("")
                 }
+            } else {
+                hasTransferFee = false
+                transferFeeAmount = 0.0
+                transferFeeAmountText = ""
+                transferFeeTextFieldValue = TextFieldValue("")
+                transferFeeAccountId = null
+                transferFeeCategoryId = null
+                transferFeeSubCategoryId = null
             }
         }
 
@@ -979,9 +1044,11 @@ fun AddEditTransactionSheet(
             when (matchedTx.type) {
                 TransactionType.EXPENSE -> {
                     creditAccountId = matchedTx.creditAccountId
+                    debitAccountId = null
                 }
                 TransactionType.INCOME -> {
                     debitAccountId = matchedTx.debitAccountId
+                    creditAccountId = null
                 }
                 TransactionType.TRANSFER -> {
                     creditAccountId = matchedTx.creditAccountId
@@ -993,7 +1060,12 @@ fun AddEditTransactionSheet(
         if (autofillConfig.autofillAmount && Math.abs(matchedTx.amount) > 0) {
             val absAmt = Math.abs(matchedTx.amount)
             amount = absAmt
-            amountText = formatAmountInput(absAmt)
+            val formatted = formatAmountInput(absAmt)
+            amountText = formatted
+            amountTextFieldValue = TextFieldValue(
+                text = formatted,
+                selection = TextRange(0, formatted.length)
+            )
             selectedSign = when (matchedTx.type) {
                 TransactionType.EXPENSE -> if (matchedTx.amount < 0.0) "+" else "−"
                 TransactionType.INCOME -> if (matchedTx.amount < 0.0) "−" else "+"
@@ -1014,19 +1086,7 @@ fun AddEditTransactionSheet(
     fun onSelectPayeeSuggestion(suggestedPayee: String) {
         payee = suggestedPayee
         showNameDropdown = false
-        val latestMatch = if (txType == TransactionType.TRANSFER) {
-            allTransactions.firstOrNull {
-                it.transaction.type == TransactionType.TRANSFER && it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
-            }?.transaction ?: allTransactions.firstOrNull {
-                it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
-            }?.transaction
-        } else {
-            allTransactions.firstOrNull {
-                it.transaction.type == txType && it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
-            }?.transaction ?: allTransactions.firstOrNull {
-                it.transaction.payeeOrPayer.trim().equals(suggestedPayee.trim(), ignoreCase = true)
-            }?.transaction
-        }
+        val latestMatch = findLatestTransactionForPayee(suggestedPayee)
 
         if (latestMatch != null) {
             applyAutofillFromTransaction(latestMatch)
@@ -1576,21 +1636,7 @@ fun AddEditTransactionSheet(
                                 payee = it
                                 showNameDropdown = it.isNotBlank()
                                 if (existingTransaction == null && it.isNotBlank()) {
-                                    val exactMatch = if (txType == TransactionType.TRANSFER) {
-                                        allTransactions.firstOrNull { txWithDetails ->
-                                            txWithDetails.transaction.type == TransactionType.TRANSFER &&
-                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
-                                        }?.transaction ?: allTransactions.firstOrNull { txWithDetails ->
-                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
-                                        }?.transaction
-                                    } else {
-                                        allTransactions.firstOrNull { txWithDetails ->
-                                            txWithDetails.transaction.type == txType &&
-                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
-                                        }?.transaction ?: allTransactions.firstOrNull { txWithDetails ->
-                                            txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
-                                        }?.transaction
-                                    }
+                                    val exactMatch = findLatestTransactionForPayee(it)
                                     if (exactMatch != null) {
                                         applyAutofillFromTransaction(exactMatch)
                                     }
