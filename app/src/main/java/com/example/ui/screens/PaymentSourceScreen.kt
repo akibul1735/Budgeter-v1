@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
@@ -368,6 +369,12 @@ fun PaymentSourceScreen(
                 }
             }
 
+            // Back navigation handling: If on Assigned Items tab, return to Payment Source tab
+            BackHandler(enabled = selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS) {
+                filterAccountIdForAssignedItems = null
+                selectedTab = MainPaymentSourceTab.PAYMENT_SOURCES
+            }
+
             // TWO MAIN TABS: 1. Payment Source, 2. Assigned Items
             val totalAssignedCount = analysisOverview.otherAccountAllocations.size + analysisOverview.categoryAllocations.size + analysisOverview.incomeAllocations.size
 
@@ -399,7 +406,11 @@ fun PaymentSourceScreen(
                 )
                 Tab(
                     selected = selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS,
-                    onClick = { selectedTab = MainPaymentSourceTab.ASSIGNED_ITEMS },
+                    onClick = {
+                        // Tapping the tab header directly always shows items from ALL sources
+                        filterAccountIdForAssignedItems = null
+                        selectedTab = MainPaymentSourceTab.ASSIGNED_ITEMS
+                    },
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Icon(Icons.Default.CallSplit, contentDescription = null, tint = SolidTransfer, modifier = Modifier.size(16.dp))

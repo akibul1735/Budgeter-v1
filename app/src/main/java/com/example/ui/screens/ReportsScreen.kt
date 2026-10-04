@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -1481,12 +1482,17 @@ private fun NetEarningsGroupSection(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Group Icon Badge (28dp)
+                        // Group Icon Badge (28dp matching budget tab)
                         Box(
                             modifier = Modifier
                                 .size(28.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(groupColor.copy(alpha = 0.18f)),
+                                .clip(RoundedCornerShape(6.5.dp))
+                                .background(groupColor.copy(alpha = 0.10f))
+                                .border(
+                                    width = 0.65.dp,
+                                    color = groupColor.copy(alpha = 0.30f),
+                                    shape = RoundedCornerShape(6.5.dp)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             IconHelper.AppIcon(
@@ -1494,11 +1500,11 @@ private fun NetEarningsGroupSection(
                                 fallbackName = group.groupNameEn,
                                 contentDescription = group.groupNameEn,
                                 tint = groupColor,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(9.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             // Top Line: Group Name (15sp Bold) + Chevron
@@ -1642,12 +1648,17 @@ private fun NetEarningsCategoryRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left Icon Badge (32dp)
+                // Left Icon Badge (25dp matching budget tab)
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(parsedColor.copy(alpha = 0.16f)),
+                        .size(25.dp)
+                        .clip(RoundedCornerShape(5.5.dp))
+                        .background(parsedColor.copy(alpha = 0.10f))
+                        .border(
+                            width = 0.65.dp,
+                            color = parsedColor.copy(alpha = 0.28f),
+                            shape = RoundedCornerShape(5.5.dp)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     IconHelper.AppIcon(
@@ -1655,7 +1666,7 @@ private fun NetEarningsCategoryRow(
                         fallbackName = item.category.nameEn,
                         contentDescription = item.category.nameEn,
                         tint = parsedColor,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 

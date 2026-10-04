@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -840,12 +841,17 @@ private fun AggregatedItemCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left Icon Badge (32dp)
+                // Left Icon Badge (25dp matching budget tab)
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(typeColor.copy(alpha = 0.16f)),
+                        .size(25.dp)
+                        .clip(RoundedCornerShape(5.5.dp))
+                        .background(typeColor.copy(alpha = 0.10f))
+                        .border(
+                            width = 0.65.dp,
+                            color = typeColor.copy(alpha = 0.28f),
+                            shape = RoundedCornerShape(5.5.dp)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     IconHelper.AppIcon(
@@ -853,11 +859,11 @@ private fun AggregatedItemCard(
                         fallbackName = item.name,
                         contentDescription = item.name,
                         tint = typeColor,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(9.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Middle Column: Item Name (13sp) + Subtitle + Percentage Badge (9sp)
                 Column(modifier = Modifier.weight(1f)) {
