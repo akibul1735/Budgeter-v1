@@ -762,18 +762,12 @@ fun AddEditTransactionSheet(
         creditAccountCurrentBalance,
         txType,
         liveEffectiveAmount,
-        liveParsedAmount,
-        hasTransferFee,
-        transferFeeAmount,
-        transferFeeAccountId
+        liveParsedAmount
     ) {
         if (selectedCreditAccount != null) {
             when (txType) {
                 TransactionType.EXPENSE -> creditAccountCurrentBalance - liveEffectiveAmount
-                TransactionType.TRANSFER -> {
-                    val feeDed = if (hasTransferFee && (transferFeeAccountId == null || transferFeeAccountId == selectedCreditAccount.id)) transferFeeAmount else 0.0
-                    creditAccountCurrentBalance - liveParsedAmount - feeDed
-                }
+                TransactionType.TRANSFER -> creditAccountCurrentBalance - liveParsedAmount
                 TransactionType.INCOME -> creditAccountCurrentBalance
             }
         } else 0.0
@@ -2465,7 +2459,7 @@ fun AddEditTransactionSheet(
                                                 languageMode = languageMode,
                                                 tintColor = SolidExpense,
                                                 prefix = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স" else "Bal",
-                                                hasActiveInput = liveParsedAmount > 0.0 || (hasTransferFee && transferFeeAmount > 0.0)
+                                                hasActiveInput = liveParsedAmount > 0.0
                                             )
                                         }
                                     } else null,
@@ -2732,9 +2726,15 @@ fun AddEditTransactionSheet(
                                             val feeAccCurBal = remember(feeAcc, baseAccountBalances) {
                                                 feeAcc?.let { baseAccountBalances[it.id] ?: it.initialBalance } ?: 0.0
                                             }
+                                            val feeAccStartingBal = when (effectiveFeeAccId) {
+                                                creditAccountId -> creditAccountProjectedBalance
+                                                debitAccountId -> debitAccountProjectedBalance
+                                                else -> feeAccCurBal
+                                            }
                                             val feeAccProjBal = if (feeAcc != null) {
-                                                feeAccCurBal - (if (effectiveFeeAccId == creditAccountId) (liveParsedAmount + transferFeeAmount) else transferFeeAmount)
+                                                feeAccStartingBal - transferFeeAmount
                                             } else 0.0
+                                            val feeDelta = -transferFeeAmount
 
                                             OptionRowItem(
                                                 icon = {
@@ -2761,15 +2761,14 @@ fun AddEditTransactionSheet(
                                                 isTwoLine = isDoubleLine && feeAccSub != null,
                                                 livePreview = if (feeAcc != null) {
                                                     {
-                                                        val feeDelta = feeAccProjBal - feeAccCurBal
                                                         LiveImpactPill(
-                                                            currentAmount = feeAccCurBal,
+                                                            currentAmount = feeAccStartingBal,
                                                             projectedAmount = feeAccProjBal,
                                                             delta = feeDelta,
                                                             languageMode = languageMode,
                                                             tintColor = SolidExpense,
                                                             prefix = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স" else "Bal",
-                                                            hasActiveInput = transferFeeAmount > 0.0 || (effectiveFeeAccId == creditAccountId && liveParsedAmount > 0.0)
+                                                            hasActiveInput = transferFeeAmount > 0.0
                                                         )
                                                     }
                                                 } else null,
