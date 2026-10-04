@@ -3378,14 +3378,20 @@ fun AddEditTransactionSheet(
     }
 
     if (showTransferFeeCalculator) {
+        val transferBaseAmt = liveParsedAmount.takeIf { it > 0.0 } ?: amount.takeIf { it > 0.0 }
         PopupCalculatorDialog(
             initialValue = transferFeeAmount,
+            percentageBaseAmount = transferBaseAmt,
             languageMode = languageMode,
             onDismiss = { showTransferFeeCalculator = false },
             onValueConfirmed = { calculatedAmount ->
                 val absAmt = Math.abs(calculatedAmount)
                 transferFeeAmount = absAmt
                 transferFeeAmountText = formatAmountInput(absAmt)
+                transferFeeTextFieldValue = TextFieldValue(
+                    text = transferFeeAmountText,
+                    selection = TextRange(0, transferFeeAmountText.length)
+                )
                 showTransferFeeCalculator = false
             }
         )

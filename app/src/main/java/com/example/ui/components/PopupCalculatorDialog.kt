@@ -51,11 +51,13 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.LanguageMode
 import com.example.util.CalculatorEvaluator
 import com.example.util.CalculatorPreferences
+import com.example.util.LanguageHelper
 import java.util.Locale
 
 @Composable
 fun PopupCalculatorDialog(
     initialValue: Double = 0.0,
+    percentageBaseAmount: Double? = null,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onValueConfirmed: (Double) -> Unit
@@ -63,6 +65,12 @@ fun PopupCalculatorDialog(
     val context = LocalContext.current
     val calculatorPrefs = remember { CalculatorPreferences.getInstance(context) }
     val frequentPercentages by calculatorPrefs.frequentPercentages.collectAsState()
+
+    val baseAmountStr = remember(percentageBaseAmount) {
+        if (percentageBaseAmount != null && percentageBaseAmount > 0) {
+            if (percentageBaseAmount % 1.0 == 0.0) percentageBaseAmount.toLong().toString() else percentageBaseAmount.toString()
+        } else null
+    }
 
     var expression by remember {
         mutableStateOf(
@@ -103,6 +111,23 @@ fun PopupCalculatorDialog(
         if (hasError && (char == "+" || char == "−" || char == "×" || char == "÷")) {
             return
         }
+        if (char == "%") {
+            if (expression.isBlank()) {
+                if (baseAmountStr != null) {
+                    updateExpression("$baseAmountStr×")
+                }
+                return
+            }
+            val hasBinaryOperator = expression.contains("+") ||
+                    expression.contains("−") ||
+                    expression.contains("-") ||
+                    expression.contains("×") ||
+                    expression.contains("÷")
+            if (!hasBinaryOperator && baseAmountStr != null) {
+                updateExpression("$baseAmountStr×$expression%")
+                return
+            }
+        }
         // Prevent consecutive duplicate operators
         val operators = listOf("+", "−", "-", "×", "÷", "%")
         if (expression.isNotEmpty() && char in operators && expression.takeLast(1) in operators) {
@@ -114,19 +139,25 @@ fun PopupCalculatorDialog(
 
     fun applyPercentageSuggestion(pctString: String) {
         val pctValue = pctString.trim()
-        if (expression.isBlank()) {
-            updateExpression("0×$pctValue")
+        val formattedPct = if (pctValue.endsWith("%")) pctValue else "$pctValue%"
+        val isInitialState = expression.isBlank() || (initialValue > 0 && (expression == (if (initialValue % 1.0 == 0.0) initialValue.toLong().toString() else initialValue.toString())))
+        if (isInitialState) {
+            if (baseAmountStr != null) {
+                updateExpression("$baseAmountStr×$formattedPct")
+            } else {
+                updateExpression("0×$formattedPct")
+            }
         } else {
             val lastChar = expression.takeLast(1)
             if (lastChar == "+" || lastChar == "−" || lastChar == "-" || lastChar == "×" || lastChar == "÷") {
-                updateExpression(expression + pctValue)
+                updateExpression(expression + formattedPct)
             } else if (lastChar == "%") {
-                updateExpression(expression + "×$pctValue")
+                updateExpression(expression + "×$formattedPct")
             } else {
-                updateExpression("$expression×$pctValue")
+                updateExpression("$expression×$formattedPct")
             }
         }
-        calculatorPrefs.addFrequentPercentage(pctValue)
+        calculatorPrefs.addFrequentPercentage(formattedPct)
     }
 
     fun backspace() {
@@ -230,6 +261,33 @@ fun PopupCalculatorDialog(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // If percentageBaseAmount is available, display a subtle helper badge
+                if (percentageBaseAmount != null && percentageBaseAmount > 0) {
+                    val baseFmt = LanguageHelper.formatCurrency(percentageBaseAmount, languageMode)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "মূল ট্রান্সফার পরিমাণ: $baseFmt" else "Transfer Amount: $baseFmt",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
 
                 // Display Screen
                 Surface(
