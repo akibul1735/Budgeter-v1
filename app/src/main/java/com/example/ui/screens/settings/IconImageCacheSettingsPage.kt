@@ -173,7 +173,6 @@ fun IconImageCacheSettingsPage(
     var itemToEditIcon by remember { mutableStateOf<UniqueItemIconEntry?>(null) }
     var itemToEditName by remember { mutableStateOf<ItemImageCache?>(null) }
     var itemToResetConfirm by remember { mutableStateOf<UniqueItemIconEntry?>(null) }
-    var showClearAllConfirmDialog by remember { mutableStateOf(false) }
     var showCleanUnusedConfirmDialog by remember { mutableStateOf(false) }
 
     var iconCacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
@@ -499,25 +498,6 @@ fun IconImageCacheSettingsPage(
                             onClick = {
                                 menuExpanded = false
                                 showCleanUnusedConfirmDialog = true
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    if (isBangla) "সমস্ত কাস্টম ক্যাশ রিসেট করুন" else "Reset All Custom Icons",
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                showClearAllConfirmDialog = true
                             }
                         )
                     }
@@ -1933,49 +1913,6 @@ fun IconImageCacheSettingsPage(
                 }
             },
             onDismiss = { showCleanUnusedConfirmDialog = false }
-        )
-    }
-
-    // Dialog: Clear All Custom Cache Confirm
-    if (showClearAllConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearAllConfirmDialog = false },
-            title = {
-                Text(
-                    text = if (isBangla) "সমস্ত কাস্টম ক্যাশ মুছবেন?" else "Reset All Custom Icons?",
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error
-                )
-            },
-            text = {
-                Text(
-                    text = if (isBangla)
-                        "সমস্ত আইটেমের কাস্টম আইকন অ্যাসাইনমেন্ট মুছে যাবে। লেনদেনের আইটেমগুলো পুনরায় ডিফল্ট ক্যাটাগরি আইকন ব্যবহার করবে।"
-                    else
-                        "This will remove all custom item-to-image mappings. All transactions will revert to their default category icons."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showClearAllConfirmDialog = false
-                        viewModel.clearAllItemImageCache()
-                        Toast.makeText(
-                            context,
-                            if (isBangla) "সমস্ত কাস্টম আইকন রিসেট করা হয়েছে" else "All custom icons reset",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text(if (isBangla) "সব মুছুন" else "Reset All")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearAllConfirmDialog = false }) {
-                    Text(if (isBangla) "বাতিল" else "Cancel")
-                }
-            }
         )
     }
 

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Tune
@@ -110,6 +111,7 @@ private enum class ResetActionType {
     RESET_TO_DEFAULT_STRUCTURE,
     DELETE_ALL_ACCOUNTS,
     DELETE_ALL_CATEGORIES,
+    RESET_CUSTOM_ICONS,
     RESET_EVERYTHING
 }
 
@@ -670,9 +672,22 @@ fun ResetScreen(
                         onClick = { activeDialogAction = ResetActionType.DELETE_ALL_CATEGORIES }
                     )
 
-                    // 7. Reset Everything from App
+                    // 7. Reset All Custom Icons
                     ResetOptionCard(
-                        title = if (languageMode == LanguageMode.BANGLA) "৭. অ্যাপের সবকিছু সম্পূর্ণ রিসেট (Reset everything from app)" else "7. Reset everything from app",
+                        title = if (languageMode == LanguageMode.BANGLA) "৭. সকল কাস্টম আইকন রিসেট (Reset all custom icons)" else "7. Reset all custom icons",
+                        description = if (languageMode == LanguageMode.BANGLA)
+                            "সমস্ত আইটেমের কাস্টম আইকন ও ছবির অ্যাসাইনমেন্ট মুছে যাবে। লেনদেনের আইটেমগুলো পুনরায় ডিফল্ট ক্যাটাগরি আইকন ব্যবহার করবে।"
+                        else
+                            "Removes all custom image/icon mappings for items. All transactions will revert to their default category icons.",
+                        icon = Icons.Default.PhotoLibrary,
+                        iconTint = Color(0xFFE11D48),
+                        testTag = "reset_option_custom_icons",
+                        onClick = { activeDialogAction = ResetActionType.RESET_CUSTOM_ICONS }
+                    )
+
+                    // 8. Reset Everything from App
+                    ResetOptionCard(
+                        title = if (languageMode == LanguageMode.BANGLA) "৮. অ্যাপের সবকিছু সম্পূর্ণ রিসেট (Reset everything from app)" else "8. Reset everything from app",
                         description = if (languageMode == LanguageMode.BANGLA)
                             "সম্পূর্ণ ফ্যাক্টরি ওয়াইপ: সমস্ত লেনদেন, অ্যাকাউন্ট, ক্যাটাগরি, বাজেট, সেটিংস মুছে একদম নতুন অবস্থায় ফিরে যাবে।"
                         else
@@ -740,6 +755,14 @@ fun ResetScreen(
                 else
                     "All categories, subcategories, budgets and associated transactions will be permanently deleted.",
                 if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরি মুছুন" else "Delete All Categories"
+            )
+            ResetActionType.RESET_CUSTOM_ICONS -> Triple(
+                if (languageMode == LanguageMode.BANGLA) "সমস্ত কাস্টম আইকন রিসেট করবেন?" else "Reset All Custom Icons?",
+                if (languageMode == LanguageMode.BANGLA)
+                    "সমস্ত আইটেমের কাস্টম আইকন ও ছবির অ্যাসাইনমেন্ট মুছে যাবে। লেনদেনের আইটেমগুলো পুনরায় তাদের ডিফল্ট ক্যাটাগরি আইকন ব্যবহার করবে।"
+                else
+                    "This will remove all custom item-to-image mappings. All transactions will revert to their default category icons.",
+                if (languageMode == LanguageMode.BANGLA) "আইকন রিসেট করুন" else "Reset Custom Icons"
             )
             ResetActionType.RESET_EVERYTHING -> Triple(
                 if (languageMode == LanguageMode.BANGLA) "অ্যাপের সবকিছু সম্পূর্ণ রিসেট করবেন?" else "Reset Everything From App?",
@@ -834,6 +857,14 @@ fun ResetScreen(
                                             if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরি সফলভাবে মুছে ফেলা হয়েছে।" else "All categories deleted successfully."
                                         )
                                     }
+                                }
+                            }
+                            ResetActionType.RESET_CUSTOM_ICONS -> {
+                                viewModel.clearAllItemImageCache()
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (languageMode == LanguageMode.BANGLA) "সমস্ত কাস্টম আইকন সফলভাবে রিসেট করা হয়েছে।" else "All custom icons reset successfully."
+                                    )
                                 }
                             }
                             ResetActionType.RESET_EVERYTHING -> {
