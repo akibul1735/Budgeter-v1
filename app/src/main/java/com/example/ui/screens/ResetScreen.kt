@@ -99,8 +99,10 @@ import com.example.data.model.LanguageMode
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.BiometricHelper
+import com.example.util.IconHelper
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -705,8 +707,33 @@ fun ResetScreen(
         }
     }
 
-    // CONFIRMATION DIALOG
-    activeDialogAction?.let { action ->
+    // CONFIRMATION DIALOG FOR CUSTOM ICONS RESET (Requires PIN/Password or Fingerprint)
+    if (activeDialogAction == ResetActionType.RESET_CUSTOM_ICONS) {
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "সকল কাস্টম আইকন রিসেট" else "Reset All Custom Icons",
+            message = if (languageMode == LanguageMode.BANGLA)
+                "সমস্ত আইটেমের কাস্টম আইকন ও ছবির অ্যাসাইনমেন্ট মুছে যাবে। লেনদেনের আইটেমগুলো পুনরায় ডিফল্ট ক্যাটাগরি আইকন ব্যবহার করবে।"
+            else
+                "This will remove all custom item-to-image mappings. All transactions will revert to their default category icons.",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "রিসেট করুন" else "Reset Icons",
+            isDestructive = true,
+            requiresAuth = true,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onConfirm = {
+                activeDialogAction = null
+                viewModel.clearAllItemImageCache()
+                IconHelper.deleteAllCustomIcons(context)
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(
+                        if (languageMode == LanguageMode.BANGLA) "সমস্ত কাস্টম আইকন সফলভাবে রিসেট করা হয়েছে।" else "All custom icons reset successfully."
+                    )
+                }
+            },
+            onDismiss = { activeDialogAction = null }
+        )
+    } else activeDialogAction?.let { action ->
         val (dialogTitle, dialogDesc, confirmButtonText) = when (action) {
             ResetActionType.RESET_DATA -> Triple(
                 if (languageMode == LanguageMode.BANGLA) "লেনদেন ও বাজেট ডাটা রিসেট করবেন?" else "Reset Transaction & Budget Data?",
@@ -756,14 +783,7 @@ fun ResetScreen(
                     "All categories, subcategories, budgets and associated transactions will be permanently deleted.",
                 if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরি মুছুন" else "Delete All Categories"
             )
-            ResetActionType.RESET_CUSTOM_ICONS -> Triple(
-                if (languageMode == LanguageMode.BANGLA) "সমস্ত কাস্টম আইকন রিসেট করবেন?" else "Reset All Custom Icons?",
-                if (languageMode == LanguageMode.BANGLA)
-                    "সমস্ত আইটেমের কাস্টম আইকন ও ছবির অ্যাসাইনমেন্ট মুছে যাবে। লেনদেনের আইটেমগুলো পুনরায় তাদের ডিফল্ট ক্যাটাগরি আইকন ব্যবহার করবে।"
-                else
-                    "This will remove all custom item-to-image mappings. All transactions will revert to their default category icons.",
-                if (languageMode == LanguageMode.BANGLA) "আইকন রিসেট করুন" else "Reset Custom Icons"
-            )
+            ResetActionType.RESET_CUSTOM_ICONS -> Triple("", "", "") // Handled above by SecurityAuthDialog
             ResetActionType.RESET_EVERYTHING -> Triple(
                 if (languageMode == LanguageMode.BANGLA) "অ্যাপের সবকিছু সম্পূর্ণ রিসেট করবেন?" else "Reset Everything From App?",
                 if (languageMode == LanguageMode.BANGLA)

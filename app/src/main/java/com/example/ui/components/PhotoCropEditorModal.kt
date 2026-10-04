@@ -222,7 +222,7 @@ fun PhotoCropEditorModal(
                     IconHelper.decodeBitmapFromUri(context, Uri.parse(imageUrl), 1200)
                 }
                 imageUrl != null -> OnlineIconSearchService.downloadBitmap(context, imageUrl, 1200)
-                initialIconKey != null -> IconHelper.decodeBitmapFromAnyIcon(context, initialIconKey) ?: IconHelper.decodeBitmapFromCustomKey(context, initialIconKey)
+                initialIconKey != null -> IconHelper.decodeRawBitmapFromAnyIcon(context, initialIconKey) ?: IconHelper.decodeBitmapFromAnyIcon(context, initialIconKey)
                 else -> null
             }
             withContext(Dispatchers.Main) {
@@ -1055,7 +1055,26 @@ fun PhotoCropEditorModal(
                                         outputSize = 512
                                     )
 
-                                    val iconKey = IconHelper.saveCustomIconBitmap(context, rendered)
+                                    val renderedRaw = if (selectedBgColor != null) {
+                                        IconHelper.renderWysiwygCroppedBitmap(
+                                            sourceBitmap = bitmapToSave,
+                                            cropBoxSizePx = cropBoxSizePx,
+                                            effectiveScreenScale = effectiveScale,
+                                            panOffsetScreenX = panOffset.x,
+                                            panOffsetScreenY = panOffset.y,
+                                            rotationDegrees = totalRotation,
+                                            flipHorizontal = flipHorizontal,
+                                            flipVertical = flipVertical,
+                                            cropShape = cropShape.id,
+                                            colorMatrixValues = activeColorMatrixValues,
+                                            backgroundColor = null,
+                                            outputSize = 512
+                                        )
+                                    } else {
+                                        rendered
+                                    }
+
+                                    val iconKey = IconHelper.saveCustomIconBitmap(context, rendered, renderedRaw)
                                     withContext(Dispatchers.Main) {
                                         isSaving = false
                                         if (iconKey != null) {

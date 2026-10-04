@@ -995,18 +995,6 @@ fun IconImageCacheSettingsPage(
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
-
-                                    IconButton(
-                                        onClick = { iconToDelete = iconKey },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Delete",
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
                                 }
                             }
                         }

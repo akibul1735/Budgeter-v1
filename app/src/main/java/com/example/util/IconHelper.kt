@@ -1388,7 +1388,10 @@ object IconHelper {
     fun getCustomIcons(context: Context): List<File> {
         val customDir = File(context.filesDir, "custom_icons")
         if (!customDir.exists()) return emptyList()
-        return customDir.listFiles { file -> file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp") }
+        return customDir.listFiles { file -> 
+            val ext = file.extension.lowercase()
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
+        }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
     }
@@ -1399,7 +1402,10 @@ object IconHelper {
     fun getAllCustomIcons(context: Context): List<String> {
         val customDir = File(context.filesDir, "custom_icons")
         if (!customDir.exists()) return emptyList()
-        return customDir.listFiles { file -> file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp") }
+        return customDir.listFiles { file -> 
+            val ext = file.extension.lowercase()
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
+        }
             ?.sortedByDescending { it.lastModified() }
             ?.map { it.nameWithoutExtension }
             ?.distinct()
@@ -1499,6 +1505,178 @@ object IconHelper {
             if (file.exists()) {
                 BitmapFactory.decodeFile(file.absolutePath)
             } else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Decodes a raw Bitmap without background color for editing, keeping the crop size.
+     */
+    fun decodeRawBitmapFromCustomKey(context: Context, iconKey: String): Bitmap? {
+        return try {
+            val customDir = File(context.filesDir, "custom_icons")
+            val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
+            val rawFile = File(customDir, "${cleanKey}_raw.png")
+            if (rawFile.exists()) {
+                return BitmapFactory.decodeFile(rawFile.absolutePath)
+            }
+            val rawFileAlt = File(customDir, "${iconKey}_raw.png")
+            if (rawFileAlt.exists()) {
+                return BitmapFactory.decodeFile(rawFileAlt.absolutePath)
+            }
+            val mainFile = getCustomIconFile(context, iconKey)
+            if (mainFile.exists()) {
+                val original = BitmapFactory.decodeFile(mainFile.absolutePath) ?: return null
+                stripBackgroundColor(original)
+            } else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Strips solid background colors from an icon bitmap while preserving foreground content and crop dimensions.
+     */
+    fun stripBackgroundColor(source: Bitmap): Bitmap {
+        val width = source.width
+        val height = source.height
+        if (width <= 4 || height <= 4) return source
+
+        val mutableBitmap = try {
+            source.copy(Bitmap.Config.ARGB_8888, true)
+        } catch (_: Exception) {
+            null
+        } ?: return source
+
+        val candidates = mutableListOf<Int>()
+        fun samplePixel(x: Int, y: Int) {
+            val cx = x.coerceIn(0, width - 1)
+            val cy = y.coerceIn(0, height - 1)
+            val p = mutableBitmap.getPixel(cx, cy)
+            if (android.graphics.Color.alpha(p) > 50) {
+                candidates.add(p)
+            }
+        }
+
+        // Try direct corners
+        samplePixel(0, 0)
+        samplePixel(width - 1, 0)
+        samplePixel(0, height - 1)
+        samplePixel(width - 1, height - 1)
+
+        // Try inner diagonal sample for circle/squircle crops
+        val inset = (minOf(width, height) * 0.16f).toInt().coerceAtLeast(1)
+        samplePixel(inset, inset)
+        samplePixel(width - 1 - inset, inset)
+        samplePixel(inset, height - 1 - inset)
+        samplePixel(width - 1 - inset, height - 1 - inset)
+
+        if (candidates.isEmpty()) return mutableBitmap
+
+        fun colorDist(c1: Int, c2: Int): Double {
+            val rDiff = android.graphics.Color.red(c1) - android.graphics.Color.red(c2)
+            val gDiff = android.graphics.Color.green(c1) - android.graphics.Color.green(c2)
+            val bDiff = android.graphics.Color.blue(c1) - android.graphics.Color.blue(c2)
+            return Math.sqrt((rDiff * rDiff + gDiff * gDiff + bDiff * bDiff).toDouble())
+        }
+
+        // Check if candidates have a consistent background color (at least 3 match)
+        var detectedBg: Int? = null
+        for (c in candidates) {
+            val matchCount = candidates.count { colorDist(it, c) <= 24.0 }
+            if (matchCount >= 3) {
+                detectedBg = c
+                break
+            }
+        }
+
+        if (detectedBg == null) {
+            return mutableBitmap
+        }
+
+        val targetBg = detectedBg
+        val visited = BooleanArray(width * height)
+        val queue = java.util.ArrayDeque<Int>()
+
+        fun push(x: Int, y: Int) {
+            val idx = y * width + x
+            if (!visited[idx]) {
+                visited[idx] = true
+                queue.add(idx)
+            }
+        }
+
+        // Seed BFS from all borders
+        for (x in 0 until width) {
+            val pTop = mutableBitmap.getPixel(x, 0)
+            if (android.graphics.Color.alpha(pTop) <= 20 || colorDist(pTop, targetBg) <= 35.0) push(x, 0)
+            val pBottom = mutableBitmap.getPixel(x, height - 1)
+            if (android.graphics.Color.alpha(pBottom) <= 20 || colorDist(pBottom, targetBg) <= 35.0) push(x, height - 1)
+        }
+        for (y in 0 until height) {
+            val pLeft = mutableBitmap.getPixel(0, y)
+            if (android.graphics.Color.alpha(pLeft) <= 20 || colorDist(pLeft, targetBg) <= 35.0) push(0, y)
+            val pRight = mutableBitmap.getPixel(width - 1, y)
+            if (android.graphics.Color.alpha(pRight) <= 20 || colorDist(pRight, targetBg) <= 35.0) push(width - 1, y)
+        }
+
+        val dx = intArrayOf(1, -1, 0, 0)
+        val dy = intArrayOf(0, 0, 1, -1)
+
+        while (!queue.isEmpty()) {
+            val curr = queue.poll() ?: break
+            val cx = curr % width
+            val cy = curr / width
+            val color = mutableBitmap.getPixel(cx, cy)
+            val alpha = android.graphics.Color.alpha(color)
+
+            if (alpha > 0) {
+                if (colorDist(color, targetBg) <= 35.0) {
+                    mutableBitmap.setPixel(cx, cy, 0) // Make transparent
+                    for (i in 0 until 4) {
+                        val nx = cx + dx[i]
+                        val ny = cy + dy[i]
+                        if (nx in 0 until width && ny in 0 until height) {
+                            val nIdx = ny * width + nx
+                            if (!visited[nIdx]) {
+                                visited[nIdx] = true
+                                queue.add(nIdx)
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (i in 0 until 4) {
+                    val nx = cx + dx[i]
+                    val ny = cy + dy[i]
+                    if (nx in 0 until width && ny in 0 until height) {
+                        val nIdx = ny * width + nx
+                        if (!visited[nIdx]) {
+                            visited[nIdx] = true
+                            queue.add(nIdx)
+                        }
+                    }
+                }
+            }
+        }
+
+        return mutableBitmap
+    }
+
+    /**
+     * Decodes a raw Bitmap without background color from any icon representation.
+     */
+    fun decodeRawBitmapFromAnyIcon(context: Context, iconKey: String?, targetSize: Int = 512): Bitmap? {
+        if (iconKey.isNullOrBlank()) return null
+        return try {
+            if (isCustomIcon(iconKey)) {
+                decodeRawBitmapFromCustomKey(context, iconKey)
+            } else {
+                decodeBitmapFromAnyIcon(context, iconKey, targetSize)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -1707,7 +1885,7 @@ object IconHelper {
     /**
      * Saves a Bitmap directly into the app's internal custom icons directory with optimal compression.
      */
-    fun saveCustomIconBitmap(context: Context, bitmap: Bitmap): String? {
+    fun saveCustomIconBitmap(context: Context, bitmap: Bitmap, rawBitmap: Bitmap? = null): String? {
         return try {
             val customDir = File(context.filesDir, "custom_icons")
             if (!customDir.exists()) customDir.mkdirs()
@@ -1717,8 +1895,11 @@ object IconHelper {
 
             // Ensure optimized size (up to 160x160 for crisp icons on high-res screens while keeping file sizes extremely small ~6-10KB)
             val maxDimension = 160
-            val optimizedBitmap = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
-                val scaleFactor = maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
+            val scaleFactor = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
+                maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
+            } else 1f
+
+            val optimizedBitmap = if (scaleFactor < 1f) {
                 Bitmap.createScaledBitmap(
                     bitmap,
                     (bitmap.width * scaleFactor).toInt().coerceAtLeast(1),
@@ -1733,6 +1914,25 @@ object IconHelper {
                 optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
                 outStream.flush()
             }
+
+            // Save companion raw bitmap if available
+            val rawToSave = rawBitmap ?: stripBackgroundColor(bitmap)
+            val rawFile = File(customDir, "${iconKey}_raw.png")
+            val optRaw = if (scaleFactor < 1f) {
+                Bitmap.createScaledBitmap(
+                    rawToSave,
+                    (rawToSave.width * scaleFactor).toInt().coerceAtLeast(1),
+                    (rawToSave.height * scaleFactor).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else {
+                rawToSave
+            }
+            FileOutputStream(rawFile).use { outStream ->
+                optRaw.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                outStream.flush()
+            }
+
             iconKey
         } catch (e: Exception) {
             e.printStackTrace()
@@ -1776,7 +1976,8 @@ object IconHelper {
         if (!customDir.exists()) return IconCacheStats()
 
         val allFiles = customDir.listFiles { file ->
-            file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp")
+            val ext = file.extension.lowercase()
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
         } ?: return IconCacheStats()
 
         var totalBytes = 0L
@@ -1825,7 +2026,8 @@ object IconHelper {
         if (!customDir.exists()) return emptyList()
 
         val allFiles = customDir.listFiles { file ->
-            file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp")
+            val ext = file.extension.lowercase()
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
         } ?: return emptyList()
 
         val normalizedActive = activeIconNames.flatMap {
@@ -1959,9 +2161,36 @@ object IconHelper {
     fun deleteCustomIcon(context: Context, iconKey: String): Boolean {
         return try {
             val file = getCustomIconFile(context, iconKey)
+            val customDir = File(context.filesDir, "custom_icons")
+            val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
+            val rawFile = File(customDir, "${cleanKey}_raw.png")
+            if (rawFile.exists()) rawFile.delete()
+            val rawFileAlt = File(customDir, "${iconKey}_raw.png")
+            if (rawFileAlt.exists()) rawFileAlt.delete()
             if (file.exists()) file.delete() else false
         } catch (e: Exception) {
             false
+        }
+    }
+
+    /**
+     * Deletes all custom icon files from internal storage.
+     */
+    fun deleteAllCustomIcons(context: Context): Int {
+        return try {
+            val customDir = File(context.filesDir, "custom_icons")
+            var count = 0
+            if (customDir.exists()) {
+                customDir.listFiles()?.forEach { file ->
+                    if (file.isFile && (file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp"))) {
+                        if (file.delete()) count++
+                    }
+                }
+            }
+            count
+        } catch (e: Exception) {
+            e.printStackTrace()
+            0
         }
     }
 

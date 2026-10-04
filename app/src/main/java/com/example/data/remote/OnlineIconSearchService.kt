@@ -2148,6 +2148,13 @@ object OnlineIconSearchService {
                 outStream.flush()
             }
 
+            // Also save raw icon without background color for future editing
+            val rawFile = File(customDir, "${iconKey}_raw.png")
+            FileOutputStream(rawFile).use { outStream ->
+                scaledBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                outStream.flush()
+            }
+
             iconKey
         } catch (e: Exception) {
             e.printStackTrace()
