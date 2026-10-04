@@ -349,6 +349,41 @@ fun AccountsScreen(
         }
     }
 
+    // Helper to determine if an active group belongs to the Asset side (positive balance or declared Asset)
+    fun isGroupAssetSide(groupItem: AccountWithBalance): Boolean {
+        val eff = computeEffectiveGroupBalance(groupItem)
+        return if (eff > 0.0001) {
+            true // Positive balance -> Asset side (including overpaid liabilities)
+        } else if (eff < -0.0001) {
+            false // Negative balance -> Liability side (including overdraft assets)
+        } else {
+            groupItem.account.type == AccountType.ASSET
+        }
+    }
+
+    // Helper to determine if an inactive group belongs to the Asset side
+    fun isInactiveGroupAssetSide(groupItem: AccountWithBalance): Boolean {
+        val bal = if (groupItem.subAccounts.isEmpty()) groupItem.currentBalance else groupItem.subAccounts.sumOf { it.currentBalance }
+        return if (bal > 0.0001) {
+            true
+        } else if (bal < -0.0001) {
+            false
+        } else {
+            groupItem.account.type == AccountType.ASSET
+        }
+    }
+
+    // Helper to determine if an individual item (sub-account or single account) belongs to the Asset side
+    fun isItemAssetSide(item: AccountWithBalance, effBal: Double): Boolean {
+        return if (effBal > 0.0001) {
+            true
+        } else if (effBal < -0.0001) {
+            false
+        } else {
+            item.account.type == AccountType.ASSET
+        }
+    }
+
     val displayedActiveGroups = remember(
         activeAccounts,
         selectedTypeFilter,
@@ -363,7 +398,11 @@ fun AccountsScreen(
         if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
             emptyList()
         } else {
-            val base = if (selectedTypeFilter == null) activeAccounts else activeAccounts.filter { it.account.type == selectedTypeFilter }
+            val base = when (selectedTypeFilter) {
+                AccountType.ASSET -> activeAccounts.filter { isGroupAssetSide(it) }
+                AccountType.LIABILITY -> activeAccounts.filter { !isGroupAssetSide(it) }
+                else -> activeAccounts
+            }
             val zeroFiltered = filterZeroBalanceGroups(base)
             val searchFiltered = if (searchQuery.isBlank()) zeroFiltered else zeroFiltered.mapNotNull { group ->
                 val groupMatches = group.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
@@ -396,7 +435,11 @@ fun AccountsScreen(
         if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
             emptyList()
         } else {
-            val base = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
+            val base = when (selectedTypeFilter) {
+                AccountType.ASSET -> inactiveAccounts.filter { isInactiveGroupAssetSide(it) }
+                AccountType.LIABILITY -> inactiveAccounts.filter { !isInactiveGroupAssetSide(it) }
+                else -> inactiveAccounts
+            }
             val zeroFiltered = filterZeroBalanceGroups(base)
             val searchFiltered = if (searchQuery.isBlank()) zeroFiltered else zeroFiltered.mapNotNull { group ->
                 val groupMatches = group.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
@@ -460,11 +503,16 @@ fun AccountsScreen(
             emptyList()
         } else {
             val items = mutableListOf<FlattenedAccountItem>()
-            val filteredGroups = if (selectedTypeFilter == null) activeAccounts else activeAccounts.filter { it.account.type == selectedTypeFilter }
-            for (group in filteredGroups) {
+            for (group in activeAccounts) {
                 if (group.subAccounts.isEmpty()) {
                     val eff = computeEffectiveGroupBalance(group)
-                    if (!excludeZeroBalance || !isZeroBalance(group, eff)) {
+                    val isAssetSide = isItemAssetSide(group, eff)
+                    val matchesTypeFilter = when (selectedTypeFilter) {
+                        AccountType.ASSET -> isAssetSide
+                        AccountType.LIABILITY -> !isAssetSide
+                        else -> true
+                    }
+                    if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(group, eff))) {
                         items.add(
                             FlattenedAccountItem(
                                 accountWithBalance = group,
@@ -478,7 +526,13 @@ fun AccountsScreen(
                     val activeSubs = group.subAccounts.filter { it.account.isActive }
                     for (sub in activeSubs) {
                         val eff = computeEffectiveSubBalance(sub)
-                        if (!excludeZeroBalance || !isZeroBalance(sub, eff)) {
+                        val isAssetSide = isItemAssetSide(sub, eff)
+                        val matchesTypeFilter = when (selectedTypeFilter) {
+                            AccountType.ASSET -> isAssetSide
+                            AccountType.LIABILITY -> !isAssetSide
+                            else -> true
+                        }
+                        if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(sub, eff))) {
                             items.add(
                                 FlattenedAccountItem(
                                     accountWithBalance = sub,
@@ -523,11 +577,16 @@ fun AccountsScreen(
             emptyList()
         } else {
             val items = mutableListOf<FlattenedAccountItem>()
-            val filteredGroups = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
-            for (group in filteredGroups) {
+            for (group in inactiveAccounts) {
                 if (group.subAccounts.isEmpty()) {
                     val eff = computeEffectiveGroupBalance(group)
-                    if (!excludeZeroBalance || !isZeroBalance(group, eff)) {
+                    val isAssetSide = isItemAssetSide(group, eff)
+                    val matchesTypeFilter = when (selectedTypeFilter) {
+                        AccountType.ASSET -> isAssetSide
+                        AccountType.LIABILITY -> !isAssetSide
+                        else -> true
+                    }
+                    if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(group, eff))) {
                         items.add(
                             FlattenedAccountItem(
                                 accountWithBalance = group,
@@ -540,7 +599,13 @@ fun AccountsScreen(
                 } else {
                     for (sub in group.subAccounts) {
                         val eff = computeEffectiveSubBalance(sub)
-                        if (!excludeZeroBalance || !isZeroBalance(sub, eff)) {
+                        val isAssetSide = isItemAssetSide(sub, eff)
+                        val matchesTypeFilter = when (selectedTypeFilter) {
+                            AccountType.ASSET -> isAssetSide
+                            AccountType.LIABILITY -> !isAssetSide
+                            else -> true
+                        }
+                        if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(sub, eff))) {
                             items.add(
                                 FlattenedAccountItem(
                                     accountWithBalance = sub,
@@ -839,7 +904,14 @@ fun AccountsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Assets
-                                Column {
+                                Column(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            selectedTypeFilter = if (selectedTypeFilter == AccountType.ASSET) null else AccountType.ASSET
+                                        }
+                                        .padding(4.dp)
+                                ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
@@ -881,7 +953,15 @@ fun AccountsScreen(
                                 )
 
                                 // Liabilities
-                                Column(horizontalAlignment = Alignment.End) {
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            selectedTypeFilter = if (selectedTypeFilter == AccountType.LIABILITY) null else AccountType.LIABILITY
+                                        }
+                                        .padding(4.dp)
+                                ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
                                             text = if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
@@ -1749,9 +1829,14 @@ fun SingleAccountCard(
     val adjustment = accSetting.adjustmentAmount
     val isAdjusted = adjustment != 0.0
 
-    val typeColor = when (acc.type) {
-        AccountType.ASSET -> SolidIncome
-        AccountType.LIABILITY -> SolidExpense
+    val isFlippedToAsset = acc.type == AccountType.LIABILITY && item.effectiveBalance > 0.0001
+    val isFlippedToLiab = acc.type == AccountType.ASSET && item.effectiveBalance < -0.0001
+
+    val typeColor = when {
+        isFlippedToAsset -> SolidIncome
+        isFlippedToLiab -> SolidExpense
+        acc.type == AccountType.ASSET -> SolidIncome
+        acc.type == AccountType.LIABILITY -> SolidExpense
         else -> SolidPrimary
     }
 
@@ -1907,7 +1992,12 @@ fun SingleAccountCard(
                             Text(text = "•", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                         }
                         Text(
-                            text = if (acc.type == AccountType.ASSET) "Asset" else "Liability",
+                            text = when {
+                                isFlippedToAsset -> if (languageMode == LanguageMode.BANGLA) "দায় থেকে (সম্পদ)" else "From Liability (Asset)"
+                                isFlippedToLiab -> if (languageMode == LanguageMode.BANGLA) "সম্পদ থেকে (দায়)" else "From Asset (Liability)"
+                                acc.type == AccountType.ASSET -> "Asset"
+                                else -> "Liability"
+                            },
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -2023,9 +2113,14 @@ fun AccountGroupCard(
     val adjustment = groupSetting.adjustmentAmount
     val isAdjusted = adjustment != 0.0
 
-    val typeColor = when (group.type) {
-        AccountType.ASSET -> SolidIncome
-        AccountType.LIABILITY -> SolidExpense
+    val isFlippedToAsset = group.type == AccountType.LIABILITY && effectiveBalance > 0.0001
+    val isFlippedToLiab = group.type == AccountType.ASSET && effectiveBalance < -0.0001
+
+    val typeColor = when {
+        isFlippedToAsset -> SolidIncome
+        isFlippedToLiab -> SolidExpense
+        group.type == AccountType.ASSET -> SolidIncome
+        group.type == AccountType.LIABILITY -> SolidExpense
         else -> SolidPrimary
     }
 
@@ -2173,7 +2268,12 @@ fun AccountGroupCard(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = if (group.type == AccountType.ASSET) "Assets Group" else "Liabilities Group",
+                                text = when {
+                                    isFlippedToAsset -> if (languageMode == LanguageMode.BANGLA) "দায় থেকে (সম্পদ)" else "From Liability (Asset)"
+                                    isFlippedToLiab -> if (languageMode == LanguageMode.BANGLA) "সম্পদ থেকে (দায়)" else "From Asset (Liability)"
+                                    group.type == AccountType.ASSET -> "Assets Group"
+                                    else -> "Liabilities Group"
+                                },
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,

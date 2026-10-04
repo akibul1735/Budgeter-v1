@@ -252,10 +252,27 @@ fun DashboardScreen(
 
     // Calculated Totals (Active + Included + Adjustments)
     val calculatedAssets = remember(activeAccounts, accountCalcConfig) {
-        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeGroupEffective(it) }
+        val assetPos = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeGroupEffective(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        val liabPos = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeGroupEffective(it) }
+            .filter { it > 0 }
+            .sumOf { it }
+        assetPos + liabPos
     }
+
     val calculatedLiabilities = remember(activeAccounts, accountCalcConfig) {
-        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(computeGroupEffective(it)) }
+        val liabNeg = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
+            .map { computeGroupEffective(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        val assetNeg = activeAccounts.filter { it.account.type == AccountType.ASSET }
+            .map { computeGroupEffective(it) }
+            .filter { it < 0 }
+            .sumOf { -it }
+        liabNeg + assetNeg
     }
     val calculatedNetWorth = calculatedAssets - calculatedLiabilities
 
@@ -271,53 +288,36 @@ fun DashboardScreen(
         val type: AccountType
     )
 
-    // 1. Calculated Asset Items (Active & Included)
+    // 1. Calculated Asset Items (Active & Included natural assets >= 0 + positive liabilities as advance assets)
     val calculatedAssetHolders = remember(activeAccounts, accountCalcConfig, languageMode) {
         val list = mutableListOf<AccountItemHolder>()
-        for (group in activeAccounts.filter { it.account.type == AccountType.ASSET }) {
+        for (group in activeAccounts) {
+            val isAsset = group.account.type == AccountType.ASSET
+            val isLiab = group.account.type == AccountType.LIABILITY
+            if (!isAsset && !isLiab) continue
+
             val groupSetting = accountCalcConfig.getSetting(group.account.id)
-            if (group.subAccounts.isEmpty()) {
-                if (groupSetting.isIncluded) {
-                    val eff = computeGroupEffective(group)
-                    val adjNote = if (groupSetting.adjustmentAmount != 0.0) {
-                        val sign = if (groupSetting.adjustmentAmount > 0) "+" else ""
-                        "Adj: $sign${LanguageHelper.formatCurrency(groupSetting.adjustmentAmount, languageMode)}"
-                    } else null
-                    list.add(
-                        AccountItemHolder(
-                            accountWithBal = group,
-                            displayName = group.account.localizedName(languageMode),
-                            balance = group.currentBalance,
-                            effectiveBalance = eff,
-                            note = adjNote,
-                            iconName = group.account.iconName,
-                            isSubAccount = false,
-                            type = AccountType.ASSET
-                        )
+            if (!groupSetting.isIncluded) continue
+
+            val eff = computeGroupEffective(group)
+            if (eff > 0.0001 || (isAsset && eff >= 0)) {
+                val baseNote = if (isLiab) (if (languageMode == LanguageMode.BANGLA) "দায় থেকে (অগ্রিম)" else "From Liability (Advance)") else null
+                val adjNote = if (groupSetting.adjustmentAmount != 0.0) {
+                    val sign = if (groupSetting.adjustmentAmount > 0) "+" else ""
+                    "Adj: $sign${LanguageHelper.formatCurrency(groupSetting.adjustmentAmount, languageMode)}"
+                } else baseNote
+                list.add(
+                    AccountItemHolder(
+                        accountWithBal = group,
+                        displayName = group.account.localizedName(languageMode),
+                        balance = Math.abs(group.currentBalance),
+                        effectiveBalance = eff,
+                        note = adjNote,
+                        iconName = group.account.iconName,
+                        isSubAccount = false,
+                        type = AccountType.ASSET
                     )
-                }
-            } else {
-                if (groupSetting.isIncluded) {
-                    val activeSubs = group.subAccounts.filter { it.account.isActive && accountCalcConfig.isIncluded(it.account.id) }
-                    if (activeSubs.isNotEmpty()) {
-                        val eff = computeGroupEffective(group)
-                        val noteText = if (activeSubs.size > 1) {
-                            "${activeSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি সাব-একাউন্ট" else "sub-accounts"}"
-                        } else null
-                        list.add(
-                            AccountItemHolder(
-                                accountWithBal = group,
-                                displayName = group.account.localizedName(languageMode),
-                                balance = activeSubs.sumOf { it.currentBalance },
-                                effectiveBalance = eff,
-                                note = noteText,
-                                iconName = group.account.iconName,
-                                isSubAccount = false,
-                                type = AccountType.ASSET
-                            )
-                        )
-                    }
-                }
+                )
             }
         }
         list.sortedByDescending { it.effectiveBalance }
@@ -414,60 +414,37 @@ fun DashboardScreen(
         list.sortedByDescending { it.balance }
     }
 
-    // 4. Calculated Liability Items (Active & Included)
+    // 4. Calculated Liability Items (Active & Included natural liabilities < 0 + negative assets as overdraft liabilities)
     val calculatedLiabHolders = remember(activeAccounts, accountCalcConfig, languageMode) {
         val list = mutableListOf<AccountItemHolder>()
-        for (group in activeAccounts.filter { it.account.type == AccountType.LIABILITY }) {
+        for (group in activeAccounts) {
+            val isAsset = group.account.type == AccountType.ASSET
+            val isLiab = group.account.type == AccountType.LIABILITY
+            if (!isAsset && !isLiab) continue
+
             val groupSetting = accountCalcConfig.getSetting(group.account.id)
-            if (group.subAccounts.isEmpty()) {
-                if (groupSetting.isIncluded) {
-                    val rawEff = computeGroupEffective(group)
-                    val eff = Math.abs(rawEff)
-                    val isPositive = rawEff > 0.001
-                    val baseNote = if (isPositive) (if (languageMode == LanguageMode.BANGLA) "অগ্রিম ক্রেডিট (+)" else "Advance Credit (+)") else null
-                    val adjNote = if (groupSetting.adjustmentAmount != 0.0) {
-                        val sign = if (groupSetting.adjustmentAmount > 0) "+" else ""
-                        "Adj: $sign${LanguageHelper.formatCurrency(groupSetting.adjustmentAmount, languageMode)}"
-                    } else baseNote
-                    list.add(
-                        AccountItemHolder(
-                            accountWithBal = group,
-                            displayName = group.account.localizedName(languageMode),
-                            balance = Math.abs(group.currentBalance),
-                            effectiveBalance = eff,
-                            note = adjNote,
-                            iconName = group.account.iconName,
-                            isSubAccount = false,
-                            type = AccountType.LIABILITY
-                        )
+            if (!groupSetting.isIncluded) continue
+
+            val rawEff = computeGroupEffective(group)
+            if (rawEff < -0.0001 || (isLiab && rawEff <= 0)) {
+                val eff = Math.abs(rawEff)
+                val baseNote = if (isAsset) (if (languageMode == LanguageMode.BANGLA) "সম্পদ থেকে (বকেয়া/ঋণ)" else "From Asset (Overdraft/Due)") else null
+                val adjNote = if (groupSetting.adjustmentAmount != 0.0) {
+                    val sign = if (groupSetting.adjustmentAmount > 0) "+" else ""
+                    "Adj: $sign${LanguageHelper.formatCurrency(groupSetting.adjustmentAmount, languageMode)}"
+                } else baseNote
+                list.add(
+                    AccountItemHolder(
+                        accountWithBal = group,
+                        displayName = group.account.localizedName(languageMode),
+                        balance = Math.abs(group.currentBalance),
+                        effectiveBalance = eff,
+                        note = adjNote,
+                        iconName = group.account.iconName,
+                        isSubAccount = false,
+                        type = AccountType.LIABILITY
                     )
-                }
-            } else {
-                if (groupSetting.isIncluded) {
-                    val activeSubs = group.subAccounts.filter { it.account.isActive && accountCalcConfig.isIncluded(it.account.id) }
-                    if (activeSubs.isNotEmpty()) {
-                        val rawEff = computeGroupEffective(group)
-                        val eff = Math.abs(rawEff)
-                        val isPositive = rawEff > 0.001
-                        val noteText = if (isPositive) {
-                            if (languageMode == LanguageMode.BANGLA) "অগ্রিম ক্রেডিট (+)" else "Advance Credit (+)"
-                        } else if (activeSubs.size > 1) {
-                            "${activeSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি সাব-একাউন্ট" else "sub-accounts"}"
-                        } else null
-                        list.add(
-                            AccountItemHolder(
-                                accountWithBal = group,
-                                displayName = group.account.localizedName(languageMode),
-                                balance = Math.abs(activeSubs.sumOf { it.currentBalance }),
-                                effectiveBalance = eff,
-                                note = noteText,
-                                iconName = group.account.iconName,
-                                isSubAccount = false,
-                                type = AccountType.LIABILITY
-                            )
-                        )
-                    }
-                }
+                )
             }
         }
         list.sortedByDescending { it.effectiveBalance }

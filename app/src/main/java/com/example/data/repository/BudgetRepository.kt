@@ -589,19 +589,17 @@ class BudgetRepository(
             // Excluded parent accounts are NOT counted
             if (!calcConfig.isIncluded(item.account.id)) continue
 
-            val effectiveBalance: Double
-            if (item.subAccounts.isEmpty()) {
-                val adj = calcConfig.getAdjustment(item.account.id)
-                effectiveBalance = item.currentBalance + adj
+            val groupAdj = calcConfig.getAdjustment(item.account.id)
+            val effectiveBalance = if (item.subAccounts.isEmpty()) {
+                item.currentBalance + groupAdj
             } else {
                 val activeAndIncludedSubs = item.subAccounts.filter {
                     it.account.isActive && calcConfig.isIncluded(it.account.id)
                 }
-                val subSum = activeAndIncludedSubs.sumOf {
+                val sumSubs = activeAndIncludedSubs.sumOf {
                     it.currentBalance + calcConfig.getAdjustment(it.account.id)
                 }
-                val adj = calcConfig.getAdjustment(item.account.id)
-                effectiveBalance = subSum + adj
+                sumSubs + groupAdj
             }
 
             when (item.account.type) {
@@ -609,17 +607,14 @@ class BudgetRepository(
                     if (effectiveBalance >= 0) {
                         totalAssets += effectiveBalance
                     } else {
-                        // Negative asset balance (e.g. bank overdraft) is an obligation / liability
                         totalLiabilities += -effectiveBalance
                     }
                 }
                 AccountType.LIABILITY -> {
-                    if (effectiveBalance < 0) {
-                        // Negative balance on liability is standard debt (e.g. -5000 -> 5000 debt)
-                        totalLiabilities += -effectiveBalance
-                    } else {
-                        // Positive balance on liability is an overpayment / asset-like advance credit
+                    if (effectiveBalance > 0) {
                         totalAssets += effectiveBalance
+                    } else {
+                        totalLiabilities += -effectiveBalance
                     }
                 }
                 else -> {}
