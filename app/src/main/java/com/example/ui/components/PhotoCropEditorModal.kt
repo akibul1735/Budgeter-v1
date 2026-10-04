@@ -111,12 +111,24 @@ import kotlin.math.roundToInt
 enum class PhotoCropShape(val id: String, val label: String) {
     CIRCLE("circle", "Circle"),
     SQUIRCLE("rounded_square", "Squircle"),
-    SQUARE("square", "Square")
+    SQUARE("square", "Square");
+
+    companion object {
+        fun fromId(id: String?): PhotoCropShape {
+            return values().firstOrNull { it.id.equals(id, ignoreCase = true) } ?: CIRCLE
+        }
+    }
 }
 
 enum class PhotoFitMode {
     FILL, // Fills crop frame completely (no empty borders)
-    FIT   // Fits entire photo inside crop frame
+    FIT;  // Fits entire photo inside crop frame
+
+    companion object {
+        fun fromId(id: String?): PhotoFitMode {
+            return values().firstOrNull { it.name.equals(id, ignoreCase = true) } ?: FILL
+        }
+    }
 }
 
 enum class PhotoFilterPreset(val label: String) {
@@ -125,7 +137,13 @@ enum class PhotoFilterPreset(val label: String) {
     WARM("Warm"),
     COOL("Cool"),
     BW("B & W"),
-    DRAMATIC("Dramatic")
+    DRAMATIC("Dramatic");
+
+    companion object {
+        fun fromId(id: String?): PhotoFilterPreset {
+            return values().firstOrNull { it.name.equals(id, ignoreCase = true) } ?: ORIGINAL
+        }
+    }
 }
 
 data class BgColorOption(
@@ -199,37 +217,118 @@ fun PhotoCropEditorModal(
     var saturationAdj by remember { mutableFloatStateOf(0f) } // -1.0 to +1.0
 
     var isSaving by remember { mutableStateOf(false) }
+    var originalSavedState by remember { mutableStateOf<IconHelper.IconEditState?>(null) }
 
-    // Load bitmap asynchronously
+    // Load bitmap asynchronously and restore saved icon state if editing
     LaunchedEffect(imageUri, imageUrl, initialIconKey, sourceBitmap) {
-        userScale = 1.0f
-        panOffset = Offset.Zero
-        quarterTurns = 0
-        fineAngle = 0f
-        flipHorizontal = false
-        flipVertical = false
-
         if (sourceBitmap != null) {
             loadedBitmap = sourceBitmap
+            val isTrans = IconHelper.hasTransparency(sourceBitmap)
+            val initBg = if (isTrans) null else null
+            selectedBgColor = initBg
+            originalSavedState = IconHelper.IconEditState(bgColorHex = initBg)
+            userScale = 1.0f
+            panOffset = Offset.Zero
+            quarterTurns = 0
+            fineAngle = 0f
+            flipHorizontal = false
+            flipVertical = false
+            cropShape = PhotoCropShape.CIRCLE
+            fitMode = PhotoFitMode.FILL
+            filterPreset = PhotoFilterPreset.ORIGINAL
+            brightnessAdj = 0f
+            contrastAdj = 0f
+            saturationAdj = 0f
             isLoadingImage = false
             return@LaunchedEffect
         }
+
         isLoadingImage = true
         withContext(Dispatchers.IO) {
-            val bitmap = when {
-                imageUri != null -> IconHelper.decodeBitmapFromUri(context, imageUri, 1200)
-                imageUrl != null && (imageUrl.startsWith("content://") || imageUrl.startsWith("file://")) -> {
-                    IconHelper.decodeBitmapFromUri(context, Uri.parse(imageUrl), 1200)
+            val (bitmap, meta) = when {
+                initialIconKey != null -> {
+                    val m = IconHelper.loadCustomIconMetadata(context, initialIconKey)
+                    val bmp = IconHelper.decodeOriginalBitmapFromCustomKey(context, initialIconKey)
+                        ?: IconHelper.decodeRawBitmapFromAnyIcon(context, initialIconKey)
+                        ?: IconHelper.decodeBitmapFromAnyIcon(context, initialIconKey)
+                    Pair(bmp, m)
                 }
-                imageUrl != null -> OnlineIconSearchService.downloadBitmap(context, imageUrl, 1200)
-                initialIconKey != null -> IconHelper.decodeRawBitmapFromAnyIcon(context, initialIconKey) ?: IconHelper.decodeBitmapFromAnyIcon(context, initialIconKey)
-                else -> null
+                imageUri != null -> {
+                    val bmp = IconHelper.decodeBitmapFromUri(context, imageUri, 1200)
+                    Pair(bmp, null)
+                }
+                imageUrl != null && (imageUrl.startsWith("content://") || imageUrl.startsWith("file://")) -> {
+                    val bmp = IconHelper.decodeBitmapFromUri(context, Uri.parse(imageUrl), 1200)
+                    Pair(bmp, null)
+                }
+                imageUrl != null -> {
+                    val bmp = OnlineIconSearchService.downloadBitmap(context, imageUrl, 1200)
+                    Pair(bmp, null)
+                }
+                else -> Pair(null, null)
             }
+
             withContext(Dispatchers.Main) {
                 loadedBitmap = bitmap
                 isLoadingImage = false
+
+                if (meta != null) {
+                    // Restore current saved edit state
+                    originalSavedState = meta.originalState
+                    userScale = meta.currentState.scale
+                    panOffset = Offset(meta.currentState.panX, meta.currentState.panY)
+                    quarterTurns = meta.currentState.quarterTurns
+                    fineAngle = meta.currentState.fineAngle
+                    flipHorizontal = meta.currentState.flipHorizontal
+                    flipVertical = meta.currentState.flipVertical
+                    cropShape = PhotoCropShape.fromId(meta.currentState.cropShape)
+                    fitMode = PhotoFitMode.fromId(meta.currentState.fitMode)
+                    selectedBgColor = meta.currentState.bgColorHex?.let { IconHelper.parseColorHex(it, Color.White) }
+                    filterPreset = PhotoFilterPreset.fromId(meta.currentState.filterPreset)
+                    brightnessAdj = meta.currentState.brightness
+                    contrastAdj = meta.currentState.contrast
+                    saturationAdj = meta.currentState.saturation
+                } else {
+                    // Fresh import or legacy icon: determine original transparency
+                    val isTrans = IconHelper.hasTransparency(bitmap)
+                    val initBg = if (isTrans) null else null
+                    selectedBgColor = initBg
+                    val initialEdit = IconHelper.IconEditState(bgColorHex = initBg)
+                    originalSavedState = initialEdit
+                    userScale = 1.0f
+                    panOffset = Offset.Zero
+                    quarterTurns = 0
+                    fineAngle = 0f
+                    flipHorizontal = false
+                    flipVertical = false
+                    cropShape = PhotoCropShape.CIRCLE
+                    fitMode = PhotoFitMode.FILL
+                    filterPreset = PhotoFilterPreset.ORIGINAL
+                    brightnessAdj = 0f
+                    contrastAdj = 0f
+                    saturationAdj = 0f
+                }
             }
         }
+    }
+
+    // Function to restore all edits back to pristine original state when first added
+    val resetAllEditsToOriginal: () -> Unit = {
+        val orig = originalSavedState ?: IconHelper.IconEditState()
+        userScale = orig.scale
+        panOffset = Offset(orig.panX, orig.panY)
+        quarterTurns = orig.quarterTurns
+        fineAngle = orig.fineAngle
+        flipHorizontal = orig.flipHorizontal
+        flipVertical = orig.flipVertical
+        cropShape = PhotoCropShape.fromId(orig.cropShape)
+        fitMode = PhotoFitMode.fromId(orig.fitMode)
+        selectedBgColor = orig.bgColorHex?.let { IconHelper.parseColorHex(it, Color.White) }
+        filterPreset = PhotoFilterPreset.fromId(orig.filterPreset)
+        brightnessAdj = orig.brightness
+        contrastAdj = orig.contrast
+        saturationAdj = orig.saturation
+        Toast.makeText(context, "Restored original icon state & edits", Toast.LENGTH_SHORT).show()
     }
 
     // Build the 4x5 ColorMatrix for preview and export
@@ -290,11 +389,34 @@ fun PhotoCropEditorModal(
                         }
                     }
 
-                    IconButton(
-                        onClick = { if (!isSaving) onDismiss() },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = { resetAllEditsToOriginal() },
+                            enabled = !isSaving && loadedBitmap != null,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.RestartAlt,
+                                contentDescription = "Reset Edits",
+                                tint = SolidPrimary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Reset Edits",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SolidPrimary
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { if (!isSaving) onDismiss() },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
                     }
                 }
 
@@ -793,17 +915,10 @@ fun PhotoCropEditorModal(
                             }
 
                             IconButton(
-                                onClick = {
-                                    userScale = 1.0f
-                                    panOffset = Offset.Zero
-                                    quarterTurns = 0
-                                    fineAngle = 0f
-                                    flipHorizontal = false
-                                    flipVertical = false
-                                },
+                                onClick = { resetAllEditsToOriginal() },
                                 modifier = Modifier.size(36.dp)
                             ) {
-                                Icon(Icons.Default.RestartAlt, contentDescription = "Reset", modifier = Modifier.size(19.dp))
+                                Icon(Icons.Default.RestartAlt, contentDescription = "Reset Edits", modifier = Modifier.size(19.dp))
                             }
                         }
 
@@ -1074,7 +1189,37 @@ fun PhotoCropEditorModal(
                                         rendered
                                     }
 
-                                    val iconKey = IconHelper.saveCustomIconBitmap(context, rendered, renderedRaw)
+                                    val currentEditState = IconHelper.IconEditState(
+                                        scale = userScale,
+                                        panX = panOffset.x,
+                                        panY = panOffset.y,
+                                        quarterTurns = quarterTurns,
+                                        fineAngle = fineAngle,
+                                        flipHorizontal = flipHorizontal,
+                                        flipVertical = flipVertical,
+                                        cropShape = cropShape.id,
+                                        fitMode = fitMode.name.lowercase(),
+                                        bgColorHex = selectedBgColor?.let { color ->
+                                            String.format("#%06X", (0xFFFFFF and color.toArgb()))
+                                        },
+                                        filterPreset = filterPreset.name,
+                                        brightness = brightnessAdj,
+                                        contrast = contrastAdj,
+                                        saturation = saturationAdj
+                                    )
+
+                                    val origToSave = originalSavedState ?: currentEditState
+
+                                    val iconKey = IconHelper.saveCustomIconBitmap(
+                                        context = context,
+                                        bitmap = rendered,
+                                        rawBitmap = renderedRaw,
+                                        sourceOrigBitmap = bitmapToSave,
+                                        targetIconKey = initialIconKey,
+                                        originalState = origToSave,
+                                        currentState = currentEditState
+                                    )
+
                                     withContext(Dispatchers.Main) {
                                         isSaving = false
                                         if (iconKey != null) {

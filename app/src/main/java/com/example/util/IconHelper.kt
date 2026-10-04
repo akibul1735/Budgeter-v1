@@ -1382,6 +1382,148 @@ object IconHelper {
         return File(customDir, if (rawName.contains(".")) rawName else "$rawName.png")
     }
 
+    data class IconEditState(
+        val scale: Float = 1.0f,
+        val panX: Float = 0f,
+        val panY: Float = 0f,
+        val quarterTurns: Int = 0,
+        val fineAngle: Float = 0f,
+        val flipHorizontal: Boolean = false,
+        val flipVertical: Boolean = false,
+        val cropShape: String = "circle",
+        val fitMode: String = "fill",
+        val bgColorHex: String? = null,
+        val filterPreset: String = "ORIGINAL",
+        val brightness: Float = 0f,
+        val contrast: Float = 0f,
+        val saturation: Float = 0f
+    ) {
+        fun toJsonObject(): org.json.JSONObject {
+            return org.json.JSONObject().apply {
+                put("scale", scale.toDouble())
+                put("panX", panX.toDouble())
+                put("panY", panY.toDouble())
+                put("quarterTurns", quarterTurns)
+                put("fineAngle", fineAngle.toDouble())
+                put("flipHorizontal", flipHorizontal)
+                put("flipVertical", flipVertical)
+                put("cropShape", cropShape)
+                put("fitMode", fitMode)
+                if (bgColorHex != null) put("bgColorHex", bgColorHex) else put("bgColorHex", org.json.JSONObject.NULL)
+                put("filterPreset", filterPreset)
+                put("brightness", brightness.toDouble())
+                put("contrast", contrast.toDouble())
+                put("saturation", saturation.toDouble())
+            }
+        }
+
+        companion object {
+            fun fromJsonObject(json: org.json.JSONObject?): IconEditState {
+                if (json == null) return IconEditState()
+                val bgHex = if (json.isNull("bgColorHex")) null else json.optString("bgColorHex", null)
+                return IconEditState(
+                    scale = json.optDouble("scale", 1.0).toFloat(),
+                    panX = json.optDouble("panX", 0.0).toFloat(),
+                    panY = json.optDouble("panY", 0.0).toFloat(),
+                    quarterTurns = json.optInt("quarterTurns", 0),
+                    fineAngle = json.optDouble("fineAngle", 0.0).toFloat(),
+                    flipHorizontal = json.optBoolean("flipHorizontal", false),
+                    flipVertical = json.optBoolean("flipVertical", false),
+                    cropShape = json.optString("cropShape", "circle"),
+                    fitMode = json.optString("fitMode", "fill"),
+                    bgColorHex = bgHex,
+                    filterPreset = json.optString("filterPreset", "ORIGINAL"),
+                    brightness = json.optDouble("brightness", 0.0).toFloat(),
+                    contrast = json.optDouble("contrast", 0.0).toFloat(),
+                    saturation = json.optDouble("saturation", 0.0).toFloat()
+                )
+            }
+        }
+    }
+
+    data class CustomIconMetadata(
+        val originalState: IconEditState,
+        val currentState: IconEditState
+    ) {
+        fun toJsonString(): String {
+            return org.json.JSONObject().apply {
+                put("originalState", originalState.toJsonObject())
+                put("currentState", currentState.toJsonObject())
+            }.toString()
+        }
+
+        companion object {
+            fun fromJsonString(jsonStr: String): CustomIconMetadata? {
+                return try {
+                    val json = org.json.JSONObject(jsonStr)
+                    val orig = IconEditState.fromJsonObject(json.optJSONObject("originalState"))
+                    val curr = IconEditState.fromJsonObject(json.optJSONObject("currentState"))
+                    CustomIconMetadata(originalState = orig, currentState = curr)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if a Bitmap contains transparent/translucent pixels.
+     */
+    fun hasTransparency(bitmap: Bitmap?): Boolean {
+        if (bitmap == null) return false
+        if (!bitmap.hasAlpha()) return false
+        val width = bitmap.width
+        val height = bitmap.height
+        val stepX = maxOf(1, width / 40)
+        val stepY = maxOf(1, height / 40)
+        for (y in 0 until height step stepY) {
+            for (x in 0 until width step stepX) {
+                val alpha = (bitmap.getPixel(x, y) ushr 24) and 0xFF
+                if (alpha < 240) return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * Loads custom icon edit metadata (original state & current state) from disk.
+     */
+    fun loadCustomIconMetadata(context: Context, iconKey: String): CustomIconMetadata? {
+        return try {
+            val customDir = File(context.filesDir, "custom_icons")
+            val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
+            val metaFile = File(customDir, "${cleanKey}_meta.json")
+            if (metaFile.exists()) {
+                CustomIconMetadata.fromJsonString(metaFile.readText())
+            } else {
+                val metaAlt = File(customDir, "${iconKey}_meta.json")
+                if (metaAlt.exists()) {
+                    CustomIconMetadata.fromJsonString(metaAlt.readText())
+                } else null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Saves custom icon edit metadata (original state & current state) to disk.
+     */
+    fun saveCustomIconMetadata(context: Context, iconKey: String, metadata: CustomIconMetadata): Boolean {
+        return try {
+            val customDir = File(context.filesDir, "custom_icons")
+            if (!customDir.exists()) customDir.mkdirs()
+            val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
+            val metaFile = File(customDir, "${cleanKey}_meta.json")
+            metaFile.writeText(metadata.toJsonString())
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     /**
      * Retrieves all saved custom icon file objects.
      */
@@ -1390,7 +1532,8 @@ object IconHelper {
         if (!customDir.exists()) return emptyList()
         return customDir.listFiles { file -> 
             val ext = file.extension.lowercase()
-            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
+            val name = file.nameWithoutExtension
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !name.endsWith("_raw") && !name.endsWith("_orig") && !ext.equals("json", ignoreCase = true)
         }
             ?.sortedByDescending { it.lastModified() }
             ?: emptyList()
@@ -1404,7 +1547,8 @@ object IconHelper {
         if (!customDir.exists()) return emptyList()
         return customDir.listFiles { file -> 
             val ext = file.extension.lowercase()
-            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
+            val name = file.nameWithoutExtension
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !name.endsWith("_raw") && !name.endsWith("_orig") && !ext.equals("json", ignoreCase = true)
         }
             ?.sortedByDescending { it.lastModified() }
             ?.map { it.nameWithoutExtension }
@@ -1512,19 +1656,61 @@ object IconHelper {
     }
 
     /**
+     * Decodes the pristine original source Bitmap before any edits or cropping was applied.
+     */
+    fun decodeOriginalBitmapFromCustomKey(context: Context, iconKey: String): Bitmap? {
+        return try {
+            val customDir = File(context.filesDir, "custom_icons")
+            val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
+            val origFile = File(customDir, "${cleanKey}_orig.png")
+            if (origFile.exists()) {
+                return BitmapFactory.decodeFile(origFile.absolutePath)
+            }
+            val origAlt = File(customDir, "${iconKey}_orig.png")
+            if (origAlt.exists()) {
+                return BitmapFactory.decodeFile(origAlt.absolutePath)
+            }
+            val rawFile = File(customDir, "${cleanKey}_raw.png")
+            if (rawFile.exists()) {
+                return BitmapFactory.decodeFile(rawFile.absolutePath)
+            }
+            val rawAlt = File(customDir, "${iconKey}_raw.png")
+            if (rawAlt.exists()) {
+                return BitmapFactory.decodeFile(rawAlt.absolutePath)
+            }
+            val mainFile = getCustomIconFile(context, iconKey)
+            if (mainFile.exists()) {
+                return BitmapFactory.decodeFile(mainFile.absolutePath)
+            }
+            null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
      * Decodes a raw Bitmap without background color for editing, keeping the crop size.
      */
     fun decodeRawBitmapFromCustomKey(context: Context, iconKey: String): Bitmap? {
         return try {
             val customDir = File(context.filesDir, "custom_icons")
             val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
+            val origFile = File(customDir, "${cleanKey}_orig.png")
+            if (origFile.exists()) {
+                return BitmapFactory.decodeFile(origFile.absolutePath)
+            }
+            val origAlt = File(customDir, "${iconKey}_orig.png")
+            if (origAlt.exists()) {
+                return BitmapFactory.decodeFile(origAlt.absolutePath)
+            }
             val rawFile = File(customDir, "${cleanKey}_raw.png")
             if (rawFile.exists()) {
                 return BitmapFactory.decodeFile(rawFile.absolutePath)
             }
-            val rawFileAlt = File(customDir, "${iconKey}_raw.png")
-            if (rawFileAlt.exists()) {
-                return BitmapFactory.decodeFile(rawFileAlt.absolutePath)
+            val rawAlt = File(customDir, "${iconKey}_raw.png")
+            if (rawAlt.exists()) {
+                return BitmapFactory.decodeFile(rawAlt.absolutePath)
             }
             val mainFile = getCustomIconFile(context, iconKey)
             if (mainFile.exists()) {
@@ -1884,14 +2070,25 @@ object IconHelper {
 
     /**
      * Saves a Bitmap directly into the app's internal custom icons directory with optimal compression.
+     * Supports persisting original source image and original vs current editing metadata.
      */
-    fun saveCustomIconBitmap(context: Context, bitmap: Bitmap, rawBitmap: Bitmap? = null): String? {
+    fun saveCustomIconBitmap(
+        context: Context,
+        bitmap: Bitmap,
+        rawBitmap: Bitmap? = null,
+        sourceOrigBitmap: Bitmap? = null,
+        targetIconKey: String? = null,
+        originalState: IconEditState? = null,
+        currentState: IconEditState? = null
+    ): String? {
         return try {
             val customDir = File(context.filesDir, "custom_icons")
             if (!customDir.exists()) customDir.mkdirs()
 
-            val iconKey = "custom_icon_${System.currentTimeMillis()}"
-            val destFile = File(customDir, "$iconKey.png")
+            val isExistingKey = !targetIconKey.isNullOrBlank()
+            val iconKey = if (isExistingKey) targetIconKey!! else "custom_icon_${System.currentTimeMillis()}"
+            val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
+            val destFile = File(customDir, "$cleanKey.png")
 
             // Ensure optimized size (up to 160x160 for crisp icons on high-res screens while keeping file sizes extremely small ~6-10KB)
             val maxDimension = 160
@@ -1917,7 +2114,7 @@ object IconHelper {
 
             // Save companion raw bitmap if available
             val rawToSave = rawBitmap ?: stripBackgroundColor(bitmap)
-            val rawFile = File(customDir, "${iconKey}_raw.png")
+            val rawFile = File(customDir, "${cleanKey}_raw.png")
             val optRaw = if (scaleFactor < 1f) {
                 Bitmap.createScaledBitmap(
                     rawToSave,
@@ -1931,6 +2128,40 @@ object IconHelper {
             FileOutputStream(rawFile).use { outStream ->
                 optRaw.compress(Bitmap.CompressFormat.PNG, 90, outStream)
                 outStream.flush()
+            }
+
+            // Save pristine original unedited source bitmap (ONLY on first creation or if missing, never overwrite existing original!)
+            val origFile = File(customDir, "${cleanKey}_orig.png")
+            if (sourceOrigBitmap != null && (!origFile.exists() || !isExistingKey)) {
+                val origMaxDim = 1024
+                val origScale = if (sourceOrigBitmap.width > origMaxDim || sourceOrigBitmap.height > origMaxDim) {
+                    origMaxDim.toFloat() / maxOf(sourceOrigBitmap.width, sourceOrigBitmap.height)
+                } else 1f
+                val optOrig = if (origScale < 1f) {
+                    Bitmap.createScaledBitmap(
+                        sourceOrigBitmap,
+                        (sourceOrigBitmap.width * origScale).toInt().coerceAtLeast(1),
+                        (sourceOrigBitmap.height * origScale).toInt().coerceAtLeast(1),
+                        true
+                    )
+                } else {
+                    sourceOrigBitmap
+                }
+                FileOutputStream(origFile).use { outStream ->
+                    optOrig.compress(Bitmap.CompressFormat.PNG, 95, outStream)
+                    outStream.flush()
+                }
+            }
+
+            // Save metadata (original state is strictly preserved and never overwritten when editing)
+            if (originalState != null && currentState != null) {
+                val existingMeta = loadCustomIconMetadata(context, iconKey)
+                val preservedOriginalState = existingMeta?.originalState ?: originalState
+                val metadata = CustomIconMetadata(
+                    originalState = preservedOriginalState,
+                    currentState = currentState
+                )
+                saveCustomIconMetadata(context, iconKey, metadata)
             }
 
             iconKey
@@ -1977,7 +2208,8 @@ object IconHelper {
 
         val allFiles = customDir.listFiles { file ->
             val ext = file.extension.lowercase()
-            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
+            val name = file.nameWithoutExtension
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !name.endsWith("_raw") && !name.endsWith("_orig") && !ext.equals("json", ignoreCase = true)
         } ?: return IconCacheStats()
 
         var totalBytes = 0L
@@ -2027,7 +2259,8 @@ object IconHelper {
 
         val allFiles = customDir.listFiles { file ->
             val ext = file.extension.lowercase()
-            (ext in listOf("png", "jpg", "jpeg", "webp")) && !file.nameWithoutExtension.endsWith("_raw")
+            val name = file.nameWithoutExtension
+            (ext in listOf("png", "jpg", "jpeg", "webp")) && !name.endsWith("_raw") && !name.endsWith("_orig") && !ext.equals("json", ignoreCase = true)
         } ?: return emptyList()
 
         val normalizedActive = activeIconNames.flatMap {
@@ -2066,9 +2299,7 @@ object IconHelper {
         val customDir = File(context.filesDir, "custom_icons")
         if (!customDir.exists()) return 0 to 0L
 
-        val allFiles = customDir.listFiles { file ->
-            file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp")
-        } ?: return 0 to 0L
+        val allFiles = customDir.listFiles() ?: return 0 to 0L
 
         var deletedCount = 0
         var bytesFreed = 0L
@@ -2084,7 +2315,8 @@ object IconHelper {
 
         for (file in allFiles) {
             val nameNoExt = file.nameWithoutExtension
-            if (nameNoExt !in normalizedActive && file.name !in activeIconNames && file.name !in normalizedActive) {
+            val baseKey = nameNoExt.removeSuffix("_raw").removeSuffix("_orig").removeSuffix("_meta")
+            if (baseKey !in normalizedActive && file.name !in activeIconNames && baseKey !in activeIconNames) {
                 val size = file.length()
                 if (file.delete()) {
                     deletedCount++
@@ -2108,12 +2340,23 @@ object IconHelper {
         var bytesFreed = 0L
 
         for (key in iconKeys) {
-            val file = getCustomIconFile(context, key)
-            if (file.exists()) {
-                val size = file.length()
-                if (file.delete()) {
-                    deletedCount++
-                    bytesFreed += size
+            val cleanKey = if (key.startsWith("custom_icon_")) key else "custom_icon_$key"
+            listOf(
+                getCustomIconFile(context, key),
+                File(customDir, "$cleanKey.png"),
+                File(customDir, "${cleanKey}_raw.png"),
+                File(customDir, "${cleanKey}_orig.png"),
+                File(customDir, "${cleanKey}_meta.json"),
+                File(customDir, "${key}_raw.png"),
+                File(customDir, "${key}_orig.png"),
+                File(customDir, "${key}_meta.json")
+            ).distinct().forEach { file ->
+                if (file.exists()) {
+                    val size = file.length()
+                    if (file.delete()) {
+                        deletedCount++
+                        bytesFreed += size
+                    }
                 }
             }
         }
@@ -2133,22 +2376,17 @@ object IconHelper {
 
             if (originalBitmap == null) return null
 
-            // Scale to max 160x160 while preserving aspect ratio and crispness on mobile
-            val size = 160
-            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, size, size, true)
+            val isTrans = hasTransparency(originalBitmap)
+            val editState = IconEditState(bgColorHex = if (isTrans) null else null)
 
-            val customDir = File(context.filesDir, "custom_icons")
-            if (!customDir.exists()) customDir.mkdirs()
-
-            val iconKey = "custom_icon_${System.currentTimeMillis()}"
-            val destFile = File(customDir, "$iconKey.png")
-
-            val outStream = FileOutputStream(destFile)
-            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
-            outStream.flush()
-            outStream.close()
-
-            iconKey
+            saveCustomIconBitmap(
+                context = context,
+                bitmap = originalBitmap,
+                rawBitmap = if (isTrans) originalBitmap else stripBackgroundColor(originalBitmap),
+                sourceOrigBitmap = originalBitmap,
+                originalState = editState,
+                currentState = editState
+            )
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -2160,13 +2398,17 @@ object IconHelper {
      */
     fun deleteCustomIcon(context: Context, iconKey: String): Boolean {
         return try {
-            val file = getCustomIconFile(context, iconKey)
             val customDir = File(context.filesDir, "custom_icons")
             val cleanKey = if (iconKey.startsWith("custom_icon_")) iconKey else "custom_icon_$iconKey"
-            val rawFile = File(customDir, "${cleanKey}_raw.png")
-            if (rawFile.exists()) rawFile.delete()
-            val rawFileAlt = File(customDir, "${iconKey}_raw.png")
-            if (rawFileAlt.exists()) rawFileAlt.delete()
+            val file = getCustomIconFile(context, iconKey)
+            
+            File(customDir, "${cleanKey}_raw.png").let { if (it.exists()) it.delete() }
+            File(customDir, "${cleanKey}_orig.png").let { if (it.exists()) it.delete() }
+            File(customDir, "${cleanKey}_meta.json").let { if (it.exists()) it.delete() }
+            File(customDir, "${iconKey}_raw.png").let { if (it.exists()) it.delete() }
+            File(customDir, "${iconKey}_orig.png").let { if (it.exists()) it.delete() }
+            File(customDir, "${iconKey}_meta.json").let { if (it.exists()) it.delete() }
+            
             if (file.exists()) file.delete() else false
         } catch (e: Exception) {
             false
@@ -2182,7 +2424,7 @@ object IconHelper {
             var count = 0
             if (customDir.exists()) {
                 customDir.listFiles()?.forEach { file ->
-                    if (file.isFile && (file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp"))) {
+                    if (file.isFile) {
                         if (file.delete()) count++
                     }
                 }
