@@ -264,7 +264,7 @@ class TabFilterPreferences private constructor(context: Context) {
     // ==========================================
     // 4. ITEMS SUMMARY
     // ==========================================
-    var itemsTabMode: String = prefs.getString(KEY_ITEMS_TAB_MODE, "EXPENSE") ?: "EXPENSE"
+    var itemsTabMode: String = prefs.getString(KEY_ITEMS_TAB_MODE, "ALL") ?: "ALL"
         set(value) {
             field = value
             prefs.edit().putString(KEY_ITEMS_TAB_MODE, value).apply()
@@ -299,7 +299,7 @@ class TabFilterPreferences private constructor(context: Context) {
     // ==========================================
     // 5. LABELS
     // ==========================================
-    var labelsTabMode: String = prefs.getString(KEY_LABELS_TAB_MODE, "EXPENSE") ?: "EXPENSE"
+    var labelsTabMode: String = prefs.getString(KEY_LABELS_TAB_MODE, "ALL") ?: "ALL"
         set(value) {
             field = value
             prefs.edit().putString(KEY_LABELS_TAB_MODE, value).apply()
@@ -388,7 +388,7 @@ class TabFilterPreferences private constructor(context: Context) {
     // ==========================================
     // 8. REPORTS / NET EARNINGS
     // ==========================================
-    var reportsTabMode: String = prefs.getString(KEY_REPORTS_TAB_MODE, "EXPENSE") ?: "EXPENSE"
+    var reportsTabMode: String = prefs.getString(KEY_REPORTS_TAB_MODE, "ALL") ?: "ALL"
         set(value) {
             field = value
             prefs.edit().putString(KEY_REPORTS_TAB_MODE, value).apply()

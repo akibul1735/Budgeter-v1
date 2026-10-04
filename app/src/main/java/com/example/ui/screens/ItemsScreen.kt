@@ -173,7 +173,11 @@ fun ItemsScreen(
         filterState.calculateDateRange()
     }
 
-    val currentTargetType = if (activeTabMode == "EXPENSE") TransactionType.EXPENSE else TransactionType.INCOME
+    val currentTargetType = when (activeTabMode) {
+        "EXPENSE" -> TransactionType.EXPENSE
+        "INCOME" -> TransactionType.INCOME
+        else -> null
+    }
     val effectiveType = filterState.transactionType ?: currentTargetType
 
     // Filter transactions and group by item/payee
@@ -188,7 +192,7 @@ fun ItemsScreen(
         val filteredTxs = transactions.filter { item ->
             val tx = item.transaction
             val matchesDate = tx.dateEpochMs in startEpochMs..endEpochMs
-            val matchesType = tx.type == effectiveType
+            val matchesType = effectiveType == null || tx.type == effectiveType
             val matchesAccount = filterState.selectedAccountIds.isEmpty() ||
                     (tx.debitAccountId != null && tx.debitAccountId in filterState.selectedAccountIds) ||
                     (tx.creditAccountId != null && tx.creditAccountId in filterState.selectedAccountIds)
@@ -239,7 +243,7 @@ fun ItemsScreen(
 
             val expenseSum = txList.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
             val incomeSum = txList.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
-            val currentSum = if (effectiveType == TransactionType.EXPENSE) expenseSum else incomeSum
+            val currentSum = if (effectiveType == TransactionType.EXPENSE) expenseSum else if (effectiveType == TransactionType.INCOME) incomeSum else (expenseSum + incomeSum)
             val latestDate = txList.maxOfOrNull { it.transaction.dateEpochMs } ?: 0L
             val share = if (totalFlowAmount > 0 && currentSum > 0) (currentSum / totalFlowAmount) * 100.0 else 0.0
 
@@ -258,7 +262,7 @@ fun ItemsScreen(
                 percentageShare = share
             )
         }.filter { item ->
-            val totalAmt = if (effectiveType == TransactionType.EXPENSE) item.totalExpense else item.totalIncome
+            val totalAmt = if (effectiveType == TransactionType.EXPENSE) item.totalExpense else if (effectiveType == TransactionType.INCOME) item.totalIncome else (item.totalExpense + item.totalIncome)
             val matchesSearch = searchQuery.isBlank() ||
                     item.name.contains(searchQuery, ignoreCase = true) ||
                     (item.groupName != null && item.groupName.contains(searchQuery, ignoreCase = true))
@@ -269,28 +273,45 @@ fun ItemsScreen(
             matchesSearch && matchesMin && matchesMax && matchesZero
         }
 
-        when (filterState.sortOrder) {
+        val sortedList = when (filterState.sortOrder) {
             AggregatedSortOrder.DEFAULT,
-            AggregatedSortOrder.AMOUNT_DESC -> list.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
-            AggregatedSortOrder.AMOUNT_ASC -> list.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
+            AggregatedSortOrder.AMOUNT_DESC -> list.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
+            AggregatedSortOrder.AMOUNT_ASC -> list.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
             AggregatedSortOrder.COUNT_DESC -> list.sortedByDescending { it.transactionCount }
             AggregatedSortOrder.COUNT_ASC -> list.sortedBy { it.transactionCount }
             AggregatedSortOrder.AVG_DESC -> list.sortedByDescending {
-                val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome
+                val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome)
                 if (it.transactionCount > 0) amt / it.transactionCount else 0.0
             }
             AggregatedSortOrder.AVG_ASC -> list.sortedBy {
-                val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome
+                val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome)
                 if (it.transactionCount > 0) amt / it.transactionCount else 0.0
             }
             AggregatedSortOrder.NAME_ASC -> list.sortedBy { it.name.lowercase() }
             AggregatedSortOrder.NAME_DESC -> list.sortedByDescending { it.name.lowercase() }
             AggregatedSortOrder.RECENT_DATE -> list.sortedByDescending { it.latestDateEpochMs }
         }
+
+        // In ALL mode, ensure Expenses are displayed first, then Income!
+        if (effectiveType == null) {
+            sortedList.sortedBy { if (it.type == TransactionType.EXPENSE) 0 else 1 }
+        } else {
+            sortedList
+        }
     }
 
-    val totalFlowOverall = remember(aggregatedItems, activeTabMode) {
-        aggregatedItems.sumOf { if (activeTabMode == "EXPENSE") it.totalExpense else it.totalIncome }
+    val totalExpenseOverall = remember(aggregatedItems) {
+        aggregatedItems.filter { it.type == TransactionType.EXPENSE }.sumOf { it.totalExpense }
+    }
+    val totalIncomeOverall = remember(aggregatedItems) {
+        aggregatedItems.filter { it.type == TransactionType.INCOME }.sumOf { it.totalIncome }
+    }
+    val totalFlowOverall = remember(aggregatedItems, activeTabMode, totalExpenseOverall, totalIncomeOverall) {
+        when (activeTabMode) {
+            "EXPENSE" -> totalExpenseOverall
+            "INCOME" -> totalIncomeOverall
+            else -> totalExpenseOverall + totalIncomeOverall
+        }
     }
 
     val activeFilterSummary = remember(filterState, searchQuery, languageMode) {
@@ -353,23 +374,48 @@ fun ItemsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
+                        val titleText = when (activeTabMode) {
+                            "EXPENSE" -> if (languageMode == LanguageMode.BANGLA) "মোট ব্যয় (Items Expense)" else "Total Items Expense"
+                            "INCOME" -> if (languageMode == LanguageMode.BANGLA) "মোট আয় (Items Income)" else "Total Items Income"
+                            else -> if (languageMode == LanguageMode.BANGLA) "সর্বমোট ব্যয় ও আয়" else "Total Expenses & Income"
+                        }
                         Text(
-                            text = if (activeTabMode == "EXPENSE") {
-                                if (languageMode == LanguageMode.BANGLA) "মোট ব্যয় (Items Expense)" else "Total Items Expense"
-                            } else {
-                                if (languageMode == LanguageMode.BANGLA) "মোট আয় (Items Income)" else "Total Items Income"
-                            },
+                            text = titleText,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = SlateText
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = LanguageHelper.formatCurrency(totalFlowOverall, languageMode),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome
-                        )
+                        if (activeTabMode == "ALL") {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(totalExpenseOverall, languageMode),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CrimsonPink
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "•",
+                                    fontSize = 14.sp,
+                                    color = SlateText
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = LanguageHelper.formatCurrency(totalIncomeOverall, languageMode),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidIncome
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = LanguageHelper.formatCurrency(totalFlowOverall, languageMode),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome
+                            )
+                        }
                     }
 
                     Row(
@@ -505,7 +551,7 @@ fun ItemsScreen(
                     }
                 }
 
-                // Segmented Toggle: [ Expenses (ব্যয়) | Income (আয়) ]
+                // Segmented Toggle: [ Expenses (ব্যয়) | All (সকল) | Income (আয়) ]
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.surface,
@@ -521,7 +567,7 @@ fun ItemsScreen(
                             .padding(3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Expense Button
+                        // 1. Expense Button (Left)
                         val isExpense = activeTabMode == "EXPENSE"
                         Surface(
                             shape = RoundedCornerShape(20.dp),
@@ -542,19 +588,52 @@ fun ItemsScreen(
                                     imageVector = Icons.AutoMirrored.Filled.TrendingDown,
                                     contentDescription = null,
                                     tint = if (isExpense) CrimsonPink else SlateText,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (Expenses)" else "Expenses",
-                                    fontSize = 13.sp,
+                                    text = if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expenses",
+                                    fontSize = 12.5.sp,
                                     fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isExpense) CrimsonPink else SlateText
                                 )
                             }
                         }
 
-                        // Income Button
+                        // 2. All Button (Middle)
+                        val isAll = activeTabMode == "ALL"
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isAll) SolidPrimary.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { activeTabMode = "ALL" }
+                                .testTag("items_mode_all")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = null,
+                                    tint = if (isAll) SolidPrimary else SlateText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সকল (All)" else "All",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isAll) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isAll) SolidPrimary else SlateText
+                                )
+                            }
+                        }
+
+                        // 3. Income Button (Right)
                         val isIncome = activeTabMode == "INCOME"
                         Surface(
                             shape = RoundedCornerShape(20.dp),
@@ -575,12 +654,12 @@ fun ItemsScreen(
                                     imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                     contentDescription = null,
                                     tint = if (isIncome) SolidIncome else SlateText,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "আয় (Income)" else "Income",
-                                    fontSize = 13.sp,
+                                    text = if (languageMode == LanguageMode.BANGLA) "আয়" else "Income",
+                                    fontSize = 12.5.sp,
                                     fontWeight = if (isIncome) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isIncome) SolidIncome else SlateText
                                 )

@@ -103,6 +103,7 @@ import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
@@ -307,155 +308,169 @@ fun ReportsScreen(
     }
 
     // Categories Breakdown calculation
-    val targetType = if (activeTabMode == "EXPENSE") CategoryType.EXPENSE else CategoryType.INCOME
-    val targetTxType = if (activeTabMode == "EXPENSE") TransactionType.EXPENSE else TransactionType.INCOME
-    val totalFlowAmount = if (activeTabMode == "EXPENSE") totalMonthExpense else totalMonthIncome
-
     val categoryGroups = remember(
         categories,
         monthTransactions,
-        targetType,
-        totalFlowAmount,
+        activeTabMode,
+        totalMonthExpense,
+        totalMonthIncome,
         searchQuery,
         sortOption,
         filterState.excludeZeroAmounts,
         filterState.hideEmptyGroups,
         languageMode
     ) {
-        val relevantCategories = categories.filter { it.type == targetType }
-        val parentCategories = relevantCategories.filter { it.parentId == null }
-        val childCategories = relevantCategories.filter { it.parentId != null }
+        fun computeGroupsFor(
+            targetType: CategoryType,
+            targetTxType: TransactionType,
+            totalFlowAmount: Double
+        ): List<CategoryGroupEarningsTracking> {
+            val relevantCategories = categories.filter { it.type == targetType }
+            val parentCategories = relevantCategories.filter { it.parentId == null }
+            val childCategories = relevantCategories.filter { it.parentId != null }
 
-        val flowTransactions = monthTransactions.filter { it.transaction.type == targetTxType }
+            val flowTransactions = monthTransactions.filter { it.transaction.type == targetTxType }
 
-        val groups = parentCategories.mapNotNull { parent ->
-            val children = childCategories.filter { it.parentId == parent.id }
-            val items = children.map { child ->
-                val childTx = flowTransactions.filter {
-                    it.transaction.categoryId == child.id ||
-                            it.category?.id == child.id ||
-                            it.subCategory?.id == child.id
+            val groups = parentCategories.mapNotNull { parent ->
+                val children = childCategories.filter { it.parentId == parent.id }
+                val items = children.map { child ->
+                    val childTx = flowTransactions.filter {
+                        it.transaction.categoryId == child.id ||
+                                it.category?.id == child.id ||
+                                it.subCategory?.id == child.id
+                    }
+                    val actualAmt = childTx.sumOf { it.transaction.amount }
+                    val share = if (totalFlowAmount > 0) (actualAmt / totalFlowAmount) * 100.0 else 0.0
+                    CategoryEarningsTrackingItem(
+                        category = child,
+                        actualAmount = actualAmt,
+                        transactions = childTx,
+                        percentageShare = share
+                    )
                 }
-                val actualAmt = childTx.sumOf { it.transaction.amount }
-                val share = if (totalFlowAmount > 0) (actualAmt / totalFlowAmount) * 100.0 else 0.0
-                CategoryEarningsTrackingItem(
-                    category = child,
-                    actualAmount = actualAmt,
-                    transactions = childTx,
-                    percentageShare = share
-                )
-            }
 
-            // Also check transactions directly assigned to parent group if any
-            val directParentTx = flowTransactions.filter {
-                (it.transaction.categoryId == parent.id || it.category?.id == parent.id) &&
-                        it.subCategory == null
-            }
-            val parentDirectAmt = directParentTx.sumOf { it.transaction.amount }
-
-            val allItems = if (parentDirectAmt > 0) {
-                items + CategoryEarningsTrackingItem(
-                    category = parent.copy(
-                        nameEn = "${parent.nameEn} (General)",
-                        nameBn = "${parent.nameBn} (সাধারণ)"
-                    ),
-                    actualAmount = parentDirectAmt,
-                    transactions = directParentTx,
-                    percentageShare = if (totalFlowAmount > 0) (parentDirectAmt / totalFlowAmount) * 100.0 else 0.0
-                )
-            } else items
-
-            val filteredItems = if (filterState.excludeZeroAmounts) {
-                allItems.filter { it.actualAmount > 0.0 }
-            } else {
-                allItems
-            }
-
-            val groupTotal = filteredItems.sumOf { it.actualAmount }
-            val groupShare = if (totalFlowAmount > 0) (groupTotal / totalFlowAmount) * 100.0 else 0.0
-
-            if (filterState.excludeZeroAmounts && groupTotal <= 0.0 && filteredItems.isEmpty()) {
-                null
-            } else {
-                CategoryGroupEarningsTracking(
-                    parentCategory = parent,
-                    groupNameEn = parent.nameEn,
-                    groupNameBn = parent.nameBn,
-                    items = filteredItems,
-                    percentageShare = groupShare
-                )
-            }
-        }
-
-        // Catch transactions in categories without a recognized parent group (Uncategorized)
-        val parentIds = parentCategories.map { it.id }.toSet()
-        val childIds = childCategories.map { it.id }.toSet()
-        val orphanTx = flowTransactions.filter { tx ->
-            val catId = tx.transaction.categoryId ?: tx.category?.id
-            catId == null || (catId !in parentIds && catId !in childIds)
-        }
-
-        val allGroupsWithOrphans = if (orphanTx.isNotEmpty()) {
-            val orphanAmt = orphanTx.sumOf { it.transaction.amount }
-            val orphanShare = if (totalFlowAmount > 0) (orphanAmt / totalFlowAmount) * 100.0 else 0.0
-            val orphanCat = Category(
-                id = -999L,
-                nameEn = "Uncategorized",
-                nameBn = "শ্রেণীবিহীন",
-                type = targetType,
-                colorHex = "#94A3B8",
-                iconName = "Category"
-            )
-            val orphanItems = listOf(
-                CategoryEarningsTrackingItem(
-                    category = orphanCat,
-                    actualAmount = orphanAmt,
-                    transactions = orphanTx,
-                    percentageShare = orphanShare
-                )
-            )
-            val filteredOrphanItems = if (filterState.excludeZeroAmounts) {
-                orphanItems.filter { it.actualAmount > 0.0 }
-            } else {
-                orphanItems
-            }
-            if (!filterState.excludeZeroAmounts || orphanAmt > 0.0) {
-                groups + CategoryGroupEarningsTracking(
-                    parentCategory = orphanCat,
-                    groupNameEn = "Uncategorized",
-                    groupNameBn = "শ্রেণীবিহীন",
-                    items = filteredOrphanItems,
-                    percentageShare = orphanShare
-                )
-            } else {
-                groups
-            }
-        } else groups
-
-        // Filter by search query if any
-        val filtered = if (searchQuery.isNotBlank()) {
-            val q = searchQuery.trim().lowercase()
-            allGroupsWithOrphans.mapNotNull { grp ->
-                val groupMatches = grp.groupNameEn.lowercase().contains(q) || grp.groupNameBn.lowercase().contains(q)
-                val matchingItems = grp.items.filter { item ->
-                    item.category.localizedName(languageMode).lowercase().contains(q) ||
-                            item.category.nameEn.lowercase().contains(q) ||
-                            item.category.nameBn.lowercase().contains(q)
+                // Also check transactions directly assigned to parent group if any
+                val directParentTx = flowTransactions.filter {
+                    (it.transaction.categoryId == parent.id || it.category?.id == parent.id) &&
+                            it.subCategory == null
                 }
-                if (groupMatches || matchingItems.isNotEmpty()) {
-                    grp.copy(items = if (groupMatches && matchingItems.isEmpty()) grp.items else matchingItems)
-                } else null
+                val parentDirectAmt = directParentTx.sumOf { it.transaction.amount }
+
+                val allItems = if (parentDirectAmt > 0) {
+                    items + CategoryEarningsTrackingItem(
+                        category = parent.copy(
+                            nameEn = "${parent.nameEn} (General)",
+                            nameBn = "${parent.nameBn} (সাধারণ)"
+                        ),
+                        actualAmount = parentDirectAmt,
+                        transactions = directParentTx,
+                        percentageShare = if (totalFlowAmount > 0) (parentDirectAmt / totalFlowAmount) * 100.0 else 0.0
+                    )
+                } else items
+
+                val filteredItems = if (filterState.excludeZeroAmounts) {
+                    allItems.filter { it.actualAmount > 0.0 }
+                } else {
+                    allItems
+                }
+
+                val groupTotal = filteredItems.sumOf { it.actualAmount }
+                val groupShare = if (totalFlowAmount > 0) (groupTotal / totalFlowAmount) * 100.0 else 0.0
+
+                if (filterState.excludeZeroAmounts && groupTotal <= 0.0 && filteredItems.isEmpty()) {
+                    null
+                } else {
+                    CategoryGroupEarningsTracking(
+                        parentCategory = parent,
+                        groupNameEn = parent.nameEn,
+                        groupNameBn = parent.nameBn,
+                        items = filteredItems,
+                        percentageShare = groupShare
+                    )
+                }
             }
-        } else {
-            allGroupsWithOrphans
+
+            // Catch transactions in categories without a recognized parent group (Uncategorized)
+            val parentIds = parentCategories.map { it.id }.toSet()
+            val childIds = childCategories.map { it.id }.toSet()
+            val orphanTx = flowTransactions.filter { tx ->
+                val catId = tx.transaction.categoryId ?: tx.category?.id
+                catId == null || (catId !in parentIds && catId !in childIds)
+            }
+
+            val allGroupsWithOrphans = if (orphanTx.isNotEmpty()) {
+                val orphanAmt = orphanTx.sumOf { it.transaction.amount }
+                val orphanShare = if (totalFlowAmount > 0) (orphanAmt / totalFlowAmount) * 100.0 else 0.0
+                val orphanCat = Category(
+                    id = -999L,
+                    nameEn = "Uncategorized",
+                    nameBn = "শ্রেণীবিহীন",
+                    type = targetType,
+                    colorHex = "#94A3B8",
+                    iconName = "Category"
+                )
+                val orphanItems = listOf(
+                    CategoryEarningsTrackingItem(
+                        category = orphanCat,
+                        actualAmount = orphanAmt,
+                        transactions = orphanTx,
+                        percentageShare = orphanShare
+                    )
+                )
+                val filteredOrphanItems = if (filterState.excludeZeroAmounts) {
+                    orphanItems.filter { it.actualAmount > 0.0 }
+                } else {
+                    orphanItems
+                }
+                if (!filterState.excludeZeroAmounts || orphanAmt > 0.0) {
+                    groups + CategoryGroupEarningsTracking(
+                        parentCategory = orphanCat,
+                        groupNameEn = "Uncategorized",
+                        groupNameBn = "শ্রেণীবিহীন",
+                        items = filteredOrphanItems,
+                        percentageShare = orphanShare
+                    )
+                } else {
+                    groups
+                }
+            } else groups
+
+            // Filter by search query if any
+            val filtered = if (searchQuery.isNotBlank()) {
+                val q = searchQuery.trim().lowercase()
+                allGroupsWithOrphans.mapNotNull { grp ->
+                    val groupMatches = grp.groupNameEn.lowercase().contains(q) || grp.groupNameBn.lowercase().contains(q)
+                    val matchingItems = grp.items.filter { item ->
+                        item.category.localizedName(languageMode).lowercase().contains(q) ||
+                                item.category.nameEn.lowercase().contains(q) ||
+                                item.category.nameBn.lowercase().contains(q)
+                    }
+                    if (groupMatches || matchingItems.isNotEmpty()) {
+                        grp.copy(items = if (groupMatches && matchingItems.isEmpty()) grp.items else matchingItems)
+                    } else null
+                }
+            } else {
+                allGroupsWithOrphans
+            }
+
+            // Apply sorting
+            return when (sortOption) {
+                NetEarningsSort.AMOUNT_HIGH_TO_LOW -> filtered.sortedByDescending { it.totalAmount }
+                NetEarningsSort.AMOUNT_LOW_TO_HIGH -> filtered.sortedBy { it.totalAmount }
+                NetEarningsSort.PERCENTAGE_HIGH_TO_LOW -> filtered.sortedByDescending { it.percentageShare }
+                NetEarningsSort.NAME_A_TO_Z -> filtered.sortedBy { it.localizedGroupName(languageMode) }
+            }
         }
 
-        // Apply sorting
-        when (sortOption) {
-            NetEarningsSort.AMOUNT_HIGH_TO_LOW -> filtered.sortedByDescending { it.totalAmount }
-            NetEarningsSort.AMOUNT_LOW_TO_HIGH -> filtered.sortedBy { it.totalAmount }
-            NetEarningsSort.PERCENTAGE_HIGH_TO_LOW -> filtered.sortedByDescending { it.percentageShare }
-            NetEarningsSort.NAME_A_TO_Z -> filtered.sortedBy { it.localizedGroupName(languageMode) }
+        when (activeTabMode) {
+            "EXPENSE" -> computeGroupsFor(CategoryType.EXPENSE, TransactionType.EXPENSE, totalMonthExpense)
+            "INCOME" -> computeGroupsFor(CategoryType.INCOME, TransactionType.INCOME, totalMonthIncome)
+            else -> {
+                // ALL: In ALL mode, display Expense groups first, followed by Income groups!
+                val expGroups = computeGroupsFor(CategoryType.EXPENSE, TransactionType.EXPENSE, totalMonthExpense)
+                val incGroups = computeGroupsFor(CategoryType.INCOME, TransactionType.INCOME, totalMonthIncome)
+                expGroups + incGroups
+            }
         }
     }
 
@@ -668,20 +683,25 @@ fun ReportsScreen(
                         }
 
                         // Current active mode badge
+                        val badgeColor = when (activeTabMode) {
+                            "EXPENSE" -> CrimsonPink
+                            "INCOME" -> SolidIncome
+                            else -> SolidPrimary
+                        }
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = (if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome).copy(alpha = 0.12f),
-                            border = BorderStroke(0.5.dp, (if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome).copy(alpha = 0.3f))
+                            color = badgeColor.copy(alpha = 0.12f),
+                            border = BorderStroke(0.5.dp, badgeColor.copy(alpha = 0.3f))
                         ) {
                             Text(
-                                text = if (activeTabMode == "EXPENSE") {
-                                    if (languageMode == LanguageMode.BANGLA) "ব্যয় সমূহ" else "Expenses"
-                                } else {
-                                    if (languageMode == LanguageMode.BANGLA) "আয় সমূহ" else "Incomes"
+                                text = when (activeTabMode) {
+                                    "EXPENSE" -> if (languageMode == LanguageMode.BANGLA) "ব্যয় সমূহ" else "Expenses"
+                                    "INCOME" -> if (languageMode == LanguageMode.BANGLA) "আয় সমূহ" else "Incomes"
+                                    else -> if (languageMode == LanguageMode.BANGLA) "সকল (ব্যয় ও আয়)" else "All (Expense & Income)"
                                 },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome,
+                                color = badgeColor,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
@@ -1055,11 +1075,16 @@ fun ReportsScreen(
                         NetEarningsHierarchyView.ONLY_ITEMS -> {
                             // Flat list of all items
                             val allItems = categoryGroups.flatMap { it.items }.let { list ->
-                                when (sortOption) {
+                                val sorted = when (sortOption) {
                                     NetEarningsSort.AMOUNT_HIGH_TO_LOW -> list.sortedByDescending { it.actualAmount }
                                     NetEarningsSort.AMOUNT_LOW_TO_HIGH -> list.sortedBy { it.actualAmount }
                                     NetEarningsSort.PERCENTAGE_HIGH_TO_LOW -> list.sortedByDescending { it.percentageShare }
                                     NetEarningsSort.NAME_A_TO_Z -> list.sortedBy { it.category.localizedName(languageMode) }
+                                }
+                                if (activeTabMode == "ALL") {
+                                    sorted.sortedBy { if (it.category.type == CategoryType.EXPENSE) 0 else 1 }
+                                } else {
+                                    sorted
                                 }
                             }
                             items(allItems, key = { "item_${it.category.id}" }) { item ->
@@ -1131,12 +1156,14 @@ fun ReportsScreen(
                     ) {
                         FloatingActionButton(
                             onClick = {
-                                val defaultCat = categories.firstOrNull { it.type == targetType && it.parentId != null }
+                                val targetCatType = if (activeTabMode == "INCOME") CategoryType.INCOME else CategoryType.EXPENSE
+                                val defaultCat = categories.firstOrNull { it.type == targetCatType && it.parentId != null }
+                                    ?: categories.firstOrNull { it.type == targetCatType }
                                 if (defaultCat != null && onAddTransactionWithCategory != null) {
                                     onAddTransactionWithCategory(defaultCat)
                                 }
                             },
-                            containerColor = if (activeTabMode == "EXPENSE") Color(0xFF2563EB) else SolidIncome,
+                            containerColor = if (activeTabMode == "INCOME") SolidIncome else Color(0xFF2563EB),
                             contentColor = Color.White,
                             shape = CircleShape,
                             modifier = Modifier
@@ -1151,7 +1178,7 @@ fun ReportsScreen(
                         }
                     }
 
-                    // Segmented Toggle: [ Expenses (ব্যয়) | Incomes (আয়) ]
+                    // Segmented Toggle: [ Expenses (ব্যয়) | All (সকল) | Incomes (আয়) ]
                     Surface(
                         shape = RoundedCornerShape(24.dp),
                         color = MaterialTheme.colorScheme.surface,
@@ -1167,7 +1194,7 @@ fun ReportsScreen(
                                 .padding(3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Expense Button
+                            // 1. Expense Button (Left)
                             val isExpense = activeTabMode == "EXPENSE"
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
@@ -1188,19 +1215,52 @@ fun ReportsScreen(
                                         imageVector = Icons.AutoMirrored.Filled.TrendingDown,
                                         contentDescription = null,
                                         tint = if (isExpense) CrimsonPink else SlateText,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (Expenses)" else "Expenses",
-                                        fontSize = 13.sp,
+                                        text = if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expenses",
+                                        fontSize = 12.5.sp,
                                         fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
                                         color = if (isExpense) CrimsonPink else SlateText
                                     )
                                 }
                             }
 
-                            // Income Button
+                            // 2. All Button (Middle)
+                            val isAll = activeTabMode == "ALL"
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isAll) SolidPrimary.copy(alpha = 0.16f) else Color.Transparent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable { activeTabMode = "ALL" }
+                                    .testTag("net_earnings_mode_all")
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = null,
+                                        tint = if (isAll) SolidPrimary else SlateText,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "সকল (All)" else "All",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = if (isAll) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isAll) SolidPrimary else SlateText
+                                    )
+                                }
+                            }
+
+                            // 3. Income Button (Right)
                             val isIncome = activeTabMode == "INCOME"
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
@@ -1221,12 +1281,12 @@ fun ReportsScreen(
                                         imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                         contentDescription = null,
                                         tint = if (isIncome) SolidIncome else SlateText,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "আয় (Income)" else "Income",
-                                        fontSize = 13.sp,
+                                        text = if (languageMode == LanguageMode.BANGLA) "আয়" else "Income",
+                                        fontSize = 12.5.sp,
                                         fontWeight = if (isIncome) FontWeight.Bold else FontWeight.Medium,
                                         color = if (isIncome) SolidIncome else SlateText
                                     )
