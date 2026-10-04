@@ -248,7 +248,8 @@ fun SearchableAccountPickerDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                 modifier = Modifier.weight(1f)
                                             ) {
-                                                val isCustomOrDrawable = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
+                                                val ownIcon = IconHelper.resolveAccountOwnIcon(acc, groupItem.groupAccount)
+                                                val isCustomOrDrawable = IconHelper.isDrawableIcon(ownIcon) || IconHelper.isCustomIcon(ownIcon)
                                                 Surface(
                                                     shape = CircleShape,
                                                     color = if (isCustomOrDrawable) Color.Transparent else MaterialTheme.colorScheme.primaryContainer,
@@ -256,7 +257,9 @@ fun SearchableAccountPickerDialog(
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         IconHelper.AppIcon(
-                                                            iconName = acc.iconName,
+                                                            iconName = ownIcon,
+                                                            fallbackName = acc.localizedName(languageMode),
+                                                            contentDescription = acc.localizedName(languageMode),
                                                             modifier = Modifier.size(if (isCustomOrDrawable) 32.dp else 22.dp),
                                                             tint = MaterialTheme.colorScheme.primary
                                                         )

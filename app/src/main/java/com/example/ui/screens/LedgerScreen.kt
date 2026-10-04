@@ -2149,24 +2149,78 @@ internal fun TransactionRowItem(
             } else ""
 
             if (accountLine.isNotBlank()) {
-                val accountForIcon = effectiveAccount
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (txConfig.enableAccountIcons && accountForIcon != null) {
-                        IconHelper.AppIcon(
-                            iconName = accountForIcon.iconName,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(14.dp)
+                if (tx.type == TransactionType.TRANSFER && overrideSign == null && item.creditAccount != null && item.debitAccount != null) {
+                    val fromAcc = item.creditAccount
+                    val toAcc = item.debitAccount
+                    val fromIcon = IconHelper.resolveAccountOwnIcon(fromAcc)
+                    val toIcon = IconHelper.resolveAccountOwnIcon(toAcc)
+                    val fromIsImg = IconHelper.isDrawableIcon(fromIcon) || IconHelper.isCustomIcon(fromIcon)
+                    val toIsImg = IconHelper.isDrawableIcon(toIcon) || IconHelper.isCustomIcon(toIcon)
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (txConfig.enableAccountIcons) {
+                            IconHelper.AppIcon(
+                                iconName = fromIcon,
+                                fallbackName = fromAcc.localizedName(languageMode),
+                                contentDescription = fromAcc.localizedName(languageMode),
+                                tint = if (fromIsImg) Color.Unspecified else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                        }
+                        Text(
+                            text = fromAcc.localizedName(languageMode),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = " ➔ ",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+                        )
+                        if (txConfig.enableAccountIcons) {
+                            IconHelper.AppIcon(
+                                iconName = toIcon,
+                                fallbackName = toAcc.localizedName(languageMode),
+                                contentDescription = toAcc.localizedName(languageMode),
+                                tint = if (toIsImg) Color.Unspecified else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                        }
+                        Text(
+                            text = toAcc.localizedName(languageMode),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    Text(
-                        text = accountLine,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                } else {
+                    val accountForIcon = effectiveAccount
+                    val ownIcon = if (accountForIcon != null) IconHelper.resolveAccountOwnIcon(accountForIcon) else null
+                    val isImg = ownIcon != null && (IconHelper.isDrawableIcon(ownIcon) || IconHelper.isCustomIcon(ownIcon))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (txConfig.enableAccountIcons && accountForIcon != null && ownIcon != null) {
+                            IconHelper.AppIcon(
+                                iconName = ownIcon,
+                                fallbackName = accountForIcon.localizedName(languageMode),
+                                contentDescription = null,
+                                tint = if (isImg) Color.Unspecified else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                        Text(
+                            text = accountLine,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 

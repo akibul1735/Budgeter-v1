@@ -13,6 +13,7 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -2156,6 +2157,83 @@ object IconHelper {
             Color(colorLong)
         } catch (_: Exception) {
             fallback
+        }
+    }
+
+    /**
+     * Resolves an account's own icon rather than falling back to its parent account group icon.
+     * Guaranteed to return the account's brand, custom image, or personalized initials avatar.
+     */
+    fun resolveAccountOwnIcon(account: com.example.data.model.Account?, parentAccount: com.example.data.model.Account? = null): String {
+        if (account == null) return "AccountBalanceWallet"
+
+        // If account has an explicit custom icon, drawable bank/wallet logo, or initials:
+        if (isCustomIcon(account.iconName) ||
+            isDrawableIcon(account.iconName) ||
+            isInitialsIcon(account.iconName)
+        ) {
+            return account.iconName
+        }
+
+        val parentIcon = parentAccount?.iconName
+        val isGenericGroupIcon = account.iconName.isNullOrBlank() ||
+                account.iconName == "AccountBalance" ||
+                account.iconName == "Category" ||
+                account.iconName == "Folder" ||
+                account.iconName == "CreditCard" ||
+                account.iconName == "Wallet" ||
+                account.iconName == "MoneyOff" ||
+                (parentIcon != null && account.iconName.equals(parentIcon, ignoreCase = true))
+
+        if (!isGenericGroupIcon && isKnownIcon(account.iconName)) {
+            return account.iconName
+        }
+
+        // Resolve account's own icon from its specific account name (e.g. bKash, DBBL, Nagad, City Bank, or Initials)
+        val accountName = account.nameEn.ifBlank { account.nameBn }
+        val resolvedFromName = resolveBestIconOrInitials(accountName)
+        if (resolvedFromName.isNotBlank() && resolvedFromName != "Category" && resolvedFromName != "Folder" && resolvedFromName != "AccountBalance") {
+            return resolvedFromName
+        }
+
+        return if (isKnownIcon(account.iconName)) account.iconName else "AccountBalanceWallet"
+    }
+
+    /**
+     * Renders a badge for an account with its own icon and color, taking into account
+     * custom drawable logos, full surface images, and monogram initials.
+     */
+    @Composable
+    fun AccountBadge(
+        account: com.example.data.model.Account?,
+        parentAccount: com.example.data.model.Account? = null,
+        modifier: Modifier = Modifier,
+        size: androidx.compose.ui.unit.Dp = 28.dp,
+        iconSize: androidx.compose.ui.unit.Dp = 18.dp,
+        fallbackColor: Color = Color(0xFF2563EB),
+        languageMode: com.example.data.model.LanguageMode = com.example.data.model.LanguageMode.ENGLISH
+    ) {
+        val ownIcon = resolveAccountOwnIcon(account, parentAccount)
+        val isFullSurface = isFullSurfaceIcon(ownIcon)
+        val accColor = parseColorHex(account?.colorHex, fallbackColor)
+
+        Box(
+            modifier = modifier
+                .size(size)
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    if (isFullSurface) Color.Transparent
+                    else accColor.copy(alpha = 0.15f)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            AppIcon(
+                iconName = ownIcon,
+                fallbackName = account?.nameEn?.ifBlank { account.nameBn },
+                contentDescription = account?.nameEn,
+                tint = if (isFullSurface) Color.Unspecified else accColor,
+                modifier = Modifier.size(if (isFullSurface) size else iconSize)
+            )
         }
     }
 }

@@ -441,20 +441,24 @@ fun SplitTransactionDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
                             ) {
+                                val ownGlobalIcon = IconHelper.resolveAccountOwnIcon(selectedGlobalAcc)
+                                val isGlobalImg = IconHelper.isDrawableIcon(ownGlobalIcon) || IconHelper.isCustomIcon(ownGlobalIcon)
                                 Box(
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex).copy(alpha = 0.15f)
+                                            if (isGlobalImg) Color.Transparent
+                                            else if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex).copy(alpha = 0.15f)
                                             else MaterialTheme.colorScheme.surfaceVariant
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     IconHelper.AppIcon(
-                                        iconName = selectedGlobalAcc?.iconName ?: "AccountBalance",
-                                        modifier = Modifier.size(14.dp),
-                                        tint = if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex) else bannerTint
+                                        iconName = ownGlobalIcon,
+                                        fallbackName = selectedGlobalAcc?.localizedName(languageMode),
+                                        modifier = Modifier.size(if (isGlobalImg) 24.dp else 14.dp),
+                                        tint = if (isGlobalImg) Color.Unspecified else if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex) else bannerTint
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -1016,20 +1020,24 @@ fun SplitTransactionDialog(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     modifier = Modifier.weight(1f)
                                                 ) {
+                                                    val ownLineIcon = IconHelper.resolveAccountOwnIcon(lineAccount)
+                                                    val isLineImg = IconHelper.isDrawableIcon(ownLineIcon) || IconHelper.isCustomIcon(ownLineIcon)
                                                     Box(
                                                         modifier = Modifier
                                                             .size(20.dp)
                                                             .clip(CircleShape)
                                                             .background(
-                                                                if (lineAccount != null) IconHelper.parseColorHex(lineAccount.colorHex).copy(alpha = 0.15f)
+                                                                if (isLineImg) Color.Transparent
+                                                                else if (lineAccount != null) IconHelper.parseColorHex(lineAccount.colorHex).copy(alpha = 0.15f)
                                                                 else MaterialTheme.colorScheme.surfaceVariant
                                                             ),
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         IconHelper.AppIcon(
-                                                            iconName = lineAccount?.iconName ?: "AccountBalance",
-                                                            modifier = Modifier.size(12.dp),
-                                                            tint = if (lineAccount != null) IconHelper.parseColorHex(lineAccount.colorHex) else (if (isLineIncome) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            iconName = ownLineIcon,
+                                                            fallbackName = lineAccount?.localizedName(languageMode),
+                                                            modifier = Modifier.size(if (isLineImg) 20.dp else 12.dp),
+                                                            tint = if (isLineImg) Color.Unspecified else if (lineAccount != null) IconHelper.parseColorHex(lineAccount.colorHex) else (if (isLineIncome) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant)
                                                         )
                                                     }
                                                     Spacer(modifier = Modifier.width(5.dp))

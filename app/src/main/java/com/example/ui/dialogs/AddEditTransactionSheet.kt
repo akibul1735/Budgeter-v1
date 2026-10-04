@@ -80,6 +80,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
@@ -1828,22 +1829,48 @@ fun AddEditTransactionSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                // Left Amount Indicator: Transfer Icon for Transfer, or Dual Sign Selector Pill [ − ] [ + ] for Expense/Income
+                                // Left Amount Indicator: Transfer Icon with Both Accounts for Transfer, or Dual Sign Selector Pill [ − ] [ + ] for Expense/Income
                                 if (txType == TransactionType.TRANSFER) {
+                                    val fromAcc = selectedCreditAccount
+                                    val fromParent = if (fromAcc?.parentId != null) accounts.firstOrNull { it.id == fromAcc.parentId } else null
+                                    val toAcc = selectedDebitAccount
+                                    val toParent = if (toAcc?.parentId != null) accounts.firstOrNull { it.id == toAcc.parentId } else null
+
                                     Surface(
-                                        shape = CircleShape,
-                                        color = typePrimaryColor.copy(alpha = if (isDarkTheme) 0.22f else 0.15f),
-                                        border = BorderStroke(1.dp, typePrimaryColor.copy(alpha = if (isDarkTheme) 0.45f else 0.35f)),
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                        border = BorderStroke(1.dp, typePrimaryColor.copy(alpha = if (isDarkTheme) 0.5f else 0.4f)),
+                                        shadowElevation = 1.dp,
                                         modifier = Modifier
-                                            .size(32.dp)
+                                            .height(34.dp)
                                             .testTag("tx_transfer_indicator")
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            IconHelper.AccountBadge(
+                                                account = fromAcc,
+                                                parentAccount = fromParent,
+                                                size = 24.dp,
+                                                iconSize = 15.dp,
+                                                fallbackColor = SolidExpense,
+                                                languageMode = languageMode
+                                            )
                                             Icon(
-                                                imageVector = Icons.Default.SwapHoriz,
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                                 contentDescription = "Transfer",
                                                 tint = typePrimaryColor,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            IconHelper.AccountBadge(
+                                                account = toAcc,
+                                                parentAccount = toParent,
+                                                size = 24.dp,
+                                                iconSize = 15.dp,
+                                                fallbackColor = SolidIncome,
+                                                languageMode = languageMode
                                             )
                                         }
                                     }
@@ -2199,12 +2226,23 @@ fun AddEditTransactionSheet(
 
                                 OptionRowItem(
                                     icon = {
-                                        Icon(
-                                            imageVector = Icons.Default.CreditCard,
-                                            contentDescription = "Account",
-                                            tint = SolidPrimary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        if (activeAcc != null) {
+                                            IconHelper.AccountBadge(
+                                                account = activeAcc,
+                                                parentAccount = parentAcc,
+                                                size = 28.dp,
+                                                iconSize = 18.dp,
+                                                fallbackColor = typePrimaryColor,
+                                                languageMode = languageMode
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.CreditCard,
+                                                contentDescription = "Account",
+                                                tint = SolidPrimary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     },
                                     title = accTitle,
                                     subTitle = accSub,
@@ -2247,12 +2285,23 @@ fun AddEditTransactionSheet(
 
                                 OptionRowItem(
                                     icon = {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowUpward,
-                                            contentDescription = "From Account",
-                                            tint = SolidExpense,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        if (fromAcc != null) {
+                                            IconHelper.AccountBadge(
+                                                account = fromAcc,
+                                                parentAccount = fromParent,
+                                                size = 28.dp,
+                                                iconSize = 18.dp,
+                                                fallbackColor = SolidExpense,
+                                                languageMode = languageMode
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowUpward,
+                                                contentDescription = "From Account",
+                                                tint = SolidExpense,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     },
                                     title = fromTitle,
                                     subTitle = fromSub,
@@ -2314,12 +2363,23 @@ fun AddEditTransactionSheet(
 
                                 OptionRowItem(
                                     icon = {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDownward,
-                                            contentDescription = "To Account",
-                                            tint = SolidIncome,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        if (toAcc != null) {
+                                            IconHelper.AccountBadge(
+                                                account = toAcc,
+                                                parentAccount = toParent,
+                                                size = 28.dp,
+                                                iconSize = 18.dp,
+                                                fallbackColor = SolidIncome,
+                                                languageMode = languageMode
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDownward,
+                                                contentDescription = "To Account",
+                                                tint = SolidIncome,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     },
                                     title = toTitle,
                                     subTitle = toSub,
@@ -2490,12 +2550,23 @@ fun AddEditTransactionSheet(
 
                                             OptionRowItem(
                                                 icon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.CreditCard,
-                                                        contentDescription = "Fee Account",
-                                                        tint = SolidTransfer,
-                                                        modifier = Modifier.size(18.dp)
-                                                    )
+                                                    if (feeAcc != null) {
+                                                        IconHelper.AccountBadge(
+                                                            account = feeAcc,
+                                                            parentAccount = feeParent,
+                                                            size = 28.dp,
+                                                            iconSize = 18.dp,
+                                                            fallbackColor = SolidTransfer,
+                                                            languageMode = languageMode
+                                                        )
+                                                    } else {
+                                                        Icon(
+                                                            imageVector = Icons.Default.CreditCard,
+                                                            contentDescription = "Fee Account",
+                                                            tint = SolidTransfer,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
                                                 },
                                                 title = "${if (languageMode == LanguageMode.BANGLA) "ফি একাউন্ট: " else "Fee Account: "}$feeAccTitle",
                                                 subTitle = feeAccSub,

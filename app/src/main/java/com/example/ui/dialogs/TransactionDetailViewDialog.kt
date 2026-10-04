@@ -433,6 +433,17 @@ fun TransactionDetailViewDialog(
                                 title = if (languageMode == LanguageMode.BANGLA) "উৎস অ্যাকাউন্ট" else "From account",
                                 value = fromName,
                                 modifier = Modifier.weight(1f),
+                                leadingIcon = if (fromAcc != null) {
+                                    {
+                                        IconHelper.AccountBadge(
+                                            account = fromAcc,
+                                            size = 24.dp,
+                                            iconSize = 15.dp,
+                                            fallbackColor = SolidExpense,
+                                            languageMode = languageMode
+                                        )
+                                    }
+                                } else null,
                                 onClick = {
                                     if (onAccountClick != null && fromAcc != null) {
                                         onAccountClick(fromAcc)
@@ -449,6 +460,17 @@ fun TransactionDetailViewDialog(
                                 title = if (languageMode == LanguageMode.BANGLA) "গন্তব্য অ্যাকাউন্ট" else "To account",
                                 value = toName,
                                 modifier = Modifier.weight(1f),
+                                leadingIcon = if (toAcc != null) {
+                                    {
+                                        IconHelper.AccountBadge(
+                                            account = toAcc,
+                                            size = 24.dp,
+                                            iconSize = 15.dp,
+                                            fallbackColor = SolidIncome,
+                                            languageMode = languageMode
+                                        )
+                                    }
+                                } else null,
                                 onClick = {
                                     if (onAccountClick != null && toAcc != null) {
                                         onAccountClick(toAcc)
@@ -470,6 +492,17 @@ fun TransactionDetailViewDialog(
                                 title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট গ্রুপ" else "Account group",
                                 value = accountGroupName,
                                 modifier = Modifier.weight(1f),
+                                leadingIcon = if (parentAccount != null) {
+                                    {
+                                        IconHelper.AccountBadge(
+                                            account = parentAccount,
+                                            size = 24.dp,
+                                            iconSize = 15.dp,
+                                            fallbackColor = SolidPrimary,
+                                            languageMode = languageMode
+                                        )
+                                    }
+                                } else null,
                                 onClick = {
                                     handleSelectSimilar(
                                         accountGroupName,
@@ -482,6 +515,18 @@ fun TransactionDetailViewDialog(
                                 title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
                                 value = accountItemName,
                                 modifier = Modifier.weight(1f),
+                                leadingIcon = if (targetAccount != null) {
+                                    {
+                                        IconHelper.AccountBadge(
+                                            account = targetAccount,
+                                            parentAccount = parentAccount,
+                                            size = 24.dp,
+                                            iconSize = 15.dp,
+                                            fallbackColor = SolidPrimary,
+                                            languageMode = languageMode
+                                        )
+                                    }
+                                } else null,
                                 onClick = {
                                     if (onAccountClick != null && targetAccount != null) {
                                         onAccountClick(targetAccount)
@@ -782,6 +827,7 @@ private fun DetailGridCard(
     value: String,
     modifier: Modifier = Modifier,
     isMuted: Boolean = false,
+    leadingIcon: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
     Surface(
@@ -806,18 +852,27 @@ private fun DetailGridCard(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isMuted) {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (leadingIcon != null) {
+                    leadingIcon()
+                }
+                Text(
+                    text = value,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isMuted) {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
         }
     }
 }

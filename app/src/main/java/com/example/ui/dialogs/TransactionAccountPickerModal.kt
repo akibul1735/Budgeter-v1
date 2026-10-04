@@ -134,7 +134,7 @@ internal fun AccountPickerModalDialog(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                    modifier = Modifier.padding(vertical = 6.dp, horizontal = 8.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
@@ -143,13 +143,29 @@ internal fun AccountPickerModalDialog(
                                         color = SolidExpense,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Text(
-                                        text = fromAcc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "বাছাই করুন" else "Select"),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        if (fromAcc != null) {
+                                            IconHelper.AccountBadge(
+                                                account = fromAcc,
+                                                size = 20.dp,
+                                                iconSize = 13.dp,
+                                                fallbackColor = SolidExpense,
+                                                languageMode = languageMode
+                                            )
+                                            Spacer(modifier = Modifier.width(5.dp))
+                                        }
+                                        Text(
+                                            text = fromAcc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "বাছাই করুন" else "Select"),
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                             Surface(
@@ -162,7 +178,7 @@ internal fun AccountPickerModalDialog(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                    modifier = Modifier.padding(vertical = 6.dp, horizontal = 8.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
@@ -171,13 +187,29 @@ internal fun AccountPickerModalDialog(
                                         color = SolidIncome,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Text(
-                                        text = toAcc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "বাছাই করুন" else "Select"),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        if (toAcc != null) {
+                                            IconHelper.AccountBadge(
+                                                account = toAcc,
+                                                size = 20.dp,
+                                                iconSize = 13.dp,
+                                                fallbackColor = SolidIncome,
+                                                languageMode = languageMode
+                                            )
+                                            Spacer(modifier = Modifier.width(5.dp))
+                                        }
+                                        Text(
+                                            text = toAcc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "বাছাই করুন" else "Select"),
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -464,7 +496,8 @@ private fun Account3ColumnGrid(
                                 modifier = Modifier.size(52.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                val isCustomOrDrawable = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
+                                val ownIcon = IconHelper.resolveAccountOwnIcon(acc, parentGroup)
+                                val isCustomOrDrawable = IconHelper.isDrawableIcon(ownIcon) || IconHelper.isCustomIcon(ownIcon)
                                 Box(
                                     modifier = Modifier
                                         .size(40.dp)
@@ -473,7 +506,8 @@ private fun Account3ColumnGrid(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     IconHelper.AppIcon(
-                                        iconName = acc.iconName,
+                                        iconName = ownIcon,
+                                        fallbackName = acc.localizedName(languageMode),
                                         contentDescription = null,
                                         tint = if (isCustomOrDrawable) Color.Unspecified else Color.White,
                                         modifier = Modifier.size(if (isCustomOrDrawable) 40.dp else 26.dp)
@@ -635,12 +669,15 @@ private fun QuickCreateAccountDialog(
                 onClick = {
                     if (canSave) {
                         val parentAcc = if (createMode == 0) parentAccounts.firstOrNull { it.id == selectedParentId } else null
+                        val resolvedIcon = IconHelper.resolveBestIconOrInitials(nameEn.trim()).takeIf {
+                            it.isNotBlank() && it != "Category" && it != "Folder" && it != "AccountBalance"
+                        } ?: parentAcc?.iconName ?: (if (newGroupType == AccountType.ASSET) "AccountBalance" else "CreditCard")
                         val newAcc = Account(
                             nameEn = nameEn.trim(),
                             nameBn = nameBn.trim().ifEmpty { nameEn.trim() },
                             type = if (createMode == 0) (parentAcc?.type ?: AccountType.ASSET) else newGroupType,
                             parentId = if (createMode == 0) selectedParentId else null,
-                            iconName = parentAcc?.iconName ?: (if (newGroupType == AccountType.ASSET) "AccountBalance" else "CreditCard"),
+                            iconName = resolvedIcon,
                             colorHex = parentAcc?.colorHex ?: (if (newGroupType == AccountType.ASSET) "#2563EB" else "#DC2626")
                         )
                         onAccountCreated(newAcc)
