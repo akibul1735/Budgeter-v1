@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Account
 import com.example.data.model.Category
+import com.example.data.model.ItemImageCache
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
@@ -93,6 +94,7 @@ import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
 import com.example.util.IconHelper
+import com.example.util.ItemCacheHelper
 import com.example.util.LanguageHelper
 import androidx.compose.runtime.LaunchedEffect
 import com.example.util.TabExportHelper
@@ -115,6 +117,7 @@ data class AggregatedItem(
     val categoryId: Long? = null,
     val groupName: String? = null,
     val iconName: String? = null,
+    val colorHex: String? = null,
     val totalExpense: Double,
     val totalIncome: Double,
     val transactionCount: Int,
@@ -129,6 +132,7 @@ fun ItemsScreen(
     transactions: List<TransactionWithDetails>,
     categories: List<Category> = emptyList(),
     accounts: List<Account> = emptyList(),
+    itemImageCacheMap: Map<String, ItemImageCache> = emptyMap(),
     languageMode: LanguageMode,
     onOpenDrawer: () -> Unit = {},
     onTransactionClick: (Transaction) -> Unit,
@@ -240,7 +244,24 @@ fun ItemsScreen(
                 if (languageMode == LanguageMode.BANGLA) first.category?.nameBn ?: first.category?.nameEn else first.category?.nameEn
             } else null
 
-            val iconName = first.category?.iconName ?: if (tx.type == TransactionType.EXPENSE) "ShoppingBag" else "TrendingUp"
+            // Priority 1: Check custom cached icon for this item / payee
+            val customCached = ItemCacheHelper.findCachedIcon(itemName, itemImageCacheMap)
+                ?: (if (payee.isNotBlank()) ItemCacheHelper.findCachedIcon(payee, itemImageCacheMap) else null)
+            // Priority 2: In-App icon store auto match for the item name or payee
+            val matchedInApp = if (customCached == null) {
+                IconHelper.findMatchingInAppIcon(itemName)
+                    ?: (if (payee.isNotBlank()) IconHelper.findMatchingInAppIcon(payee) else null)
+            } else null
+
+            // Priority 3: Subcategory / Category icon or Transaction icon
+            val iconName = customCached?.iconKey?.takeIf { it.isNotBlank() }
+                ?: matchedInApp?.takeIf { it.isNotBlank() && it != "Category" && it != "Folder" }
+                ?: first.subCategory?.iconName?.takeIf { it.isNotBlank() && it != "Category" && it != "Folder" }
+                ?: first.category?.iconName?.takeIf { it.isNotBlank() && it != "Category" && it != "Folder" }
+                ?: ItemCacheHelper.resolveTransactionIconName(first, itemImageCacheMap)
+
+            val colorHex = first.subCategory?.colorHex?.takeIf { it.isNotBlank() }
+                ?: first.category?.colorHex?.takeIf { it.isNotBlank() }
 
             val expenseSum = txList.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
             val incomeSum = txList.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
@@ -255,6 +276,7 @@ fun ItemsScreen(
                 categoryId = first.category?.id,
                 groupName = groupName,
                 iconName = iconName,
+                colorHex = colorHex,
                 totalExpense = expenseSum,
                 totalIncome = incomeSum,
                 transactionCount = txList.size,
@@ -682,19 +704,51 @@ fun ItemsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${item.transactionCount} transactions • Avg: ${LanguageHelper.formatCurrency((item.totalExpense + item.totalIncome) / item.transactionCount, languageMode)}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val isImage = IconHelper.isDrawableIcon(item.iconName) || IconHelper.isCustomIcon(item.iconName)
+                        val isExp = item.type == TransactionType.EXPENSE
+                        val parsedItemColor = item.colorHex?.takeIf { it.isNotBlank() }?.let {
+                            try { IconHelper.parseColorHex(it) } catch (_: Exception) { null }
+                        } ?: if (isExp) CrimsonPink else SolidIncome
+
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(if (isImage) Color.Transparent else parsedItemColor.copy(alpha = 0.12f))
+                                .border(
+                                    width = 0.65.dp,
+                                    color = if (isImage) Color.Transparent else parsedItemColor.copy(alpha = 0.30f),
+                                    shape = RoundedCornerShape(7.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconHelper.AppIcon(
+                                iconName = item.iconName,
+                                fallbackName = item.name,
+                                contentDescription = item.name,
+                                tint = if (isImage) Color.Unspecified else parsedItemColor,
+                                modifier = Modifier.size(if (isImage) 32.dp else 22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${item.transactionCount} transactions • Avg: ${LanguageHelper.formatCurrency((item.totalExpense + item.totalIncome) / item.transactionCount, languageMode)}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ExportMenuButton(
@@ -805,7 +859,10 @@ private fun AggregatedItemCard(
     onClick: () -> Unit
 ) {
     val isExpense = item.type == TransactionType.EXPENSE
-    val typeColor = if (isExpense) CrimsonPink else SolidIncome
+    val isImage = IconHelper.isDrawableIcon(item.iconName) || IconHelper.isCustomIcon(item.iconName)
+    val parsedItemColor = item.colorHex?.takeIf { it.isNotBlank() }?.let {
+        try { IconHelper.parseColorHex(it) } catch (_: Exception) { null }
+    } ?: if (isExpense) CrimsonPink else SolidIncome
 
     val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     val cardBgColor = if (isLight) {
@@ -846,10 +903,10 @@ private fun AggregatedItemCard(
                     modifier = Modifier
                         .size(25.dp)
                         .clip(RoundedCornerShape(5.5.dp))
-                        .background(typeColor.copy(alpha = 0.10f))
+                        .background(if (isImage) Color.Transparent else parsedItemColor.copy(alpha = 0.10f))
                         .border(
                             width = 0.65.dp,
-                            color = typeColor.copy(alpha = 0.28f),
+                            color = if (isImage) Color.Transparent else parsedItemColor.copy(alpha = 0.28f),
                             shape = RoundedCornerShape(5.5.dp)
                         ),
                     contentAlignment = Alignment.Center
@@ -858,8 +915,8 @@ private fun AggregatedItemCard(
                         iconName = item.iconName,
                         fallbackName = item.name,
                         contentDescription = item.name,
-                        tint = typeColor,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (isImage) Color.Unspecified else parsedItemColor,
+                        modifier = Modifier.size(if (isImage) 25.dp else 20.dp)
                     )
                 }
 

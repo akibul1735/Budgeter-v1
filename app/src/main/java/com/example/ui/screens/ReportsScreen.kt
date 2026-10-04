@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
+import com.example.data.model.ItemImageCache
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
@@ -107,6 +108,7 @@ import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
 import com.example.util.IconHelper
+import com.example.util.ItemCacheHelper
 import com.example.util.LanguageHelper
 import com.example.util.NetEarningsExportGroup
 import com.example.util.NetEarningsExportItem
@@ -169,6 +171,7 @@ fun ReportsScreen(
     transactions: List<TransactionWithDetails> = emptyList(),
     categories: List<Category> = emptyList(),
     allAccounts: List<Account> = emptyList(),
+    itemImageCacheMap: Map<String, ItemImageCache> = emptyMap(),
     languageMode: LanguageMode,
     onOpenDrawer: () -> Unit = {},
     onAddTransactionWithCategory: ((Category) -> Unit)? = null,
@@ -1423,13 +1426,13 @@ private fun NetEarningsGroupSection(
         }
     }
 
-    val groupIcon = remember(group.parentCategory?.iconName) {
-        if (group.parentCategory?.iconName != null) {
-            IconHelper.getIconByName(group.parentCategory.iconName)
-        } else {
-            IconHelper.getIconByName("Folder")
-        }
+    val groupIconName = remember(group.parentCategory?.iconName, group.groupNameEn) {
+        group.parentCategory?.iconName?.takeIf { it.isNotBlank() && it != "Category" && it != "Folder" }
+            ?: IconHelper.findMatchingInAppIcon(group.groupNameEn)
+            ?: group.parentCategory?.iconName
+            ?: "Folder"
     }
+    val isGroupImg = IconHelper.isDrawableIcon(groupIconName) || IconHelper.isCustomIcon(groupIconName)
 
     val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     val containerBgColor = if (isLight) {
@@ -1487,20 +1490,20 @@ private fun NetEarningsGroupSection(
                             modifier = Modifier
                                 .size(28.dp)
                                 .clip(RoundedCornerShape(6.5.dp))
-                                .background(groupColor.copy(alpha = 0.10f))
+                                .background(if (isGroupImg) Color.Transparent else groupColor.copy(alpha = 0.10f))
                                 .border(
                                     width = 0.65.dp,
-                                    color = groupColor.copy(alpha = 0.30f),
+                                    color = if (isGroupImg) Color.Transparent else groupColor.copy(alpha = 0.30f),
                                     shape = RoundedCornerShape(6.5.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             IconHelper.AppIcon(
-                                iconName = group.parentCategory?.iconName,
+                                iconName = groupIconName,
                                 fallbackName = group.groupNameEn,
                                 contentDescription = group.groupNameEn,
-                                tint = groupColor,
-                                modifier = Modifier.size(22.dp)
+                                tint = if (isGroupImg) Color.Unspecified else groupColor,
+                                modifier = Modifier.size(if (isGroupImg) 28.dp else 22.dp)
                             )
                         }
 
@@ -1613,6 +1616,14 @@ private fun NetEarningsCategoryRow(
         }
     }
 
+    val catIconName = remember(item.category.iconName, item.category.nameEn) {
+        item.category.iconName.takeIf { !it.isNullOrBlank() && it != "Category" && it != "Folder" }
+            ?: IconHelper.findMatchingInAppIcon(item.category.nameEn)
+            ?: item.category.iconName
+            ?: "Category"
+    }
+    val isCatImg = IconHelper.isDrawableIcon(catIconName) || IconHelper.isCustomIcon(catIconName)
+
     val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     val cardBgColor = if (isLight) {
         MaterialTheme.colorScheme.surface
@@ -1653,20 +1664,20 @@ private fun NetEarningsCategoryRow(
                     modifier = Modifier
                         .size(25.dp)
                         .clip(RoundedCornerShape(5.5.dp))
-                        .background(parsedColor.copy(alpha = 0.10f))
+                        .background(if (isCatImg) Color.Transparent else parsedColor.copy(alpha = 0.10f))
                         .border(
                             width = 0.65.dp,
-                            color = parsedColor.copy(alpha = 0.28f),
+                            color = if (isCatImg) Color.Transparent else parsedColor.copy(alpha = 0.28f),
                             shape = RoundedCornerShape(5.5.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     IconHelper.AppIcon(
-                        iconName = item.category.iconName,
+                        iconName = catIconName,
                         fallbackName = item.category.nameEn,
                         contentDescription = item.category.nameEn,
-                        tint = parsedColor,
-                        modifier = Modifier.size(20.dp)
+                        tint = if (isCatImg) Color.Unspecified else parsedColor,
+                        modifier = Modifier.size(if (isCatImg) 25.dp else 20.dp)
                     )
                 }
 
@@ -1747,6 +1758,14 @@ private fun NetEarningsCategoryTransactionsDetailDialog(
         }
     }
 
+    val catIconName = remember(item.category.iconName, item.category.nameEn) {
+        item.category.iconName.takeIf { !it.isNullOrBlank() && it != "Category" && it != "Folder" }
+            ?: IconHelper.findMatchingInAppIcon(item.category.nameEn)
+            ?: item.category.iconName
+            ?: "Category"
+    }
+    val isCatImg = IconHelper.isDrawableIcon(catIconName) || IconHelper.isCustomIcon(catIconName)
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -1773,15 +1792,20 @@ private fun NetEarningsCategoryTransactionsDetailDialog(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(parsedColor.copy(alpha = 0.15f)),
+                                .background(if (isCatImg) Color.Transparent else parsedColor.copy(alpha = 0.15f))
+                                .border(
+                                    width = 0.65.dp,
+                                    color = if (isCatImg) Color.Transparent else parsedColor.copy(alpha = 0.30f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             IconHelper.AppIcon(
-                                iconName = item.category.iconName,
+                                iconName = catIconName,
                                 fallbackName = item.category.nameEn,
                                 contentDescription = item.category.nameEn,
-                                tint = parsedColor,
-                                modifier = Modifier.size(20.dp)
+                                tint = if (isCatImg) Color.Unspecified else parsedColor,
+                                modifier = Modifier.size(if (isCatImg) 34.dp else 22.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
