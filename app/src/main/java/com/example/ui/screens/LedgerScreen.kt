@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.example.ui.theme.rememberFluidFlingBehavior
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -217,6 +219,8 @@ fun LedgerScreen(
 ) {
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    val txPrefs = remember { TransactionPreferences.getInstance(context) }
+    val txConfig by txPrefs.config.collectAsState()
 
     // Change Icon States
     var itemForIconChange by remember { mutableStateOf<TransactionWithDetails?>(null) }
@@ -958,8 +962,9 @@ fun LedgerScreen(
                 .fillMaxSize()
                 .weight(1f)
                 .testTag("ledger_screen"),
+            flingBehavior = rememberFluidFlingBehavior(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             // Search & Filter Header (when not in selection mode)
             if (!isSelectionMode) {
@@ -1167,55 +1172,70 @@ fun LedgerScreen(
                     }
                 }
             } else {
-                // Render Date Grouped Transactions with optimized items and contentTypes
-                items(
-                    items = groupedByDay,
-                    key = { "day_${it.dayEpochMs}" },
-                    contentType = { "day_group" }
-                ) { dayGroup ->
+                // Render Date Grouped Transactions with flattened, fully-recyclable items
+                groupedByDay.forEach { dayGroup ->
                     val dayEpochMs = dayGroup.dayEpochMs
                     val dayTxList = dayGroup.transactions
                     val dayNet = dayGroup.dayNet
+                    val totalCount = dayTxList.size
 
-                    // Day Header
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp, bottom = 2.dp),
-                        color = Color.Transparent
+                    // Day Header Item
+                    item(
+                        key = "day_hdr_$dayEpochMs",
+                        contentType = "day_header"
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp, bottom = 4.dp),
+                            color = Color.Transparent
                         ) {
-                            Text(
-                                text = DateUtils.formatDayHeader(dayEpochMs, languageMode),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = DateUtils.formatDayHeader(dayEpochMs, languageMode),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
 
-                            val netSign = if (dayNet > 0) "+" else if (dayNet < 0) "-" else ""
-                            val netColor = if (dayNet > 0) SolidIncome else if (dayNet < 0) SolidExpense else MaterialTheme.colorScheme.outline
-                            Text(
-                                text = "$netSign${LanguageHelper.formatCurrency(kotlin.math.abs(dayNet), languageMode)}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = netColor
-                            )
+                                val netSign = if (dayNet > 0) "+" else if (dayNet < 0) "-" else ""
+                                val netColor = if (dayNet > 0) SolidIncome else if (dayNet < 0) SolidExpense else MaterialTheme.colorScheme.outline
+                                Text(
+                                    text = "$netSign${LanguageHelper.formatCurrency(kotlin.math.abs(dayNet), languageMode)}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = netColor
+                                )
+                            }
                         }
                     }
 
-                    // Day's Transaction Items Container
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            dayTxList.forEachIndexed { index, item ->
+                    // Flattened Individual Recyclable Transaction Rows
+                    itemsIndexed(
+                        items = dayTxList,
+                        key = { _, item -> "tx_${item.transaction.id}" },
+                        contentType = { _, item -> if (item.transaction.type == TransactionType.TRANSFER) "transfer_row" else "tx_row" }
+                    ) { index, item ->
+                        val isFirst = index == 0
+                        val isLast = index == totalCount - 1
+                        val shape = when {
+                            isFirst && isLast -> RoundedCornerShape(14.dp)
+                            isFirst -> RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+                            isLast -> RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = 14.dp, bottomEnd = 14.dp)
+                            else -> RoundedCornerShape(0.dp)
+                        }
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = shape,
+                            color = MaterialTheme.colorScheme.surface,
+                            shadowElevation = if (isFirst || isLast) 1.dp else 0.dp
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
                                 val tx = item.transaction
                                 val isSelected = selectedTransactionIds.contains(tx.id)
 
@@ -1237,6 +1257,7 @@ fun LedgerScreen(
                                             item = item,
                                             languageMode = languageMode,
                                             itemImageCacheMap = itemImageCacheMap,
+                                            txConfig = txConfig,
                                             rowStyle = rowStyle,
                                             isSelected = isSelected,
                                             isSelectionMode = isSelectionMode,
@@ -1267,8 +1288,8 @@ fun LedgerScreen(
                                     if (showSourceLeg && showDestLeg) {
                                         HorizontalDivider(
                                             modifier = Modifier.padding(start = 56.dp, end = 12.dp),
-                                            thickness = 1.dp,
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+                                            thickness = 0.8.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                         )
                                     }
 
@@ -1285,6 +1306,7 @@ fun LedgerScreen(
                                             item = item,
                                             languageMode = languageMode,
                                             itemImageCacheMap = itemImageCacheMap,
+                                            txConfig = txConfig,
                                             rowStyle = rowStyle,
                                             isSelected = isSelected,
                                             isSelectionMode = isSelectionMode,
@@ -1334,6 +1356,7 @@ fun LedgerScreen(
                                         item = item,
                                         languageMode = languageMode,
                                         itemImageCacheMap = itemImageCacheMap,
+                                        txConfig = txConfig,
                                         rowStyle = rowStyle,
                                         isSelected = isSelected,
                                         isSelectionMode = isSelectionMode,
@@ -1365,11 +1388,11 @@ fun LedgerScreen(
                                     )
                                 }
 
-                                if (index < dayTxList.size - 1) {
+                                if (!isLast) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(start = 56.dp, end = 12.dp),
-                                        thickness = 1.dp,
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+                                        thickness = 0.8.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                     )
                                 }
                             }
@@ -1720,6 +1743,7 @@ internal fun TransactionRowItem(
     item: TransactionWithDetails,
     languageMode: LanguageMode,
     itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
+    txConfig: com.example.util.TransactionConfig = com.example.util.TransactionConfig(),
     rowStyle: LedgerRowStyle = LedgerRowStyle.STANDARD,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
@@ -1735,9 +1759,6 @@ internal fun TransactionRowItem(
     onIconClick: (() -> Unit)? = null
 ) {
     val tx = item.transaction
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val txPrefs = remember { TransactionPreferences.getInstance(context) }
-    val txConfig by txPrefs.config.collectAsState()
 
     val effectiveAccount = targetAccount ?: when (tx.type) {
         TransactionType.EXPENSE -> item.creditAccount ?: item.debitAccount

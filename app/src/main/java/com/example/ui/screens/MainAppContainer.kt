@@ -658,7 +658,7 @@ fun MainAppContainer(
                                 HorizontalPager(
                                     state = pagerState,
                                     key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
-                                    beyondViewportPageCount = 1,
+                                    beyondViewportPageCount = 0,
                                     userScrollEnabled = !isTimelineActive,
                                     flingBehavior = rememberFluidPagerFlingBehavior(pagerState = pagerState),
                                     modifier = Modifier.fillMaxSize()
@@ -671,8 +671,8 @@ fun MainAppContainer(
                                             .fillMaxSize()
                                             .graphicsLayer {
                                                 val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-                                                alpha = (1f - (pageOffset * 0.2f)).coerceIn(0.8f, 1f)
-                                                val pageScale = (1f - (pageOffset * 0.035f)).coerceIn(0.965f, 1f)
+                                                alpha = (1f - (pageOffset * 0.15f)).coerceIn(0.85f, 1f)
+                                                val pageScale = (1f - (pageOffset * 0.02f)).coerceIn(0.98f, 1f)
                                                 scaleX = pageScale
                                                 scaleY = pageScale
                                             }
