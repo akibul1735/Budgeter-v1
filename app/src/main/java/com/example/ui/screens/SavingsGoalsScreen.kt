@@ -38,12 +38,20 @@ import com.example.data.model.SavingsGoalWithDetails
 import com.example.data.model.SavingsSummary
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.withSearchQuery
+import com.example.ui.components.filter.specs.SavingsGoalsFilterSpec
 import com.example.ui.dialogs.AddEditSavingsGoalDialog
 import com.example.ui.dialogs.QuickAllocateGoalDialog
 import androidx.compose.ui.platform.LocalContext
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import com.example.util.TabFilterPreferences
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -69,37 +77,38 @@ fun SavingsGoalsScreen(
     onOpenDrawer: () -> Unit
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    val filterStore = remember { FilterStore.getInstance(context) }
+    val savingsGoalsSpec = remember { SavingsGoalsFilterSpec.createSpec() }
 
-    var selectedFilter by remember { mutableStateOf(tabFilterPrefs.savingsGoalsFilter) }
+    var filterState by remember {
+        val loaded = filterStore.loadFilterState(SavingsGoalsFilterSpec.SPEC_KEY)
+        val initial = if (loaded.isEmpty()) {
+            mapOf(
+                SavingsGoalsFilterSpec.FIELD_STATUS to FilterValue.ToggleGroup(setOf(SavingsGoalsFilterSpec.STATUS_ALL)),
+                SavingsGoalsFilterSpec.FIELD_SORT to FilterValue.Sort(SavingsGoalsFilterSpec.SORT_DEFAULT)
+            )
+        } else {
+            loaded
+        }
+        mutableStateOf(initial)
+    }
+
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(SavingsGoalsFilterSpec.SPEC_KEY, newState)
+    }
+
+    val selectedFilter = remember(filterState) { SavingsGoalsFilterSpec.getStatus(filterState) }
+    val searchQuery = remember(filterState) { SavingsGoalsFilterSpec.getSearchQuery(filterState) }
+    var showFilterDialog by remember { mutableStateOf(false) }
+
     var goalToEdit by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var goalToAllocate by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var goalToDelete by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var showAddGoalDialog by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.savingsGoalsSearchQuery) }
 
-    LaunchedEffect(selectedFilter, searchQuery) {
-        tabFilterPrefs.savingsGoalsFilter = selectedFilter
-        tabFilterPrefs.savingsGoalsSearchQuery = searchQuery
-    }
-
-    val filteredGoals = remember(goalsWithDetails, selectedFilter, searchQuery) {
-        val byFilter = when (selectedFilter) {
-            GoalFilterType.ALL -> goalsWithDetails
-            GoalFilterType.ACTIVE -> goalsWithDetails.filter { !it.goal.isCompleted }
-            GoalFilterType.COMPLETED -> goalsWithDetails.filter { it.goal.isCompleted }
-            GoalFilterType.DEFICIT -> goalsWithDetails.filter { it.hasDeficit }
-        }
-        val q = searchQuery.trim()
-        if (q.isEmpty()) {
-            byFilter
-        } else {
-            byFilter.filter {
-                it.goal.name.contains(q, ignoreCase = true) ||
-                it.goal.nameBn.contains(q, ignoreCase = true) ||
-                it.goal.notes.contains(q, ignoreCase = true)
-            }
-        }
+    val filteredGoals = remember(goalsWithDetails, filterState) {
+        SavingsGoalsFilterSpec.filterGoals(goalsWithDetails, filterState)
     }
 
     val deficitGoalsCount = remember(goalsWithDetails) {
@@ -136,9 +145,13 @@ fun SavingsGoalsScreen(
             title = LanguageHelper.getString("savings_goals", languageMode),
             onOpenDrawer = onOpenDrawer,
             searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it },
+            onSearchQueryChange = { updateFilterState(filterState.withSearchQuery(it)) },
             showSearchButton = true,
-            searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য খুঁজুন..." else "Search savings goals..."
+            searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য খুঁজুন..." else "Search savings goals...",
+            showFilterButton = true,
+            isFilterActive = savingsGoalsSpec.isActive(filterState),
+            activeFilterCount = savingsGoalsSpec.activeFilterCount(filterState),
+            onFilterClick = { showFilterDialog = true }
         )
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -164,7 +177,11 @@ fun SavingsGoalsScreen(
                             totalDeficit = savingsSummary.totalDeficit,
                             deficitCount = deficitGoalsCount,
                             languageMode = languageMode,
-                            onViewDeficits = { selectedFilter = GoalFilterType.DEFICIT }
+                            onViewDeficits = {
+                                val newMap = filterState.toMutableMap()
+                                newMap[SavingsGoalsFilterSpec.FIELD_STATUS] = FilterValue.ToggleGroup(setOf(SavingsGoalsFilterSpec.STATUS_DEFICIT))
+                                updateFilterState(newMap)
+                            }
                         )
                     }
                 }
@@ -173,12 +190,35 @@ fun SavingsGoalsScreen(
                 item {
                     GoalFilterRow(
                         selectedFilter = selectedFilter,
-                        onSelectFilter = { selectedFilter = it },
+                        onSelectFilter = { filterType ->
+                            val statusId = when (filterType) {
+                                GoalFilterType.ALL -> SavingsGoalsFilterSpec.STATUS_ALL
+                                GoalFilterType.ACTIVE -> SavingsGoalsFilterSpec.STATUS_ACTIVE
+                                GoalFilterType.COMPLETED -> SavingsGoalsFilterSpec.STATUS_COMPLETED
+                                GoalFilterType.DEFICIT -> SavingsGoalsFilterSpec.STATUS_DEFICIT
+                            }
+                            val newMap = filterState.toMutableMap()
+                            newMap[SavingsGoalsFilterSpec.FIELD_STATUS] = FilterValue.ToggleGroup(setOf(statusId))
+                            updateFilterState(newMap)
+                        },
                         totalCount = goalsWithDetails.size,
                         activeCount = savingsSummary.activeGoalsCount,
                         completedCount = savingsSummary.completedGoalsCount,
                         deficitCount = deficitGoalsCount,
                         languageMode = languageMode
+                    )
+                }
+
+                // Unified Active Filter Bar
+                item {
+                    UnifiedActiveFilterBar(
+                        spec = savingsGoalsSpec,
+                        state = filterState,
+                        onFilterChange = updateFilterState,
+                        onOpenFilterDialog = { showFilterDialog = true },
+                        accentColor = Color(0xFF10B981),
+                        languageMode = languageMode,
+                        modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
 
@@ -223,6 +263,23 @@ fun SavingsGoalsScreen(
                 )
             }
         }
+    }
+
+    // Unified Filter Dialog
+    if (showFilterDialog) {
+        UnifiedFilterDialog(
+            spec = savingsGoalsSpec,
+            initialState = filterState,
+            languageMode = languageMode,
+            onApply = { newState ->
+                updateFilterState(newState)
+                showFilterDialog = false
+            },
+            onDismiss = { showFilterDialog = false },
+            countProvider = { candidateState ->
+                SavingsGoalsFilterSpec.filterGoals(goalsWithDetails, candidateState).size
+            }
+        )
     }
 
     // Add Goal Dialog

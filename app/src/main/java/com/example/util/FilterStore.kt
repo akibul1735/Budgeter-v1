@@ -2,6 +2,7 @@ package com.example.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.example.ui.components.filter.FilterState
 import com.example.ui.components.filter.FilterValue
 import org.json.JSONArray
@@ -19,6 +20,8 @@ class FilterStore private constructor(context: Context) {
         private const val PREFS_NAME = "unified_filter_store"
         const val KEY_MIGRATED_LABELS = "migrated_labels_v1"
         const val KEY_MIGRATED_CATEGORIES = "migrated_categories_v1"
+        const val KEY_MIGRATED_WISHLIST = "migrated_wishlist_v1"
+        const val KEY_MIGRATED_SAVINGS_GOALS = "migrated_savings_goals_v1"
 
         val VALID_LABELS_DATE_PRESETS = setOf(
             "this_month", "last_month", "this_week", "today", "yesterday",
@@ -111,6 +114,47 @@ class FilterStore private constructor(context: Context) {
             return if (id != null && id in VALID_CATEGORIES_SORTS) id else DEFAULT_CATEGORIES_SORT
         }
 
+        val VALID_WISHLIST_TABS = setOf(
+            com.example.ui.components.filter.specs.WishlistFilterSpec.TAB_ACTIVE,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.TAB_NEXT_MONTH,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.TAB_PLANNED_MONTHS,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.TAB_SAVINGS_GOALS,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.TAB_PURCHASED,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.TAB_ALL
+        )
+        const val DEFAULT_WISHLIST_TAB = com.example.ui.components.filter.specs.WishlistFilterSpec.TAB_ACTIVE
+
+        val VALID_WISHLIST_SORTS = setOf(
+            com.example.ui.components.filter.specs.WishlistFilterSpec.SORT_PRIORITY,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.SORT_AMOUNT_DESC,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.SORT_AMOUNT_ASC,
+            com.example.ui.components.filter.specs.WishlistFilterSpec.SORT_RECENT
+        )
+        const val DEFAULT_WISHLIST_SORT = com.example.ui.components.filter.specs.WishlistFilterSpec.SORT_PRIORITY
+
+        fun mapWishlistTab(tab: com.example.ui.screens.WishlistFilterTab?): String {
+            val id = tab?.name?.lowercase()
+            return if (id != null && id in VALID_WISHLIST_TABS) id else DEFAULT_WISHLIST_TAB
+        }
+
+        fun mapWishlistSort(sort: com.example.ui.screens.WishlistSort?): String {
+            val id = sort?.name?.lowercase()
+            return if (id != null && id in VALID_WISHLIST_SORTS) id else DEFAULT_WISHLIST_SORT
+        }
+
+        val VALID_SAVINGS_GOALS_STATUSES = setOf(
+            com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.STATUS_ALL,
+            com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.STATUS_ACTIVE,
+            com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.STATUS_COMPLETED,
+            com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.STATUS_DEFICIT
+        )
+        const val DEFAULT_SAVINGS_GOALS_STATUS = com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.STATUS_ALL
+
+        fun mapSavingsGoalsStatus(filter: com.example.ui.screens.GoalFilterType?): String {
+            val id = filter?.name?.lowercase()
+            return if (id != null && id in VALID_SAVINGS_GOALS_STATUSES) id else DEFAULT_SAVINGS_GOALS_STATUS
+        }
+
         @Volatile
         private var instance: FilterStore? = null
 
@@ -118,6 +162,10 @@ class FilterStore private constructor(context: Context) {
             return instance ?: synchronized(this) {
                 instance ?: FilterStore(context.applicationContext).also { instance = it }
             }
+        }
+
+        fun resetInstanceForTesting() {
+            instance = null
         }
     }
 
@@ -308,21 +356,23 @@ class FilterStore private constructor(context: Context) {
         prefs.edit()
             .remove(KEY_MIGRATED_LABELS)
             .remove(KEY_MIGRATED_CATEGORIES)
+            .remove(KEY_MIGRATED_WISHLIST)
+            .remove(KEY_MIGRATED_SAVINGS_GOALS)
             .remove("migrated_tab_filter_preferences_v1")
             .commit()
     }
 
     /**
      * One-time migration hook from TabFilterPreferences.
-     * Uses separate per-screen flags (migrated_labels_v1, migrated_categories_v1).
-     * Existing users who already have the old flag set still get their Labels and Categories
-     * values migrated, as long as no filter_labels / filter_categories state exists yet.
+     * Uses separate per-screen flags (migrated_labels_v1, migrated_categories_v1, migrated_wishlist_v1, migrated_savings_goals_v1).
+     * Existing users who already have the old flag set still get their values migrated,
+     * as long as no filter state exists yet.
      * Existing FilterStore state is never overwritten.
      * Search values are stripped so a stale search query is never persisted.
      */
     fun migrateFromTabFilterPreferences(tabFilterPrefs: TabFilterPreferences) {
+        // 1. Migrate LabelsScreen saved preferences with per-screen flag
         try {
-            // 1. Migrate LabelsScreen saved preferences with per-screen flag
             if (!prefs.getBoolean(KEY_MIGRATED_LABELS, false)) {
                 val labelsKey = "filter_${com.example.ui.components.filter.specs.LabelsFilterSpec.SPEC_KEY}"
                 if (!prefs.contains(labelsKey)) {
@@ -343,8 +393,13 @@ class FilterStore private constructor(context: Context) {
                 }
                 prefs.edit().putBoolean(KEY_MIGRATED_LABELS, true).commit()
             }
+        } catch (e: Exception) {
+            System.err.println("Labels migration failed: $e")
+            e.printStackTrace()
+        }
 
-            // 2. Migrate CategoriesScreen saved preferences with per-screen flag
+        // 2. Migrate CategoriesScreen saved preferences with per-screen flag
+        try {
             if (!prefs.getBoolean(KEY_MIGRATED_CATEGORIES, false)) {
                 val categoriesKey = "filter_${com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY}"
                 if (!prefs.contains(categoriesKey)) {
@@ -361,8 +416,43 @@ class FilterStore private constructor(context: Context) {
                 }
                 prefs.edit().putBoolean(KEY_MIGRATED_CATEGORIES, true).commit()
             }
-        } catch (_: Exception) {
-            // Graceful fallback
+        } catch (e: Exception) {
+            Log.e("FilterStore", "Categories migration failed", e)
+        }
+
+        // 3. Migrate WishlistScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_WISHLIST, false)) {
+                val wishlistKey = "filter_${com.example.ui.components.filter.specs.WishlistFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(wishlistKey)) {
+                    val wishlistState = mutableMapOf<String, FilterValue>()
+                    val tabId = mapWishlistTab(tabFilterPrefs.wishlistTab)
+                    wishlistState[com.example.ui.components.filter.specs.WishlistFilterSpec.FIELD_TAB] = FilterValue.ToggleGroup(setOf(tabId))
+                    val sortId = mapWishlistSort(tabFilterPrefs.wishlistSort)
+                    wishlistState[com.example.ui.components.filter.specs.WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(sortId)
+                    saveFilterState(com.example.ui.components.filter.specs.WishlistFilterSpec.SPEC_KEY, wishlistState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_WISHLIST, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Wishlist migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 4. Migrate SavingsGoalsScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_SAVINGS_GOALS, false)) {
+                val goalsKey = "filter_${com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(goalsKey)) {
+                    val goalsState = mutableMapOf<String, FilterValue>()
+                    val statusId = mapSavingsGoalsStatus(tabFilterPrefs.savingsGoalsFilter)
+                    goalsState[com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.FIELD_STATUS] = FilterValue.ToggleGroup(setOf(statusId))
+                    saveFilterState(com.example.ui.components.filter.specs.SavingsGoalsFilterSpec.SPEC_KEY, goalsState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_SAVINGS_GOALS, true).commit()
+            }
+        } catch (e: Exception) {
+            Log.e("FilterStore", "Savings Goals migration failed", e)
         }
     }
 }

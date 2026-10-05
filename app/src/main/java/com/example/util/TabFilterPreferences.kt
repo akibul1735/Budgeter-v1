@@ -1046,5 +1046,9 @@ class TabFilterPreferences private constructor(context: Context) {
                 instance ?: TabFilterPreferences(context.applicationContext).also { instance = it }
             }
         }
+
+        fun resetInstanceForTesting() {
+            instance = null
+        }
     }
 }

@@ -13,10 +13,21 @@ import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.CategoriesFilterSpec
 import com.example.ui.components.filter.specs.LabelsFilterSpec
+import com.example.ui.components.filter.specs.SavingsGoalsFilterSpec
+import com.example.ui.components.filter.specs.WishlistFilterSpec
 import com.example.ui.components.filter.toggleCondition
 import com.example.ui.components.filter.withSearchQuery
 import com.example.ui.screens.CategorySortFilter
 import com.example.ui.screens.CategoryViewHierarchyFilter
+import com.example.ui.screens.GoalFilterType
+import com.example.ui.screens.WishlistFilterTab
+import com.example.ui.screens.WishlistSort
+import com.example.data.model.SavingsGoal
+import com.example.data.model.SavingsGoalWithDetails
+import com.example.data.model.WishlistItem
+import com.example.data.model.WishlistItemWithCategory
+import com.example.data.model.WishlistPriority
+import com.example.data.model.WishlistTargetType
 import com.example.util.FilterStore
 import com.example.util.TabFilterPreferences
 import org.junit.Assert.assertEquals
@@ -24,6 +35,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -35,6 +47,12 @@ import com.example.ui.dialogs.AggregatedSortOrder
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SimpleScreensFilterSpecTest {
+
+    @Before
+    fun setUp() {
+        FilterStore.resetInstanceForTesting()
+        TabFilterPreferences.resetInstanceForTesting()
+    }
 
     @Test
     fun testCategoriesFilterSpecFiltersAndToggles() {
@@ -340,5 +358,237 @@ class SimpleScreensFilterSpecTest {
             "most_used",
             (categoriesState[CategoriesFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId
         )
+    }
+
+    @Test
+    fun testWishlistFilterSpecFiltersTogglesAndSorting() {
+        val categories = listOf(Category(id = 1L, nameEn = "Tech", nameBn = "প্রযুক্তি", type = CategoryType.EXPENSE))
+        val spec = WishlistFilterSpec.createSpec(categories)
+        assertEquals(WishlistFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+        assertEquals(0, spec.activeFilterCount(state))
+
+        // 1. Search Query
+        state = state.withSearchQuery("Laptop", WishlistFilterSpec.FIELD_SEARCH)
+        assertTrue(spec.isActive(state))
+        assertEquals("Laptop", WishlistFilterSpec.getSearchQuery(state))
+
+        // 2. Tab toggles
+        state = spec.toggleCondition(state, WishlistFilterSpec.FIELD_TAB, WishlistFilterSpec.TAB_NEXT_MONTH)
+        assertEquals(WishlistFilterTab.NEXT_MONTH, WishlistFilterSpec.getTab(state))
+
+        state = spec.toggleCondition(state, WishlistFilterSpec.FIELD_TAB, WishlistFilterSpec.TAB_PURCHASED)
+        assertEquals(WishlistFilterTab.PURCHASED, WishlistFilterSpec.getTab(state))
+
+        // 3. Priority and Category Selection
+        state = state + (WishlistFilterSpec.FIELD_PRIORITY to FilterValue.Select(setOf(WishlistFilterSpec.PRIORITY_HIGH)))
+        state = state + (WishlistFilterSpec.FIELD_CATEGORIES to FilterValue.Select(setOf("1")))
+
+        // 4. Sort selection
+        state = state + (WishlistFilterSpec.FIELD_SORT to FilterValue.Sort(WishlistFilterSpec.SORT_AMOUNT_DESC))
+        assertEquals(WishlistSort.AMOUNT_DESC, WishlistFilterSpec.getSort(state))
+
+        // 5. Active chips
+        val chips = spec.activeChips(state, LanguageMode.ENGLISH)
+        assertTrue(chips.any { it.label.contains("Laptop") })
+
+        // 6. filterItems execution
+        val item1 = WishlistItemWithCategory(
+            item = WishlistItem(id = 1L, title = "Gaming Laptop", estimatedAmount = 1500.0, priority = WishlistPriority.HIGH, isPurchased = false, targetType = WishlistTargetType.NEXT_MONTH, categoryId = 1L),
+            category = categories[0]
+        )
+        val item2 = WishlistItemWithCategory(
+            item = WishlistItem(id = 2L, title = "Book", estimatedAmount = 20.0, priority = WishlistPriority.LOW, isPurchased = false),
+            category = null
+        )
+        val filtered = WishlistFilterSpec.filterItems(listOf(item1, item2), state, 2026, 11)
+        assertEquals(0, filtered.size) // state has TAB_PURCHASED
+
+        val activeState = mapOf(
+            WishlistFilterSpec.FIELD_TAB to FilterValue.ToggleGroup(setOf(WishlistFilterSpec.TAB_ACTIVE)),
+            WishlistFilterSpec.FIELD_SEARCH to FilterValue.Search("laptop")
+        )
+        val filteredActive = WishlistFilterSpec.filterItems(listOf(item1, item2), activeState, 2026, 11)
+        assertEquals(1, filteredActive.size)
+        assertEquals("Gaming Laptop", filteredActive[0].item.title)
+    }
+
+    @Test
+    fun testSavingsGoalsFilterSpecFiltersTogglesAndSorting() {
+        val spec = SavingsGoalsFilterSpec.createSpec()
+        assertEquals(SavingsGoalsFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+        assertEquals(0, spec.activeFilterCount(state))
+
+        // 1. Search Query
+        state = state.withSearchQuery("Emergency", SavingsGoalsFilterSpec.FIELD_SEARCH)
+        assertTrue(spec.isActive(state))
+        assertEquals("Emergency", SavingsGoalsFilterSpec.getSearchQuery(state))
+
+        // 2. Status toggles
+        state = spec.toggleCondition(state, SavingsGoalsFilterSpec.FIELD_STATUS, SavingsGoalsFilterSpec.STATUS_ACTIVE)
+        assertEquals(GoalFilterType.ACTIVE, SavingsGoalsFilterSpec.getStatus(state))
+
+        state = spec.toggleCondition(state, SavingsGoalsFilterSpec.FIELD_STATUS, SavingsGoalsFilterSpec.STATUS_COMPLETED)
+        assertEquals(GoalFilterType.COMPLETED, SavingsGoalsFilterSpec.getStatus(state))
+
+        state = spec.toggleCondition(state, SavingsGoalsFilterSpec.FIELD_STATUS, SavingsGoalsFilterSpec.STATUS_DEFICIT)
+        assertEquals(GoalFilterType.DEFICIT, SavingsGoalsFilterSpec.getStatus(state))
+
+        state = spec.toggleCondition(state, SavingsGoalsFilterSpec.FIELD_STATUS, SavingsGoalsFilterSpec.STATUS_ALL)
+        assertEquals(GoalFilterType.ALL, SavingsGoalsFilterSpec.getStatus(state))
+
+        // 3. Sort selection
+        state = state + (SavingsGoalsFilterSpec.FIELD_SORT to FilterValue.Sort(SavingsGoalsFilterSpec.SORT_TARGET_DESC))
+        assertEquals(SavingsGoalsFilterSpec.SORT_TARGET_DESC, SavingsGoalsFilterSpec.getSort(state))
+
+        // 4. filterGoals execution
+        val goal1 = SavingsGoalWithDetails(
+            goal = SavingsGoal(id = 1L, name = "Emergency Fund", targetAmount = 5000.0, isCompleted = false)
+        )
+        val goal2 = SavingsGoalWithDetails(
+            goal = SavingsGoal(id = 2L, name = "Vacation", targetAmount = 1000.0, isCompleted = true)
+        )
+        val activeOnlyState = mapOf(
+            SavingsGoalsFilterSpec.FIELD_STATUS to FilterValue.ToggleGroup(setOf(SavingsGoalsFilterSpec.STATUS_ACTIVE))
+        )
+        val filteredActive = SavingsGoalsFilterSpec.filterGoals(listOf(goal1, goal2), activeOnlyState)
+        assertEquals(1, filteredActive.size)
+        assertEquals("Emergency Fund", filteredActive[0].goal.name)
+    }
+
+    @Test
+    fun testFilterStoreSaveAndLoadForWishlistAndSavingsGoals() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FilterStore.getInstance(context)
+
+        // 1. Test Wishlist state save/load round-trip
+        val wishlistState: FilterState = mapOf(
+            WishlistFilterSpec.FIELD_SEARCH to FilterValue.Search("Headphones"),
+            WishlistFilterSpec.FIELD_TAB to FilterValue.ToggleGroup(setOf(WishlistFilterSpec.TAB_SAVINGS_GOALS)),
+            WishlistFilterSpec.FIELD_PRIORITY to FilterValue.Select(setOf(WishlistFilterSpec.PRIORITY_HIGH)),
+            WishlistFilterSpec.FIELD_SORT to FilterValue.Sort(WishlistFilterSpec.SORT_AMOUNT_DESC)
+        )
+        store.saveFilterState(WishlistFilterSpec.SPEC_KEY, wishlistState)
+        val loadedWishlist = store.loadFilterState(WishlistFilterSpec.SPEC_KEY)
+
+        // FilterValue.Search is stripped
+        assertNull(loadedWishlist[WishlistFilterSpec.FIELD_SEARCH])
+        assertEquals(setOf(WishlistFilterSpec.TAB_SAVINGS_GOALS), (loadedWishlist[WishlistFilterSpec.FIELD_TAB] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(setOf(WishlistFilterSpec.PRIORITY_HIGH), (loadedWishlist[WishlistFilterSpec.FIELD_PRIORITY] as FilterValue.Select).selectedIds)
+        assertEquals(WishlistFilterSpec.SORT_AMOUNT_DESC, (loadedWishlist[WishlistFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId)
+
+        // 2. Test SavingsGoals state save/load round-trip
+        val savingsState: FilterState = mapOf(
+            SavingsGoalsFilterSpec.FIELD_SEARCH to FilterValue.Search("Car"),
+            SavingsGoalsFilterSpec.FIELD_STATUS to FilterValue.ToggleGroup(setOf(SavingsGoalsFilterSpec.STATUS_ACTIVE)),
+            SavingsGoalsFilterSpec.FIELD_SORT to FilterValue.Sort(SavingsGoalsFilterSpec.SORT_PROGRESS_DESC)
+        )
+        store.saveFilterState(SavingsGoalsFilterSpec.SPEC_KEY, savingsState)
+        val loadedSavings = store.loadFilterState(SavingsGoalsFilterSpec.SPEC_KEY)
+
+        // FilterValue.Search is stripped
+        assertNull(loadedSavings[SavingsGoalsFilterSpec.FIELD_SEARCH])
+        assertEquals(setOf(SavingsGoalsFilterSpec.STATUS_ACTIVE), (loadedSavings[SavingsGoalsFilterSpec.FIELD_STATUS] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(SavingsGoalsFilterSpec.SORT_PROGRESS_DESC, (loadedSavings[SavingsGoalsFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId)
+    }
+
+    @Test
+    fun testMigrationFromTabFilterPreferencesForWishlistAndSavingsGoals() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val tabFilterPrefs = TabFilterPreferences.getInstance(context)
+        val store = FilterStore.getInstance(context)
+        val prefs = context.getSharedPreferences("unified_filter_store", Context.MODE_PRIVATE)
+
+        store.clearAllForTesting()
+
+        tabFilterPrefs.wishlistSearchQuery = "Old Wishlist Search"
+        tabFilterPrefs.wishlistTab = WishlistFilterTab.PLANNED_MONTHS
+        tabFilterPrefs.wishlistSort = WishlistSort.AMOUNT_ASC
+
+        tabFilterPrefs.savingsGoalsSearchQuery = "Old Goal Search"
+        tabFilterPrefs.savingsGoalsFilter = GoalFilterType.DEFICIT
+
+        store.migrateFromTabFilterPreferences(tabFilterPrefs)
+
+        // Check Wishlist migration
+        val migratedWishlist = store.loadFilterState(WishlistFilterSpec.SPEC_KEY)
+        assertNull("Search must not be persisted in Wishlist", migratedWishlist[WishlistFilterSpec.FIELD_SEARCH])
+        assertEquals(setOf(WishlistFilterSpec.TAB_PLANNED_MONTHS), (migratedWishlist[WishlistFilterSpec.FIELD_TAB] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(WishlistFilterSpec.SORT_AMOUNT_ASC, (migratedWishlist[WishlistFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId)
+        assertTrue("migrated_wishlist_v1 flag must be true", prefs.getBoolean(FilterStore.KEY_MIGRATED_WISHLIST, false))
+
+        // Check SavingsGoals migration
+        val migratedGoals = store.loadFilterState(SavingsGoalsFilterSpec.SPEC_KEY)
+        assertNull("Search must not be persisted in SavingsGoals", migratedGoals[SavingsGoalsFilterSpec.FIELD_SEARCH])
+        assertEquals(setOf(SavingsGoalsFilterSpec.STATUS_DEFICIT), (migratedGoals[SavingsGoalsFilterSpec.FIELD_STATUS] as FilterValue.ToggleGroup).activeIds)
+        assertTrue("migrated_savings_goals_v1 flag must be true", prefs.getBoolean(FilterStore.KEY_MIGRATED_SAVINGS_GOALS, false))
+    }
+
+    @Test
+    fun testEveryMigratedEnumValueForWishlistAndSavingsGoalsWithDefaults() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val tabFilterPrefs = TabFilterPreferences.getInstance(context)
+        val store = FilterStore.getInstance(context)
+
+        // 1. Verify every WishlistFilterTab enum value
+        for (tab in WishlistFilterTab.values()) {
+            store.clearFilterState(WishlistFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.wishlistTab = tab
+
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(WishlistFilterSpec.SPEC_KEY)
+            val tabVal = state[WishlistFilterSpec.FIELD_TAB] as FilterValue.ToggleGroup
+            assertEquals(1, tabVal.activeIds.size)
+            val activeTabId = tabVal.activeIds.first()
+            assertTrue(
+                "Tab ID '$activeTabId' for enum $tab must exist in VALID_WISHLIST_TABS",
+                FilterStore.VALID_WISHLIST_TABS.contains(activeTabId)
+            )
+            assertEquals(tab.name.lowercase(), activeTabId)
+        }
+        assertEquals(FilterStore.DEFAULT_WISHLIST_TAB, FilterStore.mapWishlistTab(null))
+
+        // 2. Verify every WishlistSort enum value
+        for (sort in WishlistSort.values()) {
+            store.clearFilterState(WishlistFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.wishlistSort = sort
+
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(WishlistFilterSpec.SPEC_KEY)
+            val sortVal = state[WishlistFilterSpec.FIELD_SORT] as FilterValue.Sort
+            assertNotNull(sortVal.sortId)
+            assertTrue(
+                "Sort ID '${sortVal.sortId}' for enum $sort must exist in VALID_WISHLIST_SORTS",
+                FilterStore.VALID_WISHLIST_SORTS.contains(sortVal.sortId)
+            )
+            assertEquals(sort.name.lowercase(), sortVal.sortId)
+        }
+        assertEquals(FilterStore.DEFAULT_WISHLIST_SORT, FilterStore.mapWishlistSort(null))
+
+        // 3. Verify every GoalFilterType enum value
+        for (goalFilter in GoalFilterType.values()) {
+            store.clearFilterState(SavingsGoalsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.savingsGoalsFilter = goalFilter
+
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(SavingsGoalsFilterSpec.SPEC_KEY)
+            val statusVal = state[SavingsGoalsFilterSpec.FIELD_STATUS] as FilterValue.ToggleGroup
+            assertEquals(1, statusVal.activeIds.size)
+            val activeStatusId = statusVal.activeIds.first()
+            assertTrue(
+                "Status ID '$activeStatusId' for enum $goalFilter must exist in VALID_SAVINGS_GOALS_STATUSES",
+                FilterStore.VALID_SAVINGS_GOALS_STATUSES.contains(activeStatusId)
+            )
+            assertEquals(goalFilter.name.lowercase(), activeStatusId)
+        }
+        assertEquals(FilterStore.DEFAULT_SAVINGS_GOALS_STATUS, FilterStore.mapSavingsGoalsStatus(null))
     }
 }

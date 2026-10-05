@@ -55,6 +55,8 @@ import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -111,9 +113,17 @@ import com.example.data.model.WishlistItemWithCategory
 import com.example.data.model.WishlistPriority
 import com.example.data.model.WishlistTargetType
 import com.example.ui.dialogs.AddEditWishlistDialog
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.withSearchQuery
+import com.example.ui.components.filter.specs.WishlistFilterSpec
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import com.example.util.TabFilterPreferences
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -150,20 +160,34 @@ fun WishlistScreen(
     onAddDialogOpened: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    val filterStore = remember { FilterStore.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var selectedTab by remember { mutableStateOf(tabFilterPrefs.wishlistTab) }
-    var selectedSort by remember { mutableStateOf(tabFilterPrefs.wishlistSort) }
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.wishlistSearchQuery) }
-    var isSearchActive by remember { mutableStateOf(tabFilterPrefs.wishlistSearchQuery.isNotBlank()) }
-
-    LaunchedEffect(selectedTab, selectedSort, searchQuery) {
-        tabFilterPrefs.wishlistTab = selectedTab
-        tabFilterPrefs.wishlistSort = selectedSort
-        tabFilterPrefs.wishlistSearchQuery = searchQuery
+    val wishlistSpec = remember(categories) { WishlistFilterSpec.createSpec(categories) }
+    var filterState by remember {
+        val loaded = filterStore.loadFilterState(WishlistFilterSpec.SPEC_KEY)
+        val initial = if (loaded.isEmpty()) {
+            mapOf(
+                WishlistFilterSpec.FIELD_TAB to FilterValue.ToggleGroup(setOf(WishlistFilterSpec.TAB_ACTIVE)),
+                WishlistFilterSpec.FIELD_SORT to FilterValue.Sort(WishlistFilterSpec.SORT_PRIORITY)
+            )
+        } else {
+            loaded
+        }
+        mutableStateOf(initial)
     }
+
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(WishlistFilterSpec.SPEC_KEY, newState)
+    }
+
+    val selectedTab = remember(filterState) { WishlistFilterSpec.getTab(filterState) }
+    val selectedSort = remember(filterState) { WishlistFilterSpec.getSort(filterState) }
+    val searchQuery = remember(filterState) { WishlistFilterSpec.getSearchQuery(filterState) }
+    var isSearchActive by remember { mutableStateOf(searchQuery.isNotBlank()) }
+    var showFilterDialog by remember { mutableStateOf(false) }
 
     var showAddEditDialog by remember { mutableStateOf(false) }
     var itemToEdit by remember { mutableStateOf<WishlistItem?>(null) }
@@ -199,58 +223,8 @@ fun WishlistScreen(
     val goalAmount = goalItems.sumOf { it.item.estimatedAmount }
 
     // Filter Items
-    val filteredItems = remember(wishlistItemsWithDetails, selectedTab, searchQuery, selectedSort) {
-        var list = when (selectedTab) {
-            WishlistFilterTab.ACTIVE -> wishlistItemsWithDetails.filter { !it.item.isPurchased }
-            WishlistFilterTab.NEXT_MONTH -> wishlistItemsWithDetails.filter {
-                !it.item.isPurchased && (it.item.targetType == WishlistTargetType.NEXT_MONTH ||
-                        (it.item.targetType == WishlistTargetType.SPECIFIC_MONTH && it.item.targetYear == nextYear && it.item.targetMonth == nextMonth))
-            }
-            WishlistFilterTab.PLANNED_MONTHS -> wishlistItemsWithDetails.filter {
-                !it.item.isPurchased && (it.item.targetType == WishlistTargetType.SPECIFIC_MONTH || it.item.targetType == WishlistTargetType.NEXT_MONTH)
-            }
-            WishlistFilterTab.SAVINGS_GOALS -> wishlistItemsWithDetails.filter {
-                !it.item.isPurchased && (it.item.targetType == WishlistTargetType.SAVINGS_GOAL || it.item.linkedGoalId != null)
-            }
-            WishlistFilterTab.PURCHASED -> wishlistItemsWithDetails.filter { it.item.isPurchased }
-            WishlistFilterTab.ALL -> wishlistItemsWithDetails
-        }
-
-        if (searchQuery.isNotBlank()) {
-            val q = searchQuery.trim().lowercase()
-            list = list.filter {
-                it.item.title.lowercase().contains(q) ||
-                        it.item.notes.lowercase().contains(q) ||
-                        (it.category?.nameEn?.lowercase()?.contains(q) == true) ||
-                        (it.category?.nameBn?.lowercase()?.contains(q) == true)
-            }
-        }
-
-        when (selectedSort) {
-            WishlistSort.PRIORITY -> list.sortedWith(
-                compareBy<WishlistItemWithCategory> { it.item.isPurchased }
-                    .thenBy {
-                        when (it.item.priority) {
-                            WishlistPriority.HIGH -> 1
-                            WishlistPriority.MEDIUM -> 2
-                            WishlistPriority.LOW -> 3
-                        }
-                    }
-                    .thenByDescending { it.item.createdAt }
-            )
-            WishlistSort.AMOUNT_DESC -> list.sortedWith(
-                compareBy<WishlistItemWithCategory> { it.item.isPurchased }
-                    .thenByDescending { it.item.estimatedAmount }
-            )
-            WishlistSort.AMOUNT_ASC -> list.sortedWith(
-                compareBy<WishlistItemWithCategory> { it.item.isPurchased }
-                    .thenBy { it.item.estimatedAmount }
-            )
-            WishlistSort.RECENT -> list.sortedWith(
-                compareBy<WishlistItemWithCategory> { it.item.isPurchased }
-                    .thenByDescending { it.item.createdAt }
-            )
-        }
+    val filteredItems = remember(wishlistItemsWithDetails, filterState, nextYear, nextMonth) {
+        WishlistFilterSpec.filterItems(wishlistItemsWithDetails, filterState, nextYear, nextMonth)
     }
 
     if (showAddEditDialog) {
@@ -376,6 +350,22 @@ fun WishlistScreen(
         )
     }
 
+    if (showFilterDialog) {
+        UnifiedFilterDialog(
+            spec = wishlistSpec,
+            initialState = filterState,
+            languageMode = languageMode,
+            onApply = { newState ->
+                updateFilterState(newState)
+                showFilterDialog = false
+            },
+            onDismiss = { showFilterDialog = false },
+            countProvider = { candidateState ->
+                WishlistFilterSpec.filterItems(wishlistItemsWithDetails, candidateState, nextYear, nextMonth).size
+            }
+        )
+    }
+
     Scaffold(
         contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -444,6 +434,32 @@ fun WishlistScreen(
                                 )
                             }
 
+                            // Unified Filter Dialog Button
+                            val activeFilterCnt = wishlistSpec.activeFilterCount(filterState)
+                            IconButton(onClick = { showFilterDialog = true }) {
+                                if (activeFilterCnt > 0) {
+                                    BadgedBox(
+                                        badge = {
+                                            Badge {
+                                                Text(activeFilterCnt.toString())
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.FilterList,
+                                            contentDescription = "Filter",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = "Filter",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
                             Box {
                                 IconButton(onClick = { showSortMenu = true }) {
                                     Icon(
@@ -459,28 +475,36 @@ fun WishlistScreen(
                                     DropdownMenuItem(
                                         text = { Text("Priority (High to Low)") },
                                         onClick = {
-                                            selectedSort = WishlistSort.PRIORITY
+                                            val newMap = filterState.toMutableMap()
+                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_PRIORITY)
+                                            updateFilterState(newMap)
                                             showSortMenu = false
                                         }
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Amount (High to Low)") },
                                         onClick = {
-                                            selectedSort = WishlistSort.AMOUNT_DESC
+                                            val newMap = filterState.toMutableMap()
+                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_AMOUNT_DESC)
+                                            updateFilterState(newMap)
                                             showSortMenu = false
                                         }
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Amount (Low to High)") },
                                         onClick = {
-                                            selectedSort = WishlistSort.AMOUNT_ASC
+                                            val newMap = filterState.toMutableMap()
+                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_AMOUNT_ASC)
+                                            updateFilterState(newMap)
                                             showSortMenu = false
                                         }
                                     )
                                     DropdownMenuItem(
                                         text = { Text("Recently Added") },
                                         onClick = {
-                                            selectedSort = WishlistSort.RECENT
+                                            val newMap = filterState.toMutableMap()
+                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_RECENT)
+                                            updateFilterState(newMap)
                                             showSortMenu = false
                                         }
                                     )
@@ -506,11 +530,11 @@ fun WishlistScreen(
                     AnimatedVisibility(visible = isSearchActive) {
                         OutlinedTextField(
                             value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                            onValueChange = { updateFilterState(filterState.withSearchQuery(it)) },
                             placeholder = { Text(LanguageHelper.getString("search", languageMode) + " wishlist...") },
                             trailingIcon = {
                                 if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
+                                    IconButton(onClick = { updateFilterState(filterState.withSearchQuery("")) }) {
                                         Icon(Icons.Default.Close, contentDescription = "Clear")
                                     }
                                 }
@@ -557,7 +581,19 @@ fun WishlistScreen(
 
                             Tab(
                                 selected = selectedTab == tab,
-                                onClick = { selectedTab = tab },
+                                onClick = {
+                                    val tabId = when (tab) {
+                                        WishlistFilterTab.ACTIVE -> WishlistFilterSpec.TAB_ACTIVE
+                                        WishlistFilterTab.NEXT_MONTH -> WishlistFilterSpec.TAB_NEXT_MONTH
+                                        WishlistFilterTab.PLANNED_MONTHS -> WishlistFilterSpec.TAB_PLANNED_MONTHS
+                                        WishlistFilterTab.SAVINGS_GOALS -> WishlistFilterSpec.TAB_SAVINGS_GOALS
+                                        WishlistFilterTab.PURCHASED -> WishlistFilterSpec.TAB_PURCHASED
+                                        WishlistFilterTab.ALL -> WishlistFilterSpec.TAB_ALL
+                                    }
+                                    val newMap = filterState.toMutableMap()
+                                    newMap[WishlistFilterSpec.FIELD_TAB] = FilterValue.ToggleGroup(setOf(tabId))
+                                    updateFilterState(newMap)
+                                },
                                 text = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -587,6 +623,17 @@ fun WishlistScreen(
                             )
                         }
                     }
+
+                    // Unified Active Filter Bar
+                    UnifiedActiveFilterBar(
+                        spec = wishlistSpec,
+                        state = filterState,
+                        onFilterChange = updateFilterState,
+                        onOpenFilterDialog = { showFilterDialog = true },
+                        accentColor = Color(0xFF6366F1),
+                        languageMode = languageMode,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
                 }
             }
 
