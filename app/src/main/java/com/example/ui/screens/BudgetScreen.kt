@@ -152,14 +152,18 @@ import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.PopupCalculatorDialog
-import com.example.ui.dialogs.ActiveBudgetMakerFilterBar
+import com.example.ui.components.filter.ActiveBudgetMakerFilterBar
+import com.example.ui.components.filter.BudgetMakerDashboardFilter
+import com.example.ui.components.filter.BudgetMakerFilterDialog
+import com.example.ui.components.filter.BudgetMakerTabFilter
+import com.example.ui.components.filter.toBudgetMakerDashboardFilter
+import com.example.ui.components.filter.toBudgetMakerTabFilter
+import com.example.ui.components.filter.toFilterState
 import com.example.ui.dialogs.AmountBreakdownDialog
 import com.example.ui.dialogs.AmountDetailInfo
 import com.example.ui.dialogs.BreakdownItem
 import com.example.ui.dialogs.BreakdownTabInfo
-import com.example.ui.dialogs.BudgetMakerDashboardFilter
-import com.example.ui.dialogs.BudgetMakerFilterDialog
-import com.example.ui.dialogs.BudgetMakerTabFilter
+import com.example.util.FilterStore
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -408,12 +412,49 @@ fun BudgetScreen(
     }
     var showFilterDialog by remember { mutableStateOf(false) }
 
-    // Tab-specific filters and sorting for Budget Maker (Independent per tab)
-    var expenseFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var incomeFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var assetFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var liabilityFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var dashboardFilter by remember { mutableStateOf(BudgetMakerDashboardFilter()) }
+    // Persistent Tab-specific FilterState from FilterStore for Budget Maker
+    val filterStore = remember { FilterStore.getInstance(context) }
+    LaunchedEffect(Unit) {
+        filterStore.migrateFromTabFilterPreferences(tabFilterPrefs)
+    }
+
+    var expenseFilterState by remember { mutableStateOf(filterStore.loadFilterState("budget_maker_expense")) }
+    var incomeFilterState by remember { mutableStateOf(filterStore.loadFilterState("budget_maker_income")) }
+    var assetFilterState by remember { mutableStateOf(filterStore.loadFilterState("budget_maker_asset")) }
+    var liabilityFilterState by remember { mutableStateOf(filterStore.loadFilterState("budget_maker_liability")) }
+    var dashboardFilterState by remember { mutableStateOf(filterStore.loadFilterState("budget_maker_dashboard")) }
+
+    val expenseFilter = remember(expenseFilterState) { expenseFilterState.toBudgetMakerTabFilter() }
+    val incomeFilter = remember(incomeFilterState) { incomeFilterState.toBudgetMakerTabFilter() }
+    val assetFilter = remember(assetFilterState) { assetFilterState.toBudgetMakerTabFilter() }
+    val liabilityFilter = remember(liabilityFilterState) { liabilityFilterState.toBudgetMakerTabFilter() }
+    val dashboardFilter = remember(dashboardFilterState) { dashboardFilterState.toBudgetMakerDashboardFilter() }
+
+    val updateExpenseFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
+        val newState = newTabFilter.toFilterState(1)
+        expenseFilterState = newState
+        filterStore.saveFilterState("budget_maker_expense", newState)
+    }
+    val updateIncomeFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
+        val newState = newTabFilter.toFilterState(2)
+        incomeFilterState = newState
+        filterStore.saveFilterState("budget_maker_income", newState)
+    }
+    val updateAssetFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
+        val newState = newTabFilter.toFilterState(3)
+        assetFilterState = newState
+        filterStore.saveFilterState("budget_maker_asset", newState)
+    }
+    val updateLiabilityFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
+        val newState = newTabFilter.toFilterState(4)
+        liabilityFilterState = newState
+        filterStore.saveFilterState("budget_maker_liability", newState)
+    }
+    val updateDashboardFilter: (BudgetMakerDashboardFilter) -> Unit = { newDashFilter ->
+        val newState = newDashFilter.toFilterState()
+        dashboardFilterState = newState
+        filterStore.saveFilterState("budget_maker_dashboard", newState)
+    }
 
     var expenseSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetExpenseQuickFilters) }
     var incomeSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetIncomeQuickFilters) }
@@ -1916,84 +1957,31 @@ fun BudgetScreen(
                             else -> MaterialTheme.colorScheme.primary
                         }
 
-                        if (selectedTab == 0) {
-                            Surface(
-                                color = tabColor.copy(alpha = 0.10f),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(0.8.dp, tabColor.copy(alpha = 0.30f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 3.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable { showFilterDialog = true }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.FilterList,
-                                            contentDescription = null,
-                                            tint = tabColor,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA)
-                                                "ড্যাশবোর্ড ফিল্টার সক্রিয় (${dashboardFilter.activeCount}টি নিয়ম)"
-                                            else
-                                                "Dashboard Filter Active (${dashboardFilter.activeCount} rules applied)",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                        onClick = { dashboardFilter = BudgetMakerDashboardFilter() },
-                                        modifier = Modifier.size(22.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Clear Filters",
-                                                tint = MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                        }
-                                    }
+                        ActiveBudgetMakerFilterBar(
+                            tabIndex = selectedTab,
+                            tabName = tabName,
+                            tabFilter = currentTabFilter,
+                            dashboardFilter = dashboardFilter,
+                            categories = allCategories,
+                            accounts = allAccounts,
+                            selectedYear = selectedYear,
+                            selectedMonth = selectedMonth,
+                            onTabFilterChange = { newFilter ->
+                                when (selectedTab) {
+                                    1 -> updateExpenseFilter(newFilter)
+                                    2 -> updateIncomeFilter(newFilter)
+                                    3 -> updateAssetFilter(newFilter)
+                                    4 -> updateLiabilityFilter(newFilter)
                                 }
-                            }
-                        } else {
-                            ActiveBudgetMakerFilterBar(
-                                tabName = tabName,
-                                tabFilter = currentTabFilter,
-                                onFilterChange = { newFilter ->
-                                    when (selectedTab) {
-                                        1 -> expenseFilter = newFilter
-                                        2 -> incomeFilter = newFilter
-                                        3 -> assetFilter = newFilter
-                                        4 -> liabilityFilter = newFilter
-                                    }
-                                },
-                                onOpenFilterDialog = { showFilterDialog = true },
-                                accentColor = tabColor,
-                                languageMode = languageMode,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
-                            )
-                        }
+                            },
+                            onDashboardFilterChange = { newDashFilter ->
+                                updateDashboardFilter(newDashFilter)
+                            },
+                            onOpenFilterDialog = { showFilterDialog = true },
+                            accentColor = tabColor,
+                            languageMode = languageMode,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                        )
                     }
                 }
             }
@@ -2363,15 +2351,15 @@ fun BudgetScreen(
             onDismiss = { showFilterDialog = false },
             onApplyTabFilter = { newTabFilter ->
                 when (selectedTab) {
-                    1 -> expenseFilter = newTabFilter
-                    2 -> incomeFilter = newTabFilter
-                    3 -> assetFilter = newTabFilter
-                    4 -> liabilityFilter = newTabFilter
+                    1 -> updateExpenseFilter(newTabFilter)
+                    2 -> updateIncomeFilter(newTabFilter)
+                    3 -> updateAssetFilter(newTabFilter)
+                    4 -> updateLiabilityFilter(newTabFilter)
                 }
                 showFilterDialog = false
             },
             onApplyDashboardFilter = { newDashFilter ->
-                dashboardFilter = newDashFilter
+                updateDashboardFilter(newDashFilter)
                 showFilterDialog = false
             }
         )

@@ -960,17 +960,20 @@ fun <T> UnifiedSingleSelectDropdown(
 }
 
 /**
- * Unified Sticky Footer for filter dialogs.
+ * Unified Sticky Footer for filter dialogs, distinguishing active rule count from matching result count.
  */
 @Composable
 fun UnifiedFilterFooter(
     activeCount: Int = 0,
+    activeRulesCount: Int = activeCount,
+    matchCount: Int? = null,
     languageMode: LanguageMode = LanguageMode.ENGLISH,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
     onApply: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isBangla = languageMode == LanguageMode.BANGLA
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         Row(
@@ -985,7 +988,11 @@ fun UnifiedFilterFooter(
                 modifier = Modifier.testTag("unified_filter_reset_btn")
             ) {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset All",
+                    text = if (activeRulesCount > 0) {
+                        if (isBangla) "রিসেট (${LanguageHelper.toBanglaDigits(activeRulesCount.toString())})" else "Reset All ($activeRulesCount)"
+                    } else {
+                        if (isBangla) "রিসেট" else "Reset All"
+                    },
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -1001,7 +1008,7 @@ fun UnifiedFilterFooter(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel",
+                        text = if (isBangla) "বাতিল" else "Cancel",
                         fontSize = 13.sp
                     )
                 }
@@ -1013,12 +1020,18 @@ fun UnifiedFilterFooter(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     modifier = Modifier.testTag("unified_filter_apply_btn")
                 ) {
+                    val applyLabel = if (matchCount != null) {
+                        val countDigits = if (isBangla) LanguageHelper.toBanglaDigits(matchCount.toString()) else matchCount.toString()
+                        if (isBangla) "ফিল্টার প্রয়োগ ($countDigits)" else "Apply Filter ($countDigits)"
+                    } else if (activeRulesCount > 0) {
+                        val countDigits = if (isBangla) LanguageHelper.toBanglaDigits(activeRulesCount.toString()) else activeRulesCount.toString()
+                        if (isBangla) "প্রয়োগ করুন ($countDigits)" else "Apply ($countDigits)"
+                    } else {
+                        if (isBangla) "প্রয়োগ করুন" else "Apply"
+                    }
+
                     Text(
-                        text = if (activeCount > 0) {
-                            if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন ($activeCount)" else "Apply ($activeCount)"
-                        } else {
-                            if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply"
-                        },
+                        text = applyLabel,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )

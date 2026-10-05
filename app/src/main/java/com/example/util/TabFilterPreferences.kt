@@ -11,8 +11,8 @@ import com.example.ui.components.NetEarningsFilterState
 import com.example.ui.dialogs.AggregatedDatePreset
 import com.example.ui.dialogs.AggregatedFilterState
 import com.example.ui.dialogs.AggregatedSortOrder
-import com.example.ui.dialogs.BudgetMakerDashboardFilter
-import com.example.ui.dialogs.BudgetMakerTabFilter
+import com.example.ui.components.filter.BudgetMakerDashboardFilter
+import com.example.ui.components.filter.BudgetMakerTabFilter
 import com.example.ui.screens.LedgerDatePreset
 import com.example.ui.screens.LedgerRowStyle
 import com.example.ui.dialogs.TransactionDisplaySettings
