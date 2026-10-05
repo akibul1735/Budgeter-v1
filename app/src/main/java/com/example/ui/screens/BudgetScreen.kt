@@ -413,9 +413,10 @@ fun BudgetScreen(
     var showFilterDialog by remember { mutableStateOf(false) }
 
     // Persistent Tab-specific FilterState from FilterStore for Budget Maker
-    val filterStore = remember { FilterStore.getInstance(context) }
-    LaunchedEffect(Unit) {
-        filterStore.migrateFromTabFilterPreferences(tabFilterPrefs)
+    val filterStore = remember {
+        FilterStore.getInstance(context).also { store ->
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+        }
     }
 
     var expenseFilterState by remember { mutableStateOf(filterStore.loadFilterState("budget_maker_expense")) }

@@ -24,6 +24,9 @@ import com.example.ui.components.filter.toBudgetMakerTabFilter
 import com.example.ui.components.filter.toFilterState
 import com.example.ui.components.filter.toggleCondition
 import com.example.util.FilterStore
+import com.example.util.TabFilterPreferences
+import com.example.ui.screens.BudgetFilterOption
+import com.example.ui.screens.BudgetSortOption
 import com.example.data.model.LanguageMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -350,5 +353,53 @@ class UnifiedFilterTest {
         filterStore.clearFilterState(testKey)
         val afterClear = filterStore.loadFilterState(testKey)
         assertTrue(afterClear.isEmpty())
+    }
+
+    @Test
+    fun testFirstLaunchNoDoubleApplicationAndPersistenceAcrossRestart() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val tabFilterPrefs = TabFilterPreferences.getInstance(context)
+        tabFilterPrefs.budgetExpenseQuickFilters = setOf(BudgetFilterOption.ONLY_REMAINING)
+        tabFilterPrefs.budgetExpenseSort = BudgetSortOption.BUDGET_DESC
+
+        val filterStore = FilterStore.getInstance(context)
+        // Ensure clean state before first launch test
+        filterStore.clearFilterState("budget_maker_expense")
+
+        // 1. First Launch: migrateFromTabFilterPreferences runs synchronously before any loadFilterState
+        filterStore.migrateFromTabFilterPreferences(tabFilterPrefs)
+
+        // Verify FilterStore state remains empty on first launch so quick filters are NOT double-applied
+        val firstLaunchState = filterStore.loadFilterState("budget_maker_expense")
+        assertTrue(
+            "FilterStore must not copy TabFilterPreferences quick filters into budget_maker_* to prevent double filtering",
+            firstLaunchState.isEmpty()
+        )
+
+        // 2. User applies a custom dialog filter (e.g. amount range and selected items)
+        val userFilterState = mapOf(
+            "amount_range" to FilterValue.Range(min = 500.0, max = 2000.0),
+            "items" to FilterValue.Select(setOf("101", "102"))
+        )
+        filterStore.saveFilterState("budget_maker_expense", userFilterState)
+
+        // 3. App Restart simulation: A fresh session initializes FilterStore and runs migration hook
+        filterStore.migrateFromTabFilterPreferences(tabFilterPrefs)
+
+        // Verify saved filter state survived the restart and was not reset or overwritten
+        val afterRestartState = filterStore.loadFilterState("budget_maker_expense")
+        assertEquals(2, afterRestartState.size)
+        assertEquals(
+            500.0,
+            (afterRestartState["amount_range"] as FilterValue.Range).min
+        )
+        assertEquals(
+            2000.0,
+            (afterRestartState["amount_range"] as FilterValue.Range).max
+        )
+        assertEquals(
+            setOf("101", "102"),
+            (afterRestartState["items"] as FilterValue.Select).selectedIds
+        )
     }
 }

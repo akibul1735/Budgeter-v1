@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.example.ui.components.filter.FilterState
 import com.example.ui.components.filter.FilterValue
-import com.example.ui.screens.BudgetFilterOption
-import com.example.ui.screens.BudgetSortOption
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -195,124 +193,18 @@ class FilterStore private constructor(context: Context) {
     }
 
     /**
-     * One-time migration hook that reads values from TabFilterPreferences and stores them
-     * in the unified FilterStore format without overwriting any existing saved state.
+     * One-time migration hook from TabFilterPreferences.
+     * Legacy quick filters, sort options, and search queries in TabFilterPreferences continue
+     * to operate independently in BudgetScreen without being duplicated into FilterStore states.
+     * Note: If any display option like hideEmptyGroups is ever migrated, it is placed in "display_options".
      */
     fun migrateFromTabFilterPreferences(tabFilterPrefs: TabFilterPreferences) {
         if (prefs.getBoolean(KEY_MIGRATED, false)) return
 
         try {
-            // 1. Expense Tab Migration
-            if (!prefs.contains("filter_budget_maker_expense")) {
-                val expenseConditions = mutableSetOf<String>()
-                tabFilterPrefs.budgetExpenseQuickFilters.forEach { opt ->
-                    when (opt) {
-                        BudgetFilterOption.ONLY_REMAINING -> expenseConditions.add("onlyUnderBudgetRemaining")
-                        BudgetFilterOption.BUDGETED_ONLY -> expenseConditions.add("onlyWithBudgetOrTarget")
-                        BudgetFilterOption.UNBUDGETED -> expenseConditions.add("onlyWithoutBudgetOrTarget")
-                        BudgetFilterOption.ACTIVE_ONLY -> expenseConditions.add("onlyWithActualActivity")
-                        BudgetFilterOption.ONLY_GROUPS -> expenseConditions.add("hideEmptyGroups")
-                        else -> {}
-                    }
-                }
-                val expenseMap = mutableMapOf<String, FilterValue>()
-                if (expenseConditions.isNotEmpty()) {
-                    expenseMap["conditions"] = FilterValue.ToggleGroup(expenseConditions)
-                }
-                if (tabFilterPrefs.budgetExpenseSort != BudgetSortOption.DEFAULT) {
-                    expenseMap["sort"] = FilterValue.Sort(tabFilterPrefs.budgetExpenseSort.name)
-                }
-                if (tabFilterPrefs.budgetSearchQuery.isNotBlank()) {
-                    expenseMap["search"] = FilterValue.Custom(tabFilterPrefs.budgetSearchQuery)
-                }
-                if (expenseMap.isNotEmpty()) {
-                    saveFilterState("budget_maker_expense", expenseMap)
-                }
-            }
-
-            // 2. Income Tab Migration
-            if (!prefs.contains("filter_budget_maker_income")) {
-                val incomeConditions = mutableSetOf<String>()
-                tabFilterPrefs.budgetIncomeQuickFilters.forEach { opt ->
-                    when (opt) {
-                        BudgetFilterOption.ONLY_REMAINING -> incomeConditions.add("onlyTargetPending")
-                        BudgetFilterOption.BUDGETED_ONLY -> incomeConditions.add("onlyWithBudgetOrTarget")
-                        BudgetFilterOption.UNBUDGETED -> incomeConditions.add("onlyWithoutBudgetOrTarget")
-                        BudgetFilterOption.ACTIVE_ONLY -> incomeConditions.add("onlyWithActualActivity")
-                        BudgetFilterOption.ONLY_GROUPS -> incomeConditions.add("hideEmptyGroups")
-                        else -> {}
-                    }
-                }
-                val incomeMap = mutableMapOf<String, FilterValue>()
-                if (incomeConditions.isNotEmpty()) {
-                    incomeMap["conditions"] = FilterValue.ToggleGroup(incomeConditions)
-                }
-                if (tabFilterPrefs.budgetIncomeSort != BudgetSortOption.DEFAULT) {
-                    incomeMap["sort"] = FilterValue.Sort(tabFilterPrefs.budgetIncomeSort.name)
-                }
-                if (tabFilterPrefs.budgetSearchQuery.isNotBlank()) {
-                    incomeMap["search"] = FilterValue.Custom(tabFilterPrefs.budgetSearchQuery)
-                }
-                if (incomeMap.isNotEmpty()) {
-                    saveFilterState("budget_maker_income", incomeMap)
-                }
-            }
-
-            // 3. Asset Tab Migration
-            if (!prefs.contains("filter_budget_maker_asset")) {
-                val assetConditions = mutableSetOf<String>()
-                tabFilterPrefs.budgetAssetQuickFilters.forEach { opt ->
-                    when (opt) {
-                        BudgetFilterOption.ACTIVE_ONLY -> assetConditions.add("onlyPositiveBalance")
-                        BudgetFilterOption.BUDGETED_ONLY -> assetConditions.add("onlyWithBudgetOrTarget")
-                        BudgetFilterOption.UNBUDGETED -> assetConditions.add("onlyWithoutBudgetOrTarget")
-                        BudgetFilterOption.ONLY_GROUPS -> assetConditions.add("hideEmptyGroups")
-                        else -> {}
-                    }
-                }
-                val assetMap = mutableMapOf<String, FilterValue>()
-                if (assetConditions.isNotEmpty()) {
-                    assetMap["conditions"] = FilterValue.ToggleGroup(assetConditions)
-                }
-                if (tabFilterPrefs.budgetAssetSort != BudgetSortOption.DEFAULT) {
-                    assetMap["sort"] = FilterValue.Sort(tabFilterPrefs.budgetAssetSort.name)
-                }
-                if (tabFilterPrefs.budgetSearchQuery.isNotBlank()) {
-                    assetMap["search"] = FilterValue.Custom(tabFilterPrefs.budgetSearchQuery)
-                }
-                if (assetMap.isNotEmpty()) {
-                    saveFilterState("budget_maker_asset", assetMap)
-                }
-            }
-
-            // 4. Liability Tab Migration
-            if (!prefs.contains("filter_budget_maker_liability")) {
-                val liabilityConditions = mutableSetOf<String>()
-                tabFilterPrefs.budgetLiabilityQuickFilters.forEach { opt ->
-                    when (opt) {
-                        BudgetFilterOption.ACTIVE_ONLY -> liabilityConditions.add("onlyOutstandingDebt")
-                        BudgetFilterOption.BUDGETED_ONLY -> liabilityConditions.add("onlyWithBudgetOrTarget")
-                        BudgetFilterOption.UNBUDGETED -> liabilityConditions.add("onlyWithoutBudgetOrTarget")
-                        BudgetFilterOption.ONLY_GROUPS -> liabilityConditions.add("hideEmptyGroups")
-                        else -> {}
-                    }
-                }
-                val liabilityMap = mutableMapOf<String, FilterValue>()
-                if (liabilityConditions.isNotEmpty()) {
-                    liabilityMap["conditions"] = FilterValue.ToggleGroup(liabilityConditions)
-                }
-                if (tabFilterPrefs.budgetLiabilitySort != BudgetSortOption.DEFAULT) {
-                    liabilityMap["sort"] = FilterValue.Sort(tabFilterPrefs.budgetLiabilitySort.name)
-                }
-                if (tabFilterPrefs.budgetSearchQuery.isNotBlank()) {
-                    liabilityMap["search"] = FilterValue.Custom(tabFilterPrefs.budgetSearchQuery)
-                }
-                if (liabilityMap.isNotEmpty()) {
-                    saveFilterState("budget_maker_liability", liabilityMap)
-                }
-            }
-
-            // Mark migration successful only after all steps complete without error
+            // Quick filters, sort, and search in TabFilterPreferences operate independently
+            // at the screen level. We set the migrated flag without copying them into
+            // budget_maker_* FilterState to ensure they are never double-applied.
             prefs.edit().putBoolean(KEY_MIGRATED, true).apply()
         } catch (_: Exception) {
             // If migration fails, do not mark as migrated so it can retry safely
