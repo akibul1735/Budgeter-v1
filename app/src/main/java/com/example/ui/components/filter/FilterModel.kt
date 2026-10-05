@@ -20,6 +20,7 @@ sealed interface FilterValue {
     ) : FilterValue
     data class ToggleGroup(val activeIds: Set<String> = emptySet()) : FilterValue
     data class Sort(val sortId: String? = null) : FilterValue
+    data class Search(val query: String = "") : FilterValue
     data class BooleanVal(val value: Boolean = false) : FilterValue
     data class Custom(val rawJson: String = "") : FilterValue
 }
@@ -167,6 +168,21 @@ sealed interface FilterField<T> {
         override val icon: ImageVector? = null,
         val options: List<SortOptionItem<T>> = emptyList(),
         val defaultSortId: String? = null
+    ) : FilterField<T>
+
+    /**
+     * Search text field for keyword and substring filtering.
+     */
+    data class SearchField<T>(
+        override val id: String = "search",
+        override val titleEn: String = "Search",
+        override val titleBn: String = "অনুসন্ধান",
+        override val subtitleEn: String? = null,
+        override val subtitleBn: String? = null,
+        override val icon: ImageVector? = null,
+        val hintEn: String = "Search...",
+        val hintBn: String = "অনুসন্ধান করুন...",
+        val predicate: ((T, String) -> Boolean)? = null
     ) : FilterField<T>
 
     /**

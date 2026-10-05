@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -152,6 +153,7 @@ fun <T> UnifiedFilterDialog(
                             is FilterValue.Date -> (v.presetId != null && v.presetId != (field as? FilterField.DateField<*>)?.defaultPresetId) || v.startMs != null || v.endMs != null
                             is FilterValue.ToggleGroup -> v.activeIds.isNotEmpty()
                             is FilterValue.Sort -> v.sortId != null && v.sortId != (field as? FilterField.SortField<*>)?.defaultSortId
+                            is FilterValue.Search -> v.query.isNotBlank()
                             is FilterValue.BooleanVal -> v.value
                             is FilterValue.Custom -> v.rawJson.isNotBlank()
                             null -> false
@@ -222,6 +224,15 @@ fun <T> UnifiedFilterDialog(
                                     field = field,
                                     currentValue = draftState[field.id] as? FilterValue.Sort,
                                     onUpdate = { draftState = draftState + (field.id to it) },
+                                    languageMode = languageMode
+                                )
+                            }
+
+                            is FilterField.SearchField<T> -> {
+                                RenderSearchField(
+                                    field = field,
+                                    currentValue = draftState[field.id] as? FilterValue.Search,
+                                    onUpdate = { draftState = if (it.query.isBlank()) draftState - field.id else draftState + (field.id to it) },
                                     languageMode = languageMode
                                 )
                             }
@@ -570,6 +581,53 @@ private fun <T> RenderSortField(
         onSelectionChanged = { onUpdate(FilterValue.Sort(it)) },
         leadingIcon = field.icon,
         languageMode = languageMode
+    )
+}
+
+@Composable
+private fun <T> RenderSearchField(
+    field: FilterField.SearchField<T>,
+    currentValue: FilterValue.Search?,
+    onUpdate: (FilterValue.Search) -> Unit,
+    languageMode: LanguageMode
+) {
+    val isBangla = languageMode == LanguageMode.BANGLA
+    val text = currentValue?.query ?: ""
+    OutlinedTextField(
+        value = text,
+        onValueChange = { onUpdate(FilterValue.Search(it)) },
+        placeholder = {
+            Text(
+                text = if (isBangla) field.hintBn else field.hintEn,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = field.icon ?: Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        trailingIcon = {
+            if (text.isNotEmpty()) {
+                IconButton(onClick = { onUpdate(FilterValue.Search("")) }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("filter_search_field_${field.id}")
     )
 }
 

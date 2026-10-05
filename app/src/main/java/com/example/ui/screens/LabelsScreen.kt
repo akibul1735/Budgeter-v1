@@ -72,20 +72,28 @@ import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalHeaderScrollState
-import com.example.ui.dialogs.AggregatedDatePreset
-import com.example.ui.dialogs.AggregatedFilterDialog
-import com.example.ui.dialogs.AggregatedFilterState
-import com.example.ui.dialogs.AggregatedSortOrder
+import com.example.ui.components.filter.FilterField
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.LabelsFilterSpec
+import com.example.ui.components.filter.toggleCondition
+import com.example.ui.components.filter.withSearchQuery
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
@@ -93,9 +101,6 @@ import com.example.util.TabFilterPreferences
 
 private val CrimsonPink = Color(0xFFE91E63)
 private val SlateText = Color(0xFF64748B)
-
-typealias LabelSortOption = AggregatedSortOrder
-typealias LabelDateFilterPreset = AggregatedDatePreset
 
 enum class LabelCategorySegment {
     HASHTAGS,  // 🏷️ Explicit Labels & #Hashtags
@@ -130,34 +135,50 @@ fun LabelsScreen(
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
 
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.labelsSearchQuery) }
-    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.labelsTabMode) }
-    var selectedSegment by remember {
-        mutableStateOf(
-            try {
-                LabelCategorySegment.valueOf(tabFilterPrefs.labelsCategorySegment)
-            } catch (_: Exception) {
-                LabelCategorySegment.HASHTAGS
-            }
-        )
+    // Synchronously migrate and load persistent FilterState from FilterStore
+    val filterStore = remember {
+        FilterStore.getInstance(context).also { store ->
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+        }
+    }
+
+    val labelsSpec = remember(categories, accounts) {
+        LabelsFilterSpec.createSpec(categories, accounts)
     }
 
     var filterState by remember {
-        mutableStateOf(
-            AggregatedFilterState(
-                datePreset = tabFilterPrefs.labelsDatePreset,
-                sortOrder = tabFilterPrefs.labelsSortOrder
+        val loaded = filterStore.loadFilterState(LabelsFilterSpec.SPEC_KEY)
+        val initial = if (loaded.isEmpty()) {
+            mapOf(
+                LabelsFilterSpec.FIELD_SEGMENT to FilterValue.ToggleGroup(setOf(LabelsFilterSpec.SEGMENT_HASHTAGS)),
+                LabelsFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(LabelsFilterSpec.MODE_ALL)),
+                LabelsFilterSpec.FIELD_DATE to FilterValue.Date(presetId = "this_month"),
+                LabelsFilterSpec.FIELD_SORT to FilterValue.Sort("amount_desc")
             )
-        )
+        } else {
+            loaded
+        }
+        mutableStateOf(initial)
     }
 
-    LaunchedEffect(searchQuery, activeTabMode, selectedSegment, filterState) {
-        tabFilterPrefs.labelsSearchQuery = searchQuery
-        tabFilterPrefs.labelsTabMode = activeTabMode
-        tabFilterPrefs.labelsCategorySegment = selectedSegment.name
-        tabFilterPrefs.labelsDatePreset = filterState.datePreset
-        tabFilterPrefs.labelsSortOrder = filterState.sortOrder
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(LabelsFilterSpec.SPEC_KEY, newState)
     }
+
+    val searchQuery = remember(filterState) { LabelsFilterSpec.getSearchQuery(filterState) }
+    val activeTabMode = remember(filterState) { LabelsFilterSpec.getTypeModeId(filterState).uppercase() }
+    val selectedSegment = remember(filterState) {
+        when (LabelsFilterSpec.getSelectedSegmentId(filterState)) {
+            LabelsFilterSpec.SEGMENT_HASHTAGS -> LabelCategorySegment.HASHTAGS
+            LabelsFilterSpec.SEGMENT_NOTES -> LabelCategorySegment.NOTES
+            LabelsFilterSpec.SEGMENT_PAYEES -> LabelCategorySegment.PAYEES
+            LabelsFilterSpec.SEGMENT_UNTAGGED -> LabelCategorySegment.UNTAGGED
+            LabelsFilterSpec.SEGMENT_ALL -> LabelCategorySegment.ALL
+            else -> LabelCategorySegment.HASHTAGS
+        }
+    }
+    val sortOrderId = remember(filterState) { LabelsFilterSpec.getSortOrderId(filterState) }
 
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTimelineScreen by remember { mutableStateOf(false) }
@@ -173,9 +194,9 @@ fun LabelsScreen(
         return
     }
 
-    // Date Bounds
-    val (startEpochMs, endEpochMs) = remember(filterState.datePreset, filterState.customStartDateMs, filterState.customEndDateMs) {
-        filterState.calculateDateRange()
+    // Date Bounds resolved from FilterState
+    val (startEpochMs, endEpochMs) = remember(filterState, labelsSpec) {
+        LabelsFilterSpec.resolveDateBounds(labelsSpec, filterState)
     }
 
     val currentTargetType = when (activeTabMode) {
@@ -183,7 +204,32 @@ fun LabelsScreen(
         "INCOME" -> TransactionType.INCOME
         else -> null
     }
-    val effectiveType = filterState.transactionType ?: currentTargetType
+    val dlgTransactionType = remember(filterState) {
+        (filterState[LabelsFilterSpec.FIELD_TRANSACTION_TYPE] as? FilterValue.SingleSelect)?.selectedId?.let {
+            try { TransactionType.valueOf(it) } catch (_: Exception) { null }
+        }
+    }
+    val effectiveType = dlgTransactionType ?: currentTargetType
+
+    val selectedAccountIds = remember(filterState) {
+        (filterState[LabelsFilterSpec.FIELD_ACCOUNTS] as? FilterValue.Select)?.selectedIds?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+    }
+    val selectedCategoryIds = remember(filterState) {
+        (filterState[LabelsFilterSpec.FIELD_CATEGORIES] as? FilterValue.Select)?.selectedIds?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+    }
+    val selectedStatuses = remember(filterState) {
+        (filterState[LabelsFilterSpec.FIELD_STATUSES] as? FilterValue.Select)?.selectedIds?.mapNotNull {
+            try { TransactionStatus.valueOf(it) } catch (_: Exception) { null }
+        }?.toSet() ?: emptySet()
+    }
+    val amountRange = remember(filterState) {
+        filterState[LabelsFilterSpec.FIELD_AMOUNT_RANGE] as? FilterValue.Range
+    }
+    val minAmount = amountRange?.min
+    val maxAmount = amountRange?.max
+    val excludeZeroAmounts = remember(filterState) {
+        (filterState[LabelsFilterSpec.FIELD_EXCLUDE_ZERO] as? FilterValue.ToggleGroup)?.activeIds?.contains("exclude") ?: false
+    }
 
     // 1. Filter Transactions by Date, Type, Account, Category, Status
     val filteredTxs = remember(
@@ -191,19 +237,21 @@ fun LabelsScreen(
         effectiveType,
         startEpochMs,
         endEpochMs,
-        filterState
+        selectedAccountIds,
+        selectedCategoryIds,
+        selectedStatuses
     ) {
         transactions.filter { item ->
             val tx = item.transaction
             val matchesDate = tx.dateEpochMs in startEpochMs..endEpochMs
             val matchesType = effectiveType == null || tx.type == effectiveType
-            val matchesAccount = filterState.selectedAccountIds.isEmpty() ||
-                    (tx.debitAccountId != null && tx.debitAccountId in filterState.selectedAccountIds) ||
-                    (tx.creditAccountId != null && tx.creditAccountId in filterState.selectedAccountIds)
-            val matchesCategory = filterState.selectedCategoryIds.isEmpty() ||
-                    (tx.categoryId != null && tx.categoryId in filterState.selectedCategoryIds) ||
-                    (tx.subCategoryId != null && tx.subCategoryId in filterState.selectedCategoryIds)
-            val matchesStatus = filterState.selectedStatuses.isEmpty() || tx.status in filterState.selectedStatuses
+            val matchesAccount = selectedAccountIds.isEmpty() ||
+                    (tx.debitAccountId != null && tx.debitAccountId in selectedAccountIds) ||
+                    (tx.creditAccountId != null && tx.creditAccountId in selectedAccountIds)
+            val matchesCategory = selectedCategoryIds.isEmpty() ||
+                    (tx.categoryId != null && tx.categoryId in selectedCategoryIds) ||
+                    (tx.subCategoryId != null && tx.subCategoryId in selectedCategoryIds)
+            val matchesStatus = selectedStatuses.isEmpty() || tx.status in selectedStatuses
 
             matchesDate && matchesType && matchesAccount && matchesCategory && matchesStatus
         }
@@ -293,30 +341,29 @@ fun LabelsScreen(
         }.filter { label ->
             val totalAmt = if (effectiveType == TransactionType.EXPENSE) label.totalExpense else if (effectiveType == TransactionType.INCOME) label.totalIncome else (label.totalExpense + label.totalIncome)
             val matchesSearch = searchQuery.isBlank() || label.labelName.contains(searchQuery, ignoreCase = true)
-            val matchesMin = filterState.minAmount == null || totalAmt >= filterState.minAmount!!
-            val matchesMax = filterState.maxAmount == null || totalAmt <= filterState.maxAmount!!
-            val matchesZero = !filterState.excludeZeroAmounts || totalAmt > 0
+            val matchesMin = minAmount == null || totalAmt >= minAmount
+            val matchesMax = maxAmount == null || totalAmt <= maxAmount
+            val matchesZero = !excludeZeroAmounts || totalAmt > 0
 
             matchesSearch && matchesMin && matchesMax && matchesZero
         }
 
-        val sortedList = when (filterState.sortOrder) {
-            AggregatedSortOrder.DEFAULT,
-            AggregatedSortOrder.AMOUNT_DESC -> raw.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
-            AggregatedSortOrder.AMOUNT_ASC -> raw.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
-            AggregatedSortOrder.COUNT_DESC -> raw.sortedByDescending { it.transactionCount }
-            AggregatedSortOrder.COUNT_ASC -> raw.sortedBy { it.transactionCount }
-            AggregatedSortOrder.AVG_DESC -> raw.sortedByDescending {
+        val sortedList = when (sortOrderId) {
+            "amount_asc" -> raw.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
+            "count_desc" -> raw.sortedByDescending { it.transactionCount }
+            "count_asc" -> raw.sortedBy { it.transactionCount }
+            "avg_desc" -> raw.sortedByDescending {
                 val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome)
                 if (it.transactionCount > 0) amt / it.transactionCount else 0.0
             }
-            AggregatedSortOrder.AVG_ASC -> raw.sortedBy {
+            "avg_asc" -> raw.sortedBy {
                 val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome)
                 if (it.transactionCount > 0) amt / it.transactionCount else 0.0
             }
-            AggregatedSortOrder.NAME_ASC -> raw.sortedBy { it.labelName.lowercase() }
-            AggregatedSortOrder.NAME_DESC -> raw.sortedByDescending { it.labelName.lowercase() }
-            AggregatedSortOrder.RECENT_DATE -> raw.sortedByDescending { it.transactions.firstOrNull()?.transaction?.dateEpochMs ?: 0L }
+            "name_asc" -> raw.sortedBy { it.labelName.lowercase() }
+            "name_desc" -> raw.sortedByDescending { it.labelName.lowercase() }
+            "recent_date" -> raw.sortedByDescending { it.transactions.firstOrNull()?.transaction?.dateEpochMs ?: 0L }
+            else -> raw.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
         }
 
         // In ALL mode, display Expense labels first, then Income labels!
@@ -334,8 +381,11 @@ fun LabelsScreen(
         payeeMap,
         allMap,
         searchQuery,
-        filterState,
         effectiveType,
+        minAmount,
+        maxAmount,
+        excludeZeroAmounts,
+        sortOrderId,
         totalTaggedFlow
     ) {
         when (selectedSegment) {
@@ -347,14 +397,14 @@ fun LabelsScreen(
         }
     }
 
-    val filteredUntaggedTxs = remember(untaggedList, searchQuery, filterState, effectiveType) {
+    val filteredUntaggedTxs = remember(untaggedList, searchQuery, minAmount, maxAmount, excludeZeroAmounts, effectiveType) {
         val list = untaggedList.filter { item ->
             val tx = item.transaction
             val catName = item.category?.localizedName(languageMode) ?: ""
             val matchesSearch = searchQuery.isBlank() || catName.contains(searchQuery, ignoreCase = true) || tx.amount.toString().contains(searchQuery)
-            val matchesMin = filterState.minAmount == null || tx.amount >= filterState.minAmount!!
-            val matchesMax = filterState.maxAmount == null || tx.amount <= filterState.maxAmount!!
-            val matchesZero = !filterState.excludeZeroAmounts || tx.amount > 0
+            val matchesMin = minAmount == null || tx.amount >= minAmount
+            val matchesMax = maxAmount == null || tx.amount <= maxAmount
+            val matchesZero = !excludeZeroAmounts || tx.amount > 0
 
             matchesSearch && matchesMin && matchesMax && matchesZero
         }.sortedByDescending { it.transaction.dateEpochMs }
@@ -396,8 +446,11 @@ fun LabelsScreen(
             LabelCategorySegment.UNTAGGED -> if (languageMode == LanguageMode.BANGLA) "লেবেলহীন" else "Unlabeled"
             LabelCategorySegment.ALL -> if (languageMode == LanguageMode.BANGLA) "সকল" else "All"
         }
-        val summary = filterState.buildFilterSummary(languageMode)
-        val base = "$segLabel • $summary"
+        val dateVal = filterState[LabelsFilterSpec.FIELD_DATE] as? FilterValue.Date
+        val dateField = labelsSpec.fields.firstOrNull { it.id == LabelsFilterSpec.FIELD_DATE } as? FilterField.DateField<*>
+        val preset = dateField?.presets?.firstOrNull { it.id == dateVal?.presetId }
+        val dateSummary = if (languageMode == LanguageMode.BANGLA) preset?.titleBn ?: "" else preset?.titleEn ?: ""
+        val base = if (dateSummary.isNotBlank()) "$segLabel • $dateSummary" else segLabel
         if (searchQuery.isNotBlank()) {
             "$base • \"${searchQuery.trim()}\""
         } else {
@@ -412,12 +465,14 @@ fun LabelsScreen(
             AppTabHeader(
                 title = LanguageHelper.getString("labels", languageMode),
                 searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
+                onSearchQueryChange = { newQuery ->
+                    updateFilterState(filterState.withSearchQuery(newQuery, LabelsFilterSpec.FIELD_SEARCH))
+                },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেবেল / নোট খুঁজুন..." else "Search labels/notes...",
                 showSearchButton = true,
                 showFilterButton = true,
-                isFilterActive = filterState.isFilterActive,
-                activeFilterCount = filterState.activeFilterCount,
+                isFilterActive = labelsSpec.isActive(filterState),
+                activeFilterCount = labelsSpec.activeFilterCount(filterState),
                 onFilterClick = { showFilterDialog = true },
                 showTimelineButton = true,
                 onTimelineClick = { showTimelineScreen = true },
@@ -449,6 +504,17 @@ fun LabelsScreen(
                 }
             )
 
+            // Unified Active Filter Bar strip
+            UnifiedActiveFilterBar(
+                spec = labelsSpec,
+                state = filterState,
+                onFilterChange = updateFilterState,
+                onOpenFilterDialog = { showFilterDialog = true },
+                accentColor = CrimsonPink,
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            )
+
             // Segmented Filter Pills Row
             Row(
                 modifier = Modifier
@@ -465,7 +531,9 @@ fun LabelsScreen(
                     count = hashtagMap.size,
                     isSelected = selectedSegment == LabelCategorySegment.HASHTAGS,
                     languageMode = languageMode,
-                    onClick = { selectedSegment = LabelCategorySegment.HASHTAGS }
+                    onClick = {
+                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_HASHTAGS))
+                    }
                 )
 
                 // 2. Notes
@@ -475,7 +543,9 @@ fun LabelsScreen(
                     count = noteMap.size,
                     isSelected = selectedSegment == LabelCategorySegment.NOTES,
                     languageMode = languageMode,
-                    onClick = { selectedSegment = LabelCategorySegment.NOTES }
+                    onClick = {
+                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_NOTES))
+                    }
                 )
 
                 // 3. Payees
@@ -485,7 +555,9 @@ fun LabelsScreen(
                     count = payeeMap.size,
                     isSelected = selectedSegment == LabelCategorySegment.PAYEES,
                     languageMode = languageMode,
-                    onClick = { selectedSegment = LabelCategorySegment.PAYEES }
+                    onClick = {
+                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_PAYEES))
+                    }
                 )
 
                 // 4. Untagged
@@ -496,7 +568,9 @@ fun LabelsScreen(
                     isSelected = selectedSegment == LabelCategorySegment.UNTAGGED,
                     languageMode = languageMode,
                     isAlertStyle = untaggedList.isNotEmpty(),
-                    onClick = { selectedSegment = LabelCategorySegment.UNTAGGED }
+                    onClick = {
+                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_UNTAGGED))
+                    }
                 )
 
                 // 5. All
@@ -506,7 +580,9 @@ fun LabelsScreen(
                     count = allMap.size,
                     isSelected = selectedSegment == LabelCategorySegment.ALL,
                     languageMode = languageMode,
-                    onClick = { selectedSegment = LabelCategorySegment.ALL }
+                    onClick = {
+                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_ALL))
+                    }
                 )
             }
 
@@ -824,7 +900,9 @@ fun LabelsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { activeTabMode = "EXPENSE" }
+                                .clickable {
+                                    updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_TYPE_MODE, LabelsFilterSpec.MODE_EXPENSE))
+                                }
                                 .testTag("labels_mode_expense")
                         ) {
                             Row(
@@ -857,7 +935,9 @@ fun LabelsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { activeTabMode = "ALL" }
+                                .clickable {
+                                    updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_TYPE_MODE, LabelsFilterSpec.MODE_ALL))
+                                }
                                 .testTag("labels_mode_all")
                         ) {
                             Row(
@@ -890,7 +970,9 @@ fun LabelsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { activeTabMode = "INCOME" }
+                                .clickable {
+                                    updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_TYPE_MODE, LabelsFilterSpec.MODE_INCOME))
+                                }
                                 .testTag("labels_mode_income")
                         ) {
                             Row(
@@ -1030,17 +1112,143 @@ fun LabelsScreen(
         )
     }
 
+    fun computeMatchingCount(state: FilterState): Int {
+        val (sEpoch, eEpoch) = LabelsFilterSpec.resolveDateBounds(labelsSpec, state)
+        val segId = LabelsFilterSpec.getSelectedSegmentId(state)
+        val seg = when (segId) {
+            LabelsFilterSpec.SEGMENT_HASHTAGS -> LabelCategorySegment.HASHTAGS
+            LabelsFilterSpec.SEGMENT_NOTES -> LabelCategorySegment.NOTES
+            LabelsFilterSpec.SEGMENT_PAYEES -> LabelCategorySegment.PAYEES
+            LabelsFilterSpec.SEGMENT_UNTAGGED -> LabelCategorySegment.UNTAGGED
+            LabelsFilterSpec.SEGMENT_ALL -> LabelCategorySegment.ALL
+            else -> LabelCategorySegment.HASHTAGS
+        }
+        val tMode = LabelsFilterSpec.getTypeModeId(state).uppercase()
+        val cTargetType = when (tMode) {
+            "EXPENSE" -> TransactionType.EXPENSE
+            "INCOME" -> TransactionType.INCOME
+            else -> null
+        }
+        val dlgType = (state[LabelsFilterSpec.FIELD_TRANSACTION_TYPE] as? FilterValue.SingleSelect)?.selectedId?.let {
+            try { TransactionType.valueOf(it) } catch (_: Exception) { null }
+        }
+        val effType = dlgType ?: cTargetType
+
+        val accIds = (state[LabelsFilterSpec.FIELD_ACCOUNTS] as? FilterValue.Select)?.selectedIds?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+        val catIds = (state[LabelsFilterSpec.FIELD_CATEGORIES] as? FilterValue.Select)?.selectedIds?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+        val statusSet = (state[LabelsFilterSpec.FIELD_STATUSES] as? FilterValue.Select)?.selectedIds?.mapNotNull {
+            try { TransactionStatus.valueOf(it) } catch (_: Exception) { null }
+        }?.toSet() ?: emptySet()
+
+        val fTxs = transactions.filter { item ->
+            val tx = item.transaction
+            val matchesDate = tx.dateEpochMs in sEpoch..eEpoch
+            val matchesType = effType == null || tx.type == effType
+            val matchesAccount = accIds.isEmpty() ||
+                    (tx.debitAccountId != null && tx.debitAccountId in accIds) ||
+                    (tx.creditAccountId != null && tx.creditAccountId in accIds)
+            val matchesCategory = catIds.isEmpty() ||
+                    (tx.categoryId != null && tx.categoryId in catIds) ||
+                    (tx.subCategoryId != null && tx.subCategoryId in catIds)
+            val matchesStatus = statusSet.isEmpty() || tx.status in statusSet
+
+            matchesDate && matchesType && matchesAccount && matchesCategory && matchesStatus
+        }
+
+        val sQuery = LabelsFilterSpec.getSearchQuery(state)
+        val rng = state[LabelsFilterSpec.FIELD_AMOUNT_RANGE] as? FilterValue.Range
+        val minA = rng?.min
+        val maxA = rng?.max
+        val exZero = (state[LabelsFilterSpec.FIELD_EXCLUDE_ZERO] as? FilterValue.ToggleGroup)?.activeIds?.contains("exclude") ?: false
+
+        if (seg == LabelCategorySegment.UNTAGGED) {
+            return fTxs.count { item ->
+                val tx = item.transaction
+                val note = tx.note.trim()
+                val ref = tx.referenceNo.trim()
+                val hashtagRegex = Regex("#[\\w\\u0980-\\u09FF]+")
+                val explicitTags = hashtagRegex.findAll("$note $ref").map { it.value }.toList()
+                val noteWithoutTags = hashtagRegex.replace(note, "").trim()
+                val isUntagged = explicitTags.isEmpty() && noteWithoutTags.isBlank()
+                if (!isUntagged) return@count false
+
+                val catName = item.category?.localizedName(languageMode) ?: ""
+                val matchesSearch = sQuery.isBlank() || catName.contains(sQuery, ignoreCase = true) || tx.amount.toString().contains(sQuery)
+                val matchesMin = minA == null || tx.amount >= minA
+                val matchesMax = maxA == null || tx.amount <= maxA
+                val matchesZero = !exZero || tx.amount > 0
+
+                matchesSearch && matchesMin && matchesMax && matchesZero
+            }
+        }
+
+        val map = mutableMapOf<String, MutableList<TransactionWithDetails>>()
+        val hashtagRegex = Regex("#[\\w\\u0980-\\u09FF]+")
+        for (item in fTxs) {
+            val tx = item.transaction
+            val note = tx.note.trim()
+            val ref = tx.referenceNo.trim()
+            val payee = tx.payeeOrPayer.trim()
+
+            val explicitTags = hashtagRegex.findAll("$note $ref").map { it.value }.toMutableSet()
+            if (ref.isNotBlank() && !ref.startsWith("#") && !ref.contains("TXN-") && !ref.contains("REC-")) {
+                ref.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { tag ->
+                    explicitTags.add(if (tag.startsWith("#")) tag else "#$tag")
+                }
+            }
+
+            var hasExplicitTag = false
+            for (tag in explicitTags) {
+                val normalizedTag = if (tag.startsWith("#")) tag else "#$tag"
+                if (seg == LabelCategorySegment.HASHTAGS || seg == LabelCategorySegment.ALL) {
+                    map.getOrPut(normalizedTag) { mutableListOf() }.add(item)
+                }
+                hasExplicitTag = true
+            }
+
+            val noteWithoutTags = hashtagRegex.replace(note, "").trim()
+            if (noteWithoutTags.isNotBlank()) {
+                if (seg == LabelCategorySegment.NOTES || (seg == LabelCategorySegment.ALL && !hasExplicitTag)) {
+                    map.getOrPut(noteWithoutTags) { mutableListOf() }.add(item)
+                }
+            }
+
+            if (payee.isNotBlank()) {
+                if (seg == LabelCategorySegment.PAYEES) {
+                    map.getOrPut(payee) { mutableListOf() }.add(item)
+                }
+            }
+
+            if (!hasExplicitTag && noteWithoutTags.isBlank() && seg == LabelCategorySegment.ALL) {
+                val catTag = item.category?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "লেবেলহীন" else "Untagged")
+                map.getOrPut(catTag) { mutableListOf() }.add(item)
+            }
+        }
+
+        return map.count { (tagName, txList) ->
+            val expenseSum = txList.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
+            val incomeSum = txList.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
+            val totalAmt = if (effType == TransactionType.EXPENSE) expenseSum else if (effType == TransactionType.INCOME) incomeSum else (expenseSum + incomeSum)
+
+            val matchesSearch = sQuery.isBlank() || tagName.contains(sQuery, ignoreCase = true)
+            val matchesMin = minA == null || totalAmt >= minA
+            val matchesMax = maxA == null || totalAmt <= maxA
+            val matchesZero = !exZero || totalAmt > 0
+
+            matchesSearch && matchesMin && matchesMax && matchesZero
+        }
+    }
+
     // Filter & Sort Dialog
     if (showFilterDialog) {
-        AggregatedFilterDialog(
-            title = if (languageMode == LanguageMode.BANGLA) "লেবেল ফিল্টার ও সাজানো" else "Filter & Sort Labels",
-            currentState = filterState,
-            categories = categories,
-            accounts = accounts,
+        UnifiedFilterDialog(
+            spec = labelsSpec,
+            initialState = filterState,
+            countProvider = { draftState -> computeMatchingCount(draftState) },
             languageMode = languageMode,
             onDismiss = { showFilterDialog = false },
             onApply = { newFilter ->
-                filterState = newFilter
+                updateFilterState(newFilter)
                 showFilterDialog = false
             }
         )

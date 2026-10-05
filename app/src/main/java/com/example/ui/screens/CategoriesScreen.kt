@@ -87,6 +87,14 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import androidx.compose.ui.platform.LocalContext
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.withSearchQuery
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.TabFilterPreferences
@@ -134,26 +142,68 @@ fun CategoriesScreen(
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
 
-    var isEditMode by remember { mutableStateOf(false) }
-    var selectedTypeFilter by remember {
-        mutableStateOf<CategoryType?>(
-            if (initialTab == 1) CategoryType.INCOME
-            else if (initialTab == 0) (tabFilterPrefs.categoriesTypeFilter ?: CategoryType.EXPENSE)
-            else tabFilterPrefs.categoriesTypeFilter
-        )
+    // Synchronously migrate and load persistent FilterState from FilterStore
+    val filterStore = remember {
+        FilterStore.getInstance(context).also { store ->
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+        }
     }
-    var hierarchyFilter by remember { mutableStateOf(tabFilterPrefs.categoriesHierarchyFilter) }
-    var sortFilter by remember { mutableStateOf(tabFilterPrefs.categoriesSortFilter) }
+
+    val categoriesSpec = remember {
+        com.example.ui.components.filter.specs.CategoriesFilterSpec.createSpec()
+    }
+
+    var filterState by remember {
+        val loaded = filterStore.loadFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY)
+        val initial = if (loaded.isEmpty()) {
+            val initialType = if (initialTab == 1) {
+                com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
+            } else {
+                com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+            }
+            mapOf(
+                com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(initialType)),
+                com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ALL)),
+                com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SORT to FilterValue.Sort("default")
+            )
+        } else {
+            loaded
+        }
+        mutableStateOf(initial)
+    }
+
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY, newState)
+    }
+
+    var showFilterDialog by remember { mutableStateOf(false) }
+    var isEditMode by remember { mutableStateOf(false) }
+
+    val selectedTypeFilter = remember(filterState) {
+        com.example.ui.components.filter.specs.CategoriesFilterSpec.getTypeFilter(filterState)
+    }
+    val hierarchyFilter = remember(filterState) {
+        com.example.ui.components.filter.specs.CategoriesFilterSpec.getHierarchyFilter(filterState)
+    }
+    val sortFilter = remember(filterState) {
+        com.example.ui.components.filter.specs.CategoriesFilterSpec.getSortFilter(filterState)
+    }
+    val searchQuery = remember(filterState) {
+        com.example.ui.components.filter.specs.CategoriesFilterSpec.getSearchQuery(filterState)
+    }
+
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
-    LaunchedEffect(selectedTypeFilter, hierarchyFilter, sortFilter) {
-        tabFilterPrefs.categoriesTypeFilter = selectedTypeFilter
-        tabFilterPrefs.categoriesHierarchyFilter = hierarchyFilter
-        tabFilterPrefs.categoriesSortFilter = sortFilter
-    }
-
     LaunchedEffect(initialTab) {
-        selectedTypeFilter = if (initialTab == 1) CategoryType.INCOME else CategoryType.EXPENSE
+        val targetType = if (initialTab == 1) {
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
+        } else {
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+        }
+        updateFilterState(
+            filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(targetType)))
+        )
     }
 
     // Usage Frequency Map from transactions
@@ -236,13 +286,6 @@ fun CategoriesScreen(
             CategorySortFilter.NAME_AZ -> list.sortedBy { it.localizedName(languageMode).lowercase() }
             CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.localizedName(languageMode).lowercase() }
         }
-    }
-
-    // Search state
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.categoriesSearchQuery) }
-
-    LaunchedEffect(searchQuery) {
-        tabFilterPrefs.categoriesSearchQuery = searchQuery
     }
 
     fun matchesCategorySearch(cat: Category, query: String): Boolean {
@@ -380,10 +423,27 @@ fun CategoriesScreen(
             AppTabHeader(
                 title = LanguageHelper.getString("categories", languageMode),
                 searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
+                onSearchQueryChange = { newQuery ->
+                    updateFilterState(filterState.withSearchQuery(newQuery, com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SEARCH))
+                },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি খুঁজুন..." else "Search categories...",
                 showSearchButton = true,
+                showFilterButton = true,
+                isFilterActive = categoriesSpec.isActive(filterState),
+                activeFilterCount = categoriesSpec.activeFilterCount(filterState),
+                onFilterClick = { showFilterDialog = true },
                 onOpenDrawer = onOpenDrawer
+            )
+
+            // Unified Active Filter Bar
+            UnifiedActiveFilterBar(
+                spec = categoriesSpec,
+                state = filterState,
+                onFilterChange = updateFilterState,
+                onOpenFilterDialog = { showFilterDialog = true },
+                accentColor = Color(0xFF10B981),
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
             )
 
             LazyColumn(
@@ -580,17 +640,29 @@ fun CategoriesScreen(
                                     ScopePill(
                                         selected = hierarchyFilter == CategoryViewHierarchyFilter.ALL,
                                         label = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
-                                        onClick = { hierarchyFilter = CategoryViewHierarchyFilter.ALL }
+                                        onClick = {
+                                            updateFilterState(
+                                                filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ALL)))
+                                            )
+                                        }
                                     )
                                     ScopePill(
                                         selected = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_GROUPS,
                                         label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র গ্রুপ" else "Only Groups",
-                                        onClick = { hierarchyFilter = CategoryViewHierarchyFilter.ONLY_GROUPS }
+                                        onClick = {
+                                            updateFilterState(
+                                                filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ONLY_GROUPS)))
+                                            )
+                                        }
                                     )
                                     ScopePill(
                                         selected = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_CATEGORIES,
                                         label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
-                                        onClick = { hierarchyFilter = CategoryViewHierarchyFilter.ONLY_CATEGORIES }
+                                        onClick = {
+                                            updateFilterState(
+                                                filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ONLY_CATEGORIES)))
+                                            )
+                                        }
                                     )
                                 }
 
@@ -646,7 +718,10 @@ fun CategoriesScreen(
                                                     }
                                                 },
                                                 onClick = {
-                                                    sortFilter = filter
+                                                    val sortId = filter.name.lowercase()
+                                                    updateFilterState(
+                                                        filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SORT to FilterValue.Sort(sortId))
+                                                    )
                                                     showFilterMenu = false
                                                 }
                                             )
@@ -1091,7 +1166,11 @@ fun CategoriesScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedTypeFilter = CategoryType.EXPENSE }
+                                .clickable {
+                                    updateFilterState(
+                                        filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE)))
+                                    )
+                                }
                                 .testTag("cat_filter_expenses")
                         ) {
                             Row(
@@ -1124,7 +1203,11 @@ fun CategoriesScreen(
                                 .weight(0.85f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedTypeFilter = null }
+                                .clickable {
+                                    updateFilterState(
+                                        filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_ALL)))
+                                    )
+                                }
                                 .testTag("cat_filter_all")
                         ) {
                             Row(
@@ -1157,7 +1240,11 @@ fun CategoriesScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedTypeFilter = CategoryType.INCOME }
+                                .clickable {
+                                    updateFilterState(
+                                        filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME)))
+                                    )
+                                }
                                 .testTag("cat_filter_incomes")
                         ) {
                             Row(
@@ -1184,6 +1271,43 @@ fun CategoriesScreen(
                 }
             }
         }
+    }
+
+    // Filter & Sort Dialog
+    if (showFilterDialog) {
+        UnifiedFilterDialog(
+            spec = categoriesSpec,
+            initialState = filterState,
+            countProvider = { draftState ->
+                val draftType = com.example.ui.components.filter.specs.CategoriesFilterSpec.getTypeFilter(draftState)
+                val draftHierarchy = com.example.ui.components.filter.specs.CategoriesFilterSpec.getHierarchyFilter(draftState)
+                val draftSearch = com.example.ui.components.filter.specs.CategoriesFilterSpec.getSearchQuery(draftState)
+
+                if (draftHierarchy == CategoryViewHierarchyFilter.ONLY_CATEGORIES) {
+                    val matchingSubs = categories.filter { it.parentId != null && (draftType == null || it.type == draftType) }
+                    if (draftSearch.isBlank()) matchingSubs.size else matchingSubs.count { matchesCategorySearch(it, draftSearch) }
+                } else if (draftHierarchy == CategoryViewHierarchyFilter.ONLY_GROUPS) {
+                    val matchingGroups = categories.filter { it.parentId == null && (draftType == null || it.type == draftType) }
+                    if (draftSearch.isBlank()) matchingGroups.size else matchingGroups.count { matchesCategorySearch(it, draftSearch) }
+                } else {
+                    val matchingGroups = categories.filter { it.parentId == null && (draftType == null || it.type == draftType) }
+                    if (draftSearch.isBlank()) {
+                        matchingGroups.size
+                    } else {
+                        matchingGroups.count { group ->
+                            val subs = (subCategoriesMap[group.id] ?: emptyList()).filter { draftType == null || it.type == draftType }
+                            matchesCategorySearch(group, draftSearch) || subs.any { matchesCategorySearch(it, draftSearch) }
+                        }
+                    }
+                }
+            },
+            languageMode = languageMode,
+            onDismiss = { showFilterDialog = false },
+            onApply = { newFilter ->
+                updateFilterState(newFilter)
+                showFilterDialog = false
+            }
+        )
     }
 }
 

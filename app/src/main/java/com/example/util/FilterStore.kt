@@ -82,6 +82,11 @@ class FilterStore private constructor(context: Context) {
                         if (value.sortId != null) fieldObj.put("sortId", value.sortId)
                     }
 
+                    is FilterValue.Search -> {
+                        fieldObj.put("type", "search")
+                        fieldObj.put("query", value.query)
+                    }
+
                     is FilterValue.BooleanVal -> {
                         fieldObj.put("type", "boolean")
                         fieldObj.put("value", value.value)
@@ -161,6 +166,11 @@ class FilterStore private constructor(context: Context) {
                         FilterValue.Sort(sortId)
                     }
 
+                    "search" -> {
+                        val q = fieldObj.optString("query", "")
+                        FilterValue.Search(q)
+                    }
+
                     "boolean" -> {
                         val b = fieldObj.optBoolean("value", false)
                         FilterValue.BooleanVal(b)
@@ -202,9 +212,50 @@ class FilterStore private constructor(context: Context) {
         if (prefs.getBoolean(KEY_MIGRATED, false)) return
 
         try {
-            // Quick filters, sort, and search in TabFilterPreferences operate independently
-            // at the screen level. We set the migrated flag without copying them into
-            // budget_maker_* FilterState to ensure they are never double-applied.
+            // 1. Migrate LabelsScreen saved preferences if not already present in FilterStore
+            if (!prefs.contains("filter_${com.example.ui.components.filter.specs.LabelsFilterSpec.SPEC_KEY}")) {
+                val labelsState = mutableMapOf<String, FilterValue>()
+                if (tabFilterPrefs.labelsSearchQuery.isNotBlank()) {
+                    labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SEARCH] = FilterValue.Search(tabFilterPrefs.labelsSearchQuery)
+                }
+                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SEGMENT] = FilterValue.ToggleGroup(
+                    setOf(tabFilterPrefs.labelsCategorySegment.lowercase())
+                )
+                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_TYPE_MODE] = FilterValue.ToggleGroup(
+                    setOf(tabFilterPrefs.labelsTabMode.lowercase())
+                )
+                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_DATE] = FilterValue.Date(
+                    presetId = tabFilterPrefs.labelsDatePreset.name.lowercase()
+                )
+                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SORT] = FilterValue.Sort(
+                    tabFilterPrefs.labelsSortOrder.name.lowercase()
+                )
+                saveFilterState(com.example.ui.components.filter.specs.LabelsFilterSpec.SPEC_KEY, labelsState)
+            }
+
+            // 2. Migrate CategoriesScreen saved preferences if not already present in FilterStore
+            if (!prefs.contains("filter_${com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY}")) {
+                val catState = mutableMapOf<String, FilterValue>()
+                if (tabFilterPrefs.categoriesSearchQuery.isNotBlank()) {
+                    catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SEARCH] = FilterValue.Search(tabFilterPrefs.categoriesSearchQuery)
+                }
+                val typeMode = when (tabFilterPrefs.categoriesTypeFilter) {
+                    com.example.data.model.CategoryType.EXPENSE -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+                    com.example.data.model.CategoryType.INCOME -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
+                    null -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_ALL
+                }
+                catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE] = FilterValue.ToggleGroup(setOf(typeMode))
+                catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(
+                    setOf(tabFilterPrefs.categoriesHierarchyFilter.name.lowercase())
+                )
+                catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SORT] = FilterValue.Sort(
+                    tabFilterPrefs.categoriesSortFilter.name.lowercase()
+                )
+                saveFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY, catState)
+            }
+
+            // Quick filters, sort, and search in TabFilterPreferences for Budget Maker operate independently
+            // at the screen level. We set the migrated flag so migration runs once.
             prefs.edit().putBoolean(KEY_MIGRATED, true).apply()
         } catch (_: Exception) {
             // If migration fails, do not mark as migrated so it can retry safely

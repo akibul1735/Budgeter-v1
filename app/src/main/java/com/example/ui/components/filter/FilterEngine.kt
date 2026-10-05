@@ -71,6 +71,13 @@ object FilterEngine {
                     }
                 }
 
+                is FilterField.SearchField<T> -> {
+                    val q = (value as? FilterValue.Search)?.query?.trim() ?: ""
+                    if (q.isNotEmpty() && field.predicate != null) {
+                        result = result.filter { item -> field.predicate.invoke(item, q) }
+                    }
+                }
+
                 is FilterField.SortField<T> -> {
                     // Handled in sorting pass below
                 }
@@ -168,6 +175,11 @@ object FilterEngine {
                         else -> {}
                     }
                 }
+
+                is FilterField.SearchField<T> -> {
+                    val q = (value as? FilterValue.Search)?.query?.trim() ?: ""
+                    if (q.isNotEmpty()) count++
+                }
             }
         }
         return count
@@ -256,6 +268,9 @@ object FilterEngine {
             return state - fieldId
         } else if (chipId.startsWith("custom_")) {
             val fieldId = chipId.removePrefix("custom_")
+            return state - fieldId
+        } else if (chipId.startsWith("search_")) {
+            val fieldId = chipId.removePrefix("search_")
             return state - fieldId
         }
         return state
@@ -421,6 +436,21 @@ object FilterEngine {
                         )
                     }
                 }
+
+                is FilterField.SearchField<T> -> {
+                    val q = (value as? FilterValue.Search)?.query?.trim() ?: ""
+                    if (q.isNotEmpty()) {
+                        chips.add(
+                            UnifiedFilterChipItem(
+                                id = "search_${field.id}",
+                                fieldId = field.id,
+                                label = "\"$q\"",
+                                icon = field.icon,
+                                color = spec.accentColor
+                            )
+                        )
+                    }
+                }
             }
         }
 
@@ -452,3 +482,12 @@ fun <T> FilterSpec<T>.removeActiveChip(state: FilterState, chipId: String): Filt
 
 fun <T> FilterSpec<T>.activeChips(state: FilterState, languageMode: LanguageMode): List<UnifiedFilterChipItem> =
     FilterEngine.generateActiveChips(this, state, languageMode)
+
+/**
+ * Convenience search query accessors for FilterState.
+ */
+fun FilterState.getSearchQuery(fieldId: String = "search"): String =
+    (this[fieldId] as? FilterValue.Search)?.query ?: ""
+
+fun FilterState.withSearchQuery(query: String, fieldId: String = "search"): FilterState =
+    if (query.isBlank()) this - fieldId else this + (fieldId to FilterValue.Search(query))
