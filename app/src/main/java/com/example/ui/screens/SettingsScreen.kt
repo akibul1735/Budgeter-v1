@@ -130,6 +130,7 @@ import com.example.ui.screens.settings.SecuritySettingsPage
 import com.example.ui.screens.settings.SmartAutofillSettingsPage
 import com.example.ui.screens.settings.TransactionSetupSettingsPage
 import com.example.ui.viewmodel.BudgetViewModel
+import com.example.util.SearchMatcher
 import com.example.util.CalendarDisplayMode
 import com.example.util.DateFormatOption
 import com.example.util.IconHelper
@@ -245,14 +246,32 @@ fun SettingsScreen(
     // Searchable catalog of all settings options
     val searchableSettings = remember(languageMode, themeConfig, currencyConfig, amountFormatConfig, displayFormatConfig, securityConfig, primaryColor, errorColor) {
         listOf(
-            // Appearance & Interface
+            // --- APPEARANCE & INTERFACE ---
             SettingsSearchItem(
                 id = "themes",
                 title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা" else "Customize Appearance",
                 subtitle = "${themeConfig.activeThemeDisplayName} • ${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }}",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE",
                 icon = Icons.Default.Palette,
-                keywords = listOf("theme", "থিম", "appearance", "dark mode", "ডার্ক মোড", "light mode", "লাইট মোড", "color", "রং", "font", "ফন্ট", "palette", "প্যালেট"),
+                keywords = listOf("theme", "থিম", "appearance", "dark mode", "ডার্ক মোড", "light mode", "লাইট মোড", "color", "রং", "font", "ফন্ট", "palette", "প্যালেট", "emerald", "gold", "slate", "mode"),
+                onClick = { currentSubPage = SettingsSubPage.THEMES }
+            ),
+            SettingsSearchItem(
+                id = "dark_mode_option",
+                title = if (languageMode == LanguageMode.BANGLA) "ডার্ক মোড / লাইট মোড পছন্দ" else "Dark Mode / Light Mode",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "সিস্টেম, ডার্ক মোড বা লাইট মোড বেছে নিন" else "Switch System, Pure Dark, or Pure Light theme",
+                sectionName = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE",
+                icon = Icons.Default.Palette,
+                keywords = listOf("dark mode", "light mode", "night mode", "theme mode", "ডার্ক মোড", "লাইট মোড", "নাইট মোড", "থিম মোড", "সিস্টেম মোড"),
+                onClick = { currentSubPage = SettingsSubPage.THEMES }
+            ),
+            SettingsSearchItem(
+                id = "color_palette_option",
+                title = if (languageMode == LanguageMode.BANGLA) "কালার প্যালেট ও এক্সেন্ট" else "Color Palette & Accents",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "অবসিডিয়ান, এমেরাল্ড ফিনটেক ও ম্যাটেরিয়াল ইউ" else "Obsidian Slate, Emerald Fintech, Royal Gold & Material You",
+                sectionName = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE",
+                icon = Icons.Default.Palette,
+                keywords = listOf("palette", "colors", "accent", "material you", "dynamic color", "কালার", "প্যালেট", "রং", "এমেরাল্ড", "গোল্ড"),
                 onClick = { currentSubPage = SettingsSubPage.THEMES }
             ),
             SettingsSearchItem(
@@ -261,7 +280,7 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE",
                 icon = Icons.Default.ViewCarousel,
-                keywords = listOf("tabs", "ট্যাব", "navigation", "নেভিগেশন", "bottom bar", "ট্যাব বার", "position", "অবস্থান", "reorder", "লুকানো"),
+                keywords = listOf("tabs", "ট্যাব", "navigation", "নেভিগেশন", "bottom bar", "ট্যাব বার", "position", "অবস্থান", "reorder", "লুকানো", "কাস্টমাইজ"),
                 onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
             ),
             SettingsSearchItem(
@@ -270,7 +289,7 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন আইকন, ইমেজ ক্রপ স্টুডিও ও কাস্টম আইকন" else "Online icons, photo cropper & custom item icons",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE",
                 icon = Icons.Default.Category,
-                keywords = listOf("icon", "আইকন", "crop", "ক্রপ", "photo", "ছবি", "studio", "স্টুডিও", "cache", "ক্যাশ", "custom icon", "image"),
+                keywords = listOf("icon", "আইকন", "crop", "ক্রপ", "photo", "ছবি", "studio", "স্টুডিও", "cache", "ক্যাশ", "custom icon", "image", "ফটো"),
                 onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE }
             ),
             SettingsSearchItem(
@@ -279,7 +298,7 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "প্রিমিয়াম কুইক অ্যাকশন ও বাজেট উইজেট পিন করুন" else "Quick actions, live budget meter & live feeds",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE",
                 icon = Icons.Default.Widgets,
-                keywords = listOf("widget", "উইজেট", "home screen", "হোম স্ক্রিন", "meter", "মিটার", "shortcut", "পিন", "quick entry"),
+                keywords = listOf("widget", "উইজেট", "home screen", "হোম স্ক্রিন", "meter", "মিটার", "shortcut", "পিন", "quick entry", "কুইক অ্যাকশন"),
                 onClick = { currentSubPage = SettingsSubPage.WIDGETS }
             ),
             SettingsSearchItem(
@@ -288,11 +307,11 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের ইনডিকেটর প্রদর্শন" else "Visual indicators & fiscal calendar",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE",
                 icon = Icons.Default.CalendarMonth,
-                keywords = listOf("calendar", "ক্যালেন্ডার", "fiscal", "অর্থবছর", "indicator", "ইনডিকেটর", "monthly view"),
+                keywords = listOf("calendar", "ক্যালেন্ডার", "fiscal", "অর্থবছর", "indicator", "ইনডিকেটর", "monthly view", "মাসিক ভিউ"),
                 onClick = { currentSubPage = SettingsSubPage.CALENDAR }
             ),
 
-            // Regional & Formatting
+            // --- REGIONAL & FORMATTING ---
             SettingsSearchItem(
                 id = "language",
                 title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference",
@@ -302,7 +321,7 @@ fun SettingsScreen(
                 },
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন ও ফরম্যাটিং" else "REGIONAL & FORMATTING",
                 icon = Icons.Default.Language,
-                keywords = listOf("language", "ভাষা", "english", "বাংলা", "bangla", "ইংরেজি", "locale"),
+                keywords = listOf("language", "ভাষা", "english", "বাংলা", "bangla", "ইংরেজি", "locale", "লোকাল"),
                 onClick = { currentSubPage = SettingsSubPage.LANGUAGE }
             ),
             SettingsSearchItem(
@@ -311,29 +330,38 @@ fun SettingsScreen(
                 subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন ও ফরম্যাটিং" else "REGIONAL & FORMATTING",
                 icon = Icons.Default.CurrencyExchange,
-                keywords = listOf("currency", "মুদ্রা", "taka", "টাকা", "bdt", "usd", "dollar", "symbol", "প্রতীক", "কোড", "currency placement"),
+                keywords = listOf("currency", "মুদ্রা", "taka", "টাকা", "bdt", "usd", "dollar", "symbol", "প্রতীক", "কোড", "currency placement", "ডলার", "ইউরো"),
                 onClick = { currentSubPage = SettingsSubPage.CURRENCY }
             ),
             SettingsSearchItem(
                 id = "amount_format",
-                title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format",
+                title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format & Separator",
                 subtitle = if (languageMode == LanguageMode.BANGLA) amountFormatConfig.preset.titleBn else amountFormatConfig.preset.titleEn,
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন ও ফরম্যাটিং" else "REGIONAL & FORMATTING",
                 icon = Icons.Default.Numbers,
-                keywords = listOf("amount", "টাকা", "format", "ফরম্যাট", "comma", "কমা", "separator", "সেপারেটর", "decimal", "দশমিক", "lakh", "crore", "লাখ", "কোটি"),
+                keywords = listOf("amount", "টাকা", "format", "ফরম্যাট", "comma", "কমা", "separator", "সেপারেটর", "decimal", "দশমিক", "lakh", "crore", "লাখ", "কোটি", "million", "মিলিয়ন", "number format"),
+                onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
+            ),
+            SettingsSearchItem(
+                id = "decimal_places_option",
+                title = if (languageMode == LanguageMode.BANGLA) "দশমিক ও ডেসিমাল সংখ্যা" else "Decimal Places (0, 2, 3)",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "টাকার অংকে কতটি দশমিক স্থান প্রদর্শিত হবে" else "Configure decimal point precision for currency",
+                sectionName = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন ও ফরম্যাটিং" else "REGIONAL & FORMATTING",
+                icon = Icons.Default.Numbers,
+                keywords = listOf("decimal", "decimals", "precision", "দশমিক", "পয়েন্ট", "ডেসিমাল", "অংক"),
                 onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
             ),
             SettingsSearchItem(
                 id = "date_settings",
-                title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date Settings",
+                title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date & Time Settings",
                 subtitle = displayFormatConfig.dateFormatPattern,
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন ও ফরম্যাটিং" else "REGIONAL & FORMATTING",
                 icon = Icons.Default.CalendarToday,
-                keywords = listOf("date", "তারিখ", "time", "সময়", "format", "pattern", "first day", "শুরুর দিন", "week", "সপ্তাহ"),
+                keywords = listOf("date", "তারিখ", "time", "সময়", "format", "pattern", "first day", "শুরুর দিন", "week", "সপ্তাহ", "date format", "তারিখের ফরম্যাট"),
                 onClick = { currentSubPage = SettingsSubPage.DATE_TIME }
             ),
 
-            // Transactions & Workflow
+            // --- TRANSACTIONS & WORKFLOW ---
             SettingsSearchItem(
                 id = "default_names",
                 title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট নাম / নামহীন লেনদেন মোড" else "Default Payee Names / Unnamed Payee",
@@ -352,7 +380,7 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেনে স্বয়ংক্রিয়ভাবে নির্বাচিত অ্যাকাউন্ট ও ক্যাটাগরি" else "Pre-selected default accounts and categories for new entries",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
                 icon = Icons.Default.AccountBalance,
-                keywords = listOf("default", "defaults", "default account", "default category", "income category", "expense category", "ডিফল্ট", "ডিফল্ট অ্যাকাউন্ট", "ক্যাটাগরি"),
+                keywords = listOf("default", "defaults", "default account", "default category", "income category", "expense category", "ডিফল্ট", "ডিফল্ট অ্যাকাউন্ট", "ক্যাটাগরি", "অ্যাকাউন্ট"),
                 onClick = {
                     viewModel.navigateToSettingsSubPage(SettingsSubPage.TRANSACTION_SETUP, 1)
                     currentSubPage = SettingsSubPage.TRANSACTION_SETUP
@@ -364,17 +392,29 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাশ, ব্যাংক ও মোবাইল ব্যাংকিং মাধ্যম" else "Customize Cash, Bank, and Mobile Banking accounts",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
                 icon = Icons.Default.Payments,
-                keywords = listOf("payment sources", "cash", "bank", "mfs", "bkash", "nagad", "পেমেন্ট মাধ্যম", "পেমেন্ট সোর্স", "ক্যাশ", "ব্যাংক"),
+                keywords = listOf("payment sources", "payment source", "cash", "bank", "mfs", "bkash", "nagad", "rocket", "পেমেন্ট মাধ্যম", "পেমেন্ট সোর্স", "ক্যাশ", "ব্যাংক", "বিকাশ", "নগদ"),
                 onClick = { currentSubPage = SettingsSubPage.PAYMENT_SOURCES }
             ),
             SettingsSearchItem(
                 id = "transaction_setup",
-                title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
-                subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম, দ্রুত লেনদেন ও প্রদর্শন" else "Default accounts, layout & autofill",
+                title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ ও ইনপুট আচরণ" else "Transaction Setup & Input Behavior",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম, দ্রুত লেনদেন, ক্যালেন্ডার ও অটোফোকাস" else "Default accounts, 1-tap quick mode, calendar presets & autofocus",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
                 icon = Icons.Default.AddCircleOutline,
-                keywords = listOf("transaction setup", "লেনদেন সেটআপ", "payment sources", "পেমেন্ট মাধ্যম", "quick entry", "অটোফিল", "layout"),
+                keywords = listOf("transaction setup", "লেনদেন সেটআপ", "payment sources", "পেমেন্ট মাধ্যম", "quick entry", "অটোফিল", "layout", "দ্রুত লেনদেন"),
                 onClick = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
+            ),
+            SettingsSearchItem(
+                id = "quick_tx_mode_option",
+                title = if (languageMode == LanguageMode.BANGLA) "দ্রুত লেনদেন মোড (১ ট্যাপ সেভ)" else "Quick Transaction Mode (1-Tap Save)",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ফর্ম বন্ধ না করে দ্রুত একের পর এক লেনদেন সংরক্ষণ" else "Keep bottom sheet open for rapid entry",
+                sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
+                icon = Icons.Default.AddCircleOutline,
+                keywords = listOf("quick mode", "fast entry", "1 tap", "দ্রুত মোড", "১ ট্যাপ", "ধারাবাহিক"),
+                onClick = {
+                    viewModel.navigateToSettingsSubPage(SettingsSubPage.TRANSACTION_SETUP, 1)
+                    currentSubPage = SettingsSubPage.TRANSACTION_SETUP
+                }
             ),
             SettingsSearchItem(
                 id = "smart_autofill",
@@ -382,20 +422,20 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন রুল ও ক্যাটাগরি স্বয়ংক্রিয় নির্ধারণ" else "Auto-categorize transactions & payee memory",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
                 icon = Icons.Default.Tune,
-                keywords = listOf("autofill", "অটোফিল", "rules", "রুল", "smart", "স্মার্ট", "auto categorize", "payee"),
+                keywords = listOf("autofill", "অটোফিল", "rules", "রুল", "smart", "স্মার্ট", "auto categorize", "payee", "মেমোরি"),
                 onClick = { currentSubPage = SettingsSubPage.SMART_AUTOFILL }
             ),
             SettingsSearchItem(
                 id = "phone_notifications",
-                title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
-                subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডার ও বিল অ্যালার্ট" else "Daily expense alarms & reminders",
+                title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification & Alarms",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডার ও বিল অ্যালার্ট" else "Daily expense alarms & recurring bill reminders",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW",
                 icon = Icons.Default.NotificationsNone,
-                keywords = listOf("notification", "নোটিফিকেশন", "reminder", "রিমাইন্ডার", "alarm", "অ্যালার্ম", "daily expense", "bill alert"),
+                keywords = listOf("notification", "নোটিফিকেশন", "reminder", "রিমাইন্ডার", "alarm", "অ্যালার্ম", "daily expense", "bill alert", "বিল অ্যালার্ট"),
                 onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
             ),
 
-            // Security & Permissions
+            // --- SECURITY & PERMISSIONS ---
             SettingsSearchItem(
                 id = "security",
                 title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও ফিঙ্গারপ্রিন্ট" else "Password and Fingerprint",
@@ -405,7 +445,7 @@ fun SettingsScreen(
                     (if (languageMode == LanguageMode.BANGLA) "বায়োমেট্রিক ও পিন সুরক্ষা" else "Biometric authentication & PIN lock"),
                 sectionName = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও অনুমতি" else "SECURITY & PERMISSIONS",
                 icon = Icons.Default.Fingerprint,
-                keywords = listOf("security", "নিরাপত্তা", "pin", "পিন", "password", "পাসওয়ার্ড", "fingerprint", "ফিঙ্গারপ্রিন্ট", "biometric", "বায়োমেট্রিক", "app lock", "লক"),
+                keywords = listOf("security", "নিরাপত্তা", "pin", "পিন", "password", "পাসওয়ার্ড", "fingerprint", "ফিঙ্গারপ্রিন্ট", "biometric", "বায়োমেট্রিক", "app lock", "লক", "সুরক্ষা"),
                 onClick = { handleSecurityAccess() }
             ),
             SettingsSearchItem(
@@ -414,11 +454,11 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যামেরা, নোটিফিকেশন ও সিস্টেম অনুমতি নিয়ন্ত্রণ" else "Manage camera, notifications & system access",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও অনুমতি" else "SECURITY & PERMISSIONS",
                 icon = Icons.Default.Security,
-                keywords = listOf("permissions", "অনুমতি", "camera", "ক্যামেরা", "notification permission", "storage", "সিস্টেম"),
+                keywords = listOf("permissions", "অনুমতি", "camera", "ক্যামেরা", "notification permission", "storage", "সিস্টেম", "পারমিশন"),
                 onClick = { currentSubPage = SettingsSubPage.PERMISSIONS }
             ),
 
-            // Data & Storage
+            // --- DATA & STORAGE ---
             SettingsSearchItem(
                 id = "backup_sync",
                 title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
@@ -426,7 +466,7 @@ fun SettingsScreen(
                 sectionName = if (languageMode == LanguageMode.BANGLA) "ডাটা ও স্টোরেজ" else "DATA & STORAGE",
                 icon = Icons.Default.CloudSync,
                 iconTint = primaryColor,
-                keywords = listOf("backup", "ব্যাকআপ", "sync", "সিঙ্ক", "google drive", "drive", "dropbox", "ড্রপবক্স", "local", "restore", "রিস্টোর"),
+                keywords = listOf("backup", "ব্যাকআপ", "sync", "সিঙ্ক", "google drive", "drive", "dropbox", "ড্রপবক্স", "local", "restore", "রিস্টোর", "ক্লাউড", "অটো ব্যাকআপ"),
                 onClick = onNavigateToBackupSync
             ),
             SettingsSearchItem(
@@ -436,7 +476,7 @@ fun SettingsScreen(
                 sectionName = if (languageMode == LanguageMode.BANGLA) "ডাটা ও স্টোরেজ" else "DATA & STORAGE",
                 icon = Icons.Default.Archive,
                 iconTint = primaryColor,
-                keywords = listOf("archive", "আর্কাইভ", "prune", "প্রুন", "fiscal year", "roll-forward", "পুরাতন ডাটা", "shrink db"),
+                keywords = listOf("archive", "আর্কাইভ", "prune", "প্রুন", "fiscal year", "roll-forward", "পুরাতন ডাটা", "shrink db", "ডাটাবেস ছোট"),
                 onClick = { handleArchivePruneAccess() }
             ),
             SettingsSearchItem(
@@ -446,18 +486,18 @@ fun SettingsScreen(
                 sectionName = if (languageMode == LanguageMode.BANGLA) "ডাটা ও স্টোরেজ" else "DATA & STORAGE",
                 icon = Icons.Default.DeleteSweep,
                 iconTint = errorColor,
-                keywords = listOf("reset", "রিসেট", "wipe", "ডিলিট", "delete", "clear transactions", "factory reset", "ফ্যাক্টরি রিসেট"),
+                keywords = listOf("reset", "রিসেট", "wipe", "ডিলিট", "delete", "clear transactions", "factory reset", "ফ্যাক্টরি রিসেট", "মুছুন", "ক্লিন"),
                 onClick = onNavigateToReset
             ),
 
-            // Support & About
+            // --- SUPPORT & ABOUT ---
             SettingsSearchItem(
                 id = "faq",
                 title = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও প্রশ্নোত্তর" else "Support & FAQ",
                 subtitle = if (languageMode == LanguageMode.BANGLA) "ইউজার গাইড ও প্রশ্নোত্তর" else "User guide & frequently asked questions",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
                 icon = Icons.Default.HelpOutline,
-                keywords = listOf("help", "সহায়তা", "faq", "প্রশ্ন", "question", "guide", "গাইড", "support"),
+                keywords = listOf("help", "সহায়তা", "faq", "প্রশ্ন", "question", "guide", "গাইড", "support", "টিউটোরিয়াল"),
                 onClick = { currentSubPage = SettingsSubPage.FAQ }
             ),
             SettingsSearchItem(
@@ -466,7 +506,7 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "ডেভেলপারদের পরামর্শ ও মতামত জানান" else "Send suggestions to developers",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
                 icon = Icons.Default.Feedback,
-                keywords = listOf("feedback", "মতামত", "bug", "সমস্যা", "report", "পরামর্শ", "developer", "contact"),
+                keywords = listOf("feedback", "মতামত", "bug", "সমস্যা", "report", "পরামর্শ", "developer", "contact", "ফিডব্যাক"),
                 onClick = { showFeedbackDialog = true }
             ),
             SettingsSearchItem(
@@ -475,32 +515,42 @@ fun SettingsScreen(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "১০০% অফলাইন, আপনার ডাটা ফোনেই নিরাপদ" else "100% offline-first, your data stays on device",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
                 icon = Icons.Default.Security,
-                keywords = listOf("privacy", "গোপনীয়তা", "offline", "অফলাইন", "policy", "নিরাপদ", "data security"),
+                keywords = listOf("privacy", "গোপনীয়তা", "offline", "অফলাইন", "policy", "নিরাপদ", "data security", "প্রাইভেসি"),
                 onClick = { showPrivacyDialog = true }
             ),
             SettingsSearchItem(
                 id = "app_version",
                 title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সংস্করণ ও তথ্য" else "App Version & About",
-                subtitle = "v1.0.0 (Budgeter Release)",
+                subtitle = "Budgeter Release (100% Offline-First Fintech)",
                 sectionName = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
                 icon = Icons.Default.Info,
-                keywords = listOf("version", "সংস্করণ", "about", "সম্পর্কে", "update", "রিলিজ", "release"),
+                keywords = listOf("version", "সংস্করণ", "about", "সম্পর্কে", "update", "রিলিজ", "release", "ভার্সন", "আপডেট"),
                 onClick = { currentSubPage = SettingsSubPage.ABOUT }
             )
         )
     }
 
     val filteredSettings = remember(searchQuery, searchableSettings) {
-        val q = searchQuery.trim().lowercase(java.util.Locale.ROOT)
-        if (q.isEmpty()) {
+        val tokens = SearchMatcher.tokenize(searchQuery)
+        if (tokens.isEmpty()) {
             emptyList()
         } else {
-            searchableSettings.filter { item ->
-                item.title.lowercase().contains(q) ||
-                item.subtitle?.lowercase()?.contains(q) == true ||
-                item.sectionName.lowercase().contains(q) ||
-                item.keywords.any { it.contains(q) }
-            }
+            searchableSettings.mapNotNull { item ->
+                val fields = listOf(
+                    SearchMatcher.SearchField(item.title, SearchMatcher.FieldWeight.PRIMARY.weight),
+                    SearchMatcher.SearchField(item.keywords.joinToString(" "), SearchMatcher.FieldWeight.KEYWORD.weight),
+                    SearchMatcher.SearchField("${item.sectionName} ${item.subtitle.orEmpty()}", SearchMatcher.FieldWeight.SECONDARY.weight)
+                )
+                val score = SearchMatcher.computeScore(tokens, fields)
+                if (score > 0.0) {
+                    SearchMatcher.MatchResult(item, score, secondarySortKey = item.title)
+                } else {
+                    null
+                }
+            }.sortedWith(
+                compareByDescending<SearchMatcher.MatchResult<SettingsSearchItem>> { it.score }
+                    .thenBy { it.secondarySortKey }
+            ).map { it.item }
         }
     }
 
@@ -887,6 +937,7 @@ fun SettingsScreen(
                                 subtitle = "${item.sectionName} • ${item.subtitle.orEmpty()}",
                                 icon = item.icon,
                                 iconTint = item.iconTint,
+                                searchQuery = searchQuery,
                                 onClick = {
                                     searchQuery = ""
                                     item.onClick()
@@ -1358,8 +1409,18 @@ private fun ModernSettingsItemRow(
     subtitle: String? = null,
     icon: ImageVector,
     iconTint: Color? = null,
+    searchQuery: String = "",
     onClick: () -> Unit
 ) {
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val titleDisplay = remember(title, searchQuery, highlightColor) {
+        if (searchQuery.isNotBlank()) {
+            SearchMatcher.highlight(title, searchQuery, highlightColor, FontWeight.Bold)
+        } else {
+            androidx.compose.ui.text.AnnotatedString(title)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1376,7 +1437,7 @@ private fun ModernSettingsItemRow(
         Spacer(modifier = Modifier.width(20.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = title,
+                text = titleDisplay,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface

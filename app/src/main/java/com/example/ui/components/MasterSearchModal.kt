@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,18 +33,23 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
@@ -54,32 +58,22 @@ import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.AddCircleOutline
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.CurrencyExchange
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.filled.Widgets
-import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -91,6 +85,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -129,16 +124,17 @@ import com.example.data.repository.AccountWithBalance
 import com.example.ui.screens.AppView
 import com.example.ui.screens.SettingsSubPage
 import com.example.ui.theme.SolidExpense
-import com.example.ui.theme.SolidExpenseContainer
 import com.example.ui.theme.SolidIncome
-import com.example.ui.theme.SolidIncomeContainer
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidTransfer
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.ItemCacheHelper
 import com.example.util.LanguageHelper
+import com.example.util.SearchMatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 enum class SearchFilterCategory {
     ALL,
@@ -269,6 +265,20 @@ sealed class MasterSearchResult {
     ) : MasterSearchResult()
 }
 
+private data class IndexedEntity(
+    val result: MasterSearchResult,
+    val fields: List<SearchMatcher.SearchField>,
+    val dateEpochMs: Long = 0L,
+    val secondarySortKey: String = result.title,
+    val categoryFilter: SearchFilterCategory
+)
+
+private data class SearchGroupResult(
+    val groupTag: String,
+    val items: List<MasterSearchResult>,
+    val topScore: Double
+)
+
 @Composable
 fun MasterSearchModal(
     languageMode: LanguageMode,
@@ -290,6 +300,7 @@ fun MasterSearchModal(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(SearchFilterCategory.ALL) }
+    var expandedGroups by remember { mutableStateOf(setOf<String>()) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -305,11 +316,450 @@ fun MasterSearchModal(
         } catch (_: Exception) {}
     }
 
-    // Index and Search across all entities
-    val searchResults = remember(
-        searchQuery,
-        selectedCategory,
-        languageMode,
+    // Precomputed action catalog with bilingual keywords
+    val actionCatalog = remember(languageMode, primaryColor, tertiaryColor, errorColor) {
+        listOf(
+            // Settings & Defaults
+            MasterSearchResult.NavigationActionItem(
+                id = "set_default_names",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট নাম / নামহীন লেনদেন মোড" else "Default Payee Names / Unnamed Payee",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যক্তির নামহীন লেনদেনে স্বয়ংক্রিয় ডিফল্ট নাম বসানো (যেমন অন্যান্য বা কাস্টম)" else "Configure default fallback name for transactions without payee",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.EditNote,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("default", "default names", "default name", "default payee", "unnamed payee", "unnamed", "payee name", "payee", "নাম", "ডিফল্ট নাম", "ডিফল্ট পেয়ি", "নামহীন", "অন্যান্য")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_custom_default_name",
+                title = if (languageMode == LanguageMode.BANGLA) "কাস্টম ডিফল্ট নাম" else "Custom Default Payee Name",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট পেয়ি নাম নিজের পছন্দমতো লিখুন (যেমন বিবিধ, অন্যান্য)" else "Set your own custom default payee label for transactions",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.EditNote,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("default", "default name", "custom default", "custom default payee", "custom payee", "others", "ডিফল্ট", "ডিফল্ট নাম", "কাস্টম ডিফল্ট", "অন্যান্য", "নাম")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_default_account",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট অ্যাকাউন্ট নির্বাচন" else "Default Pre-selected Account",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেন তৈরির সময় যে অ্যাকাউন্ট স্বয়ংক্রিয়ভাবে নির্বাচিত থাকবে" else "Pre-selected account for new transaction entries",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.AccountBalance,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("default", "default account", "preselected account", "initial account", "ডিফল্ট", "ডিফল্ট অ্যাকাউন্ট", "অ্যাকাউন্ট")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_default_income_cat",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট আয় ক্যাটাগরি" else "Default Income Category",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন আয় এন্ট্রি করার সময় যে ক্যাটাগরি ডিফল্টভাবে বসবে" else "Pre-selected category for new income entries",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.Category,
+                iconTint = SolidIncome,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("default", "default income", "income category", "default category", "ডিফল্ট", "ডিফল্ট আয়", "ক্যাটাগরি")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_default_expense_cat",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট ব্যয় ক্যাটাগরি" else "Default Expense Category",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন ব্যয় এন্ট্রি করার সময় যে ক্যাটাগরি ডিফল্টভাবে বসবে" else "Pre-selected category for new expense entries",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.Category,
+                iconTint = SolidExpense,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("default", "default expense", "expense category", "default category", "ডিফল্ট", "ডিফল্ট ব্যয়", "ডিফল্ট খরচ", "ক্যাটাগরি")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_defaults_display_tab",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট ও প্রদর্শন সেটিংস" else "Defaults & Display Settings",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট অ্যাকাউন্ট, ক্যাটাগরি, দ্রুত মোড ও প্রদর্শন পছন্দ" else "Pre-selected accounts, categories, quick mode & display defaults",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.Tune,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("default", "defaults", "defaults and display", "display settings", "ডিফল্ট", "ডিফল্ট ও প্রদর্শন", "প্রদর্শন")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_default_tx_type",
+                title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট লেনদেন প্রকার" else "Default Transaction Type",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "এন্ট্রি ওপেন করার সময় ব্যয়, আয় নাকি ট্রান্সফার খুলবে" else "Initial tab when adding transaction (Expense, Income, or Transfer)",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.SwapHoriz,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("default", "default type", "transaction type", "expense", "income", "transfer", "ব্যয়", "আয়", "ট্রান্সফার", "ডিফল্ট টাইপ")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_quick_tx_mode",
+                title = if (languageMode == LanguageMode.BANGLA) "দ্রুত লেনদেন মোড" else "Quick Transaction Mode",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "শীট বন্ধ না করে ১ ট্যাপে দ্রুত লেনদেন সেভ করার সুবিধা" else "Save transactions in 1 tap without closing the sheet",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.AddCircleOutline,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("quick transaction", "quick mode", "fast entry", "1 tap", "দ্রুত লেনদেন", "১ ট্যাপ")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_autofocus_amount",
+                title = if (languageMode == LanguageMode.BANGLA) "পরিমাণ ফিল্ডে অটো-ফোকাস" else "Auto-Focus Amount Keyboard",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন তৈরির সময় স্বয়ংক্রিয়ভাবে টাকার অঙ্কে কিবোর্ড চালু" else "Automatically focus amount field and show numeric keyboard",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.Numbers,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 1,
+                keywords = listOf("auto focus", "focus amount", "keyboard focus", "অটো ফোকাস", "কিবোর্ড", "টাকার অঙ্ক")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_input_calendar",
+                title = if (languageMode == LanguageMode.BANGLA) "লেনদেন ইনপুট ও ক্যালেন্ডার" else "Transaction Input & Calendar",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "দ্রুত তারিখ চয়ন, ১-ট্যাপ নির্বাচন ও কিবোর্ড আচরণ" else "Fast date presets, 1-tap auto-selection & keyboard behavior",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.CalendarToday,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 0,
+                keywords = listOf("input", "calendar picker", "date picker", "transaction input", "ইনপুট", "তারিখ নির্বাচন", "ক্যালেন্ডার")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_repeat_entry",
+                title = if (languageMode == LanguageMode.BANGLA) "+১ ধারাবাহিক এন্ট্রি মোড" else "+1 Repeat Continuous Entry",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "একের পর এক দ্রুত লেনদেন এন্ট্রি করার সুবিধা" else "Keep form open for rapid consecutive transactions",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.AddCircleOutline,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
+                targetSettingsTab = 2,
+                keywords = listOf("repeat entry", "continuous entry", "+1 entry", "ধারাবাহিক", "একটানা এন্ট্রি", "ধারাবাহিক এন্ট্রি")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_payment_sources",
+                title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম কনফিগারেশন" else "Payment Sources Setup",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাশ, ব্যাংক ও মোবাইল ব্যাংকিং (বিকাশ/নগদ) নির্বাচন" else "Customize Cash, Bank, and Mobile Banking accounts",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.Payments,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.PAYMENT_SOURCES,
+                keywords = listOf("payment sources", "payment source", "cash", "bank", "mfs", "bkash", "nagad", "rocket", "পেমেন্ট মাধ্যম", "পেমেন্ট সোর্স", "ক্যাশ", "ব্যাংক", "বিকাশ", "নগদ")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_smart_autofill",
+                title = if (languageMode == LanguageMode.BANGLA) "স্মার্ট অটোফিল সেটিংস" else "Smart Autofill Rules",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন রুল ও ক্যাটাগরি স্বয়ংক্রিয় নির্ধারণ" else "Auto-categorize transactions & payee keyword rules",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.Tune,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.SMART_AUTOFILL,
+                keywords = listOf("autofill", "smart autofill", "rules", "auto categorize", "payee", "অটোফিল", "স্মার্ট অটোফিল", "রুল")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_payee_memory",
+                title = if (languageMode == LanguageMode.BANGLA) "পেয়ি মেমোরি ও অটো সাজেস্ট" else "Payee Memory & Suggestion",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "পূর্বে ব্যবহৃত পেয়ি ও অ্যাকাউন্ট স্মরণ রাখা" else "Remember previously used payees and last used accounts",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
+                iconVector = Icons.Default.Tune,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.SMART_AUTOFILL,
+                keywords = listOf("payee memory", "payee suggestion", "autofill payee", "পেয়ি মেমোরি", "সাজেস্ট")
+            ),
+
+            // Appearance & Themes
+            MasterSearchResult.NavigationActionItem(
+                id = "set_themes",
+                title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা কাস্টমাইজেশন" else "Themes & Appearance",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ডার্ক মোড, কালার প্যালেট ও ফ্রেম" else "Dark/Light mode, Emerald palette & M3 dynamic",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
+                iconVector = Icons.Default.Palette,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.THEMES,
+                keywords = listOf("theme", "themes", "appearance", "dark mode", "light mode", "color", "palette", "font", "থিম", "ডার্ক মোড", "লাইট মোড", "রং", "প্যালেট", "ফন্ট")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_dark_mode",
+                title = if (languageMode == LanguageMode.BANGLA) "ডার্ক মোড / লাইট মোড" else "Dark Mode / Light Mode",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "সিস্টেম, ডার্ক মোড অথবা লাইট মোড পছন্দ" else "Switch System, Pure Dark, or Pure Light mode",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
+                iconVector = Icons.Default.Palette,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.THEMES,
+                keywords = listOf("dark mode", "light mode", "system mode", "night mode", "mode", "ডার্ক মোড", "লাইট মোড", "নাইট মোড")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_color_palette",
+                title = if (languageMode == LanguageMode.BANGLA) "কালার প্যালেট ও থিম স্টাইল" else "Color Palette & Accents",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "অবসিডিয়ান, এমেরাল্ড গোল্ড ও ম্যাটেরিয়াল ইউ" else "Obsidian Slate, Emerald Fintech, Royal Gold & Material You",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
+                iconVector = Icons.Default.Palette,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.THEMES,
+                keywords = listOf("palette", "colors", "emerald", "gold", "slate", "কালার", "প্যালেট", "এমেরাল্ড")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_currency",
+                title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা ও কারেন্সি কনফিগারেশন" else "Currency Setup",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "টাকা (৳), ডলার ($) বা কাস্টম কারেন্সি কোড ও প্রতীক" else "Taka (৳), Dollar ($) & custom currency symbol placement",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট ও মুদ্রা" else "REGIONAL & FORMATTING",
+                iconVector = Icons.Default.CurrencyExchange,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.CURRENCY,
+                keywords = listOf("currency", "taka", "টাকা", "bdt", "usd", "dollar", "symbol", "মুদ্রা", "প্রতীক", "কোড")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_amount_format",
+                title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও ডেসিমাল ফরম্যাট" else "Amount Format & Comma Separator",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ভারতীয়/বাংলাদেশি লাখ-কোটি (১,০০,০০০) বনাম আন্তর্জাতিক মিলিয়ন" else "Lakh/Crore vs International Million separators & decimals",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট ও মুদ্রা" else "REGIONAL & FORMATTING",
+                iconVector = Icons.Default.Numbers,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.AMOUNT_FORMAT,
+                keywords = listOf("amount format", "comma", "separator", "decimal", "lakh", "crore", "কমা", "সেপারেটর", "দশমিক", "লাখ", "কোটি")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_date_time",
+                title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date & Time Settings",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "তারিখের প্যাটার্ন (DD/MM/YYYY) ও সপ্তাহের শুরুর দিন" else "Date format patterns & first day of week",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট ও মুদ্রা" else "REGIONAL & FORMATTING",
+                iconVector = Icons.Default.CalendarToday,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.DATE_TIME,
+                keywords = listOf("date", "time", "date format", "pattern", "first day", "তারিখ", "সময়", "প্যাটার্ন", "সপ্তাহ")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_language",
+                title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ (বাংলা / English)" else "Language Preference (Bangla / English)",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপের ডিসপ্লে ভাষা পরিবর্তন করুন" else "Switch application UI language",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট ও মুদ্রা" else "REGIONAL & FORMATTING",
+                iconVector = Icons.Default.Language,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.LANGUAGE,
+                keywords = listOf("language", "english", "bangla", "ভাষা", "বাংলা", "ইংরেজি", "locale")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_security_lock",
+                title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড, পিন ও ফিঙ্গারপ্রিন্ট" else "PIN, Biometric & App Lock",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সুরক্ষা, বায়োমেট্রিক ও সংবেদনশীল একশন নিশ্চিতকরণ" else "Secure app with PIN, fingerprint & action confirmation",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও সুরক্ষা" else "SECURITY & LOCK",
+                iconVector = Icons.Default.Fingerprint,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.SECURITY,
+                keywords = listOf("pin", "fingerprint", "biometric", "password", "lock", "security", "পিন", "ফিঙ্গারপ্রিন্ট", "বায়োমেট্রিক", "পাসওয়ার্ড", "লক", "নিরাপত্তা")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_notifications",
+                title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন ও অ্যালার্ম" else "Phone Notifications & Reminders",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক খরচ এন্ট্রি রিমাইন্ডার ও বিল সতর্কবার্তা" else "Daily expense tracking reminders & recurring bill alarms",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও সুরক্ষা" else "NOTIFICATIONS",
+                iconVector = Icons.Default.NotificationsNone,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.NOTIFICATIONS,
+                keywords = listOf("notification", "reminder", "alarm", "bill alert", "daily reminder", "নোটিফিকেশন", "রিমাইন্ডার", "অ্যালার্ম")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_backup_sync",
+                title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ, ড্রপবক্স ও লোকাল ব্যাকআপ রিস্টোর" else "Google Drive, Dropbox & Local backup restore",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ডাটা ও ব্যাকআপ" else "DATA & BACKUP",
+                iconVector = Icons.Default.CloudSync,
+                iconTint = primaryColor,
+                targetView = AppView.BACKUP_SYNC,
+                keywords = listOf("backup", "sync", "cloud", "google drive", "drive", "dropbox", "local", "restore", "ব্যাকআপ", "সিঙ্ক", "ড্রাইভ", "রিস্টোর")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_archive_prune",
+                title = if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও ডাটা প্রুনিং" else "Archive & Data Pruning",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স ঠিক রেখে পুরাতন লেনদেন আর্কাইভ ও প্রুন" else "Fiscal year roll-forward & encrypted archive",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ডাটা ও ব্যাকআপ" else "DATA & BACKUP",
+                iconVector = Icons.Default.Archive,
+                iconTint = primaryColor,
+                targetView = AppView.ARCHIVE_PRUNE,
+                keywords = listOf("archive", "prune", "fiscal year", "shrink db", "roll-forward", "আর্কাইভ", "প্রুন", "পুরাতন ডাটা")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_reset",
+                title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ক্লিন ডাটা" else "Reset & Wipe Data",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন মোছা বা ফ্যাক্টরি ক্লিন রিসেট" else "Clear transactions or factory reset application",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ডাটা ও ব্যাকআপ" else "DATA & BACKUP",
+                iconVector = Icons.Default.DeleteSweep,
+                iconTint = errorColor,
+                targetView = AppView.RESET,
+                keywords = listOf("reset", "wipe", "delete", "factory reset", "clear transactions", "রিসেট", "মুছুন", "পরিষ্কার")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_faq",
+                title = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও প্রশ্নোত্তর (FAQ)" else "User Guide & FAQ",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যবহার নির্দেশিকা ও সাধারণ জিজ্ঞাসার উত্তর" else "Answers to common questions and tutorial guides",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
+                iconVector = Icons.Default.HelpOutline,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.FAQ,
+                keywords = listOf("faq", "help", "guide", "user guide", "tutorial", "support", "সহায়তা", "প্রশ্নোত্তর", "গাইড")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "set_about",
+                title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সংস্করণ ও তথ্য" else "App Version & About",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "বাজেটার অ্যাপ ভার্সন ও ডেভেলপমেন্ট তথ্য" else "Budgeter Release (100% Offline-First Fintech)",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
+                iconVector = Icons.Default.Info,
+                iconTint = primaryColor,
+                targetSettingsSubPage = SettingsSubPage.ABOUT,
+                keywords = listOf("about", "version", "developer", "release", "update", "সম্পর্কে", "ভার্সন", "রিলিজ")
+            ),
+
+            // Navigation and Tools
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_dashboard",
+                title = if (languageMode == LanguageMode.BANGLA) "ড্যাশবোর্ড ও আর্থিক সারসংক্ষেপ" else "Dashboard & Overview",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ, খরচযোগ্য অর্থ ও চার্ট" else "Net worth, expendable balance & summaries",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.PieChart,
+                iconTint = primaryColor,
+                targetView = AppView.DASHBOARD,
+                keywords = listOf("dashboard", "overview", "net worth", "home", "ড্যাশবোর্ড", "মোট সম্পদ")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_ledger",
+                title = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও খতিয়ান" else "Ledger & Transactions",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "সকল আয় ও ব্যয়ের তালিকা ও ফিল্টার" else "View and filter all transactions statement",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.Receipt,
+                iconTint = primaryColor,
+                targetView = AppView.LEDGER,
+                keywords = listOf("ledger", "transactions", "statement", "history", "লেজার", "লেনদেন", "বিবরণী")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_cash_flow",
+                title = if (languageMode == LanguageMode.BANGLA) "ক্যাশ ফ্লো ও প্রবাহ বিশ্লেষণ" else "Cash Flow & Analytics",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "মাসিক আয়, ব্যয় ও নিট সঞ্চয় ট্রেন্ড" else "Inflow, outflow & net cash flow trends",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.AutoMirrored.Filled.TrendingUp,
+                iconTint = SolidIncome,
+                targetView = AppView.CASH_FLOW,
+                keywords = listOf("cash flow", "analytics", "analysis", "trend", "inflow", "outflow", "ক্যাশ ফ্লো", "প্রবাহ", "ট্রেন্ড")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_balance_sheet",
+                title = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স শিট ও আর্থিক অবস্থান" else "Balance Sheet & Financial Position",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ, দায় ও সমন্বিত ব্যালেন্সের হিসাব" else "Assets, liabilities, adjusted balances & net worth breakdown",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.TableChart,
+                iconTint = primaryColor,
+                targetView = AppView.BALANCE_SHEET,
+                keywords = listOf("balance sheet", "balance", "net worth", "assets", "liabilities", "statement", "ব্যালেন্স শিট", "সম্পদ", "দায়")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_accounts",
+                title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট ও ফিন্যান্সিয়াল গ্রুপ" else "Accounts & Financial Groups",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যাংক, ক্যাশ, বিকাশ ও ওয়ালেট ব্যবস্থাপনা" else "Manage banks, mobile wallets, cash & group balances",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.AccountBalance,
+                iconTint = primaryColor,
+                targetView = AppView.ACCOUNTS,
+                keywords = listOf("accounts", "account", "bank", "wallet", "mfs", "অ্যাকাউন্ট", "ব্যাংক", "ওয়ালেট")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_categories",
+                title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও সাব-ক্যাটাগরি" else "Categories & Sub-Categories",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের খাত, আইকন ও কালার ট্যাগ" else "Income & expense categories, icons & color tags",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.Category,
+                iconTint = primaryColor,
+                targetView = AppView.CATEGORIES,
+                keywords = listOf("categories", "category", "subcategories", "expense category", "income category", "ক্যাটাগরি", "খাত")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_budget",
+                title = if (languageMode == LanguageMode.BANGLA) "মাসিক বাজেট ও লিমিট" else "Monthly Budgets & Category Limits",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "মাসিক খরচের বাজেট নির্ধারণ ও ট্র্যাকিং" else "Set spending limits and track real-time utilization",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.PieChart,
+                iconTint = primaryColor,
+                targetView = AppView.BUDGET,
+                keywords = listOf("budget", "budgets", "monthly budget", "spending limit", "limit", "বাজেট", "লিমিট")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_savings_goals",
+                title = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য ও মাইলস্টোন" else "Savings Goals & Milestones",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ভবিষ্যত লক্ষ্য ও জরুরি তহবিলের অগ্রগতি" else "Track targets, emergency funds & target deadlines",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.Savings,
+                iconTint = SolidIncome,
+                targetView = AppView.SAVINGS_GOALS,
+                keywords = listOf("savings", "savings goals", "goals", "target", "emergency fund", "সঞ্চয়", "লক্ষ্য")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_recurring_bills",
+                title = if (languageMode == LanguageMode.BANGLA) "পুনরাবৃত্ত বিল ও সাবস্ক্রিপশন" else "Recurring Bills & Subscriptions",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "বিদ্যুৎ, বাড়ি ভাড়া ও নিয়মিত মাসিক বিল" else "Utility bills, rent, internet & recurring expenses",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.EventRepeat,
+                iconTint = SolidExpense,
+                targetView = AppView.RECURRING_BILLS,
+                keywords = listOf("recurring bills", "bills", "subscriptions", "bill", "বিল", "সাবস্ক্রিপশন")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_wishlist",
+                title = if (languageMode == LanguageMode.BANGLA) "উইশলিস্ট ও কাঙ্ক্ষিত কেনাকাটা" else "Wishlist & Planned Purchases",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ভবিষ্যতে কেনাকাটার তালিকা ও পরিকল্পনা" else "Plan upcoming purchases and convert directly to transactions",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.Favorite,
+                iconTint = SolidPrimary,
+                targetView = AppView.WISHLIST,
+                keywords = listOf("wishlist", "wish", "planned purchase", "shopping", "উইশলিস্ট", "কেনাকাটা")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_rm_manager",
+                title = if (languageMode == LanguageMode.BANGLA) "ঋণ ও দেনা-পাওনা (RM Manager)" else "Loans & Debts (RM Manager)",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ধার দেওয়া ও নেওয়া টাকার সঠিক হিসাব" else "Track borrowings, lendings & repayments",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.Handshake,
+                iconTint = SolidExpense,
+                targetView = AppView.RM_MANAGER,
+                keywords = listOf("rm manager", "loan", "debt", "borrow", "lend", "ধার", "দেনা", "পাওনা")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "nav_trash",
+                title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash & Recycle Bin",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "মুছে ফেলা লেনদেন পুনরুদ্ধার বা চিরতরে মুছে ফেলা" else "Restore or permanently delete removed transactions",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.DeleteSweep,
+                iconTint = errorColor,
+                targetView = AppView.TRASH,
+                keywords = listOf("trash", "recycle bin", "deleted", "restore", "ট্র্যাশ", "রিসাইকেল বিন")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "tool_calculator",
+                title = if (languageMode == LanguageMode.BANGLA) "পপআপ ক্যালকুলেটর" else "Standalone Calculator",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "দ্রুত হিসাব ও গাণিতিক হিসেব" else "Quick arithmetic & math calculations",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.Calculate,
+                iconTint = tertiaryColor,
+                actionType = "CALCULATOR",
+                keywords = listOf("calculator", "calc", "math", "ক্যালকুলেটর", "হিসাব", "গণনা")
+            ),
+            MasterSearchResult.NavigationActionItem(
+                id = "tool_export",
+                title = if (languageMode == LanguageMode.BANGLA) "এক্সেল ও সিএসভি এক্সপোর্ট" else "Export to Excel & CSV",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও ব্যালেন্স শিট এক্সেল ফাইলে এক্সপোর্ট করুন" else "Export transactions, accounts, and balance sheet to Excel/CSV",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
+                iconVector = Icons.Default.FormatListBulleted,
+                iconTint = primaryColor,
+                targetView = AppView.LEDGER,
+                keywords = listOf("export", "excel", "csv", "sheet", "report", "statement", "এক্সপোর্ট", "এক্সেল")
+            )
+        )
+    }
+
+    // Precompute normalized search indexes for all entities
+    val indexedEntities = remember(
         transactions,
         allAccounts,
         accountsWithBalances,
@@ -317,904 +767,432 @@ fun MasterSearchModal(
         monthlyBudgets,
         recurringBills,
         savingsGoals,
-        wishlistItems
+        wishlistItems,
+        actionCatalog,
+        languageMode,
+        itemImageCacheMap
     ) {
-        val query = searchQuery.trim().lowercase(java.util.Locale.ROOT)
-        if (query.isEmpty()) {
-            emptyList()
-        } else {
-            val results = mutableListOf<MasterSearchResult>()
+        val list = mutableListOf<IndexedEntity>()
 
-            // 1. Transactions & Items
-            if (selectedCategory == SearchFilterCategory.ALL || selectedCategory == SearchFilterCategory.TRANSACTIONS) {
-                transactions.filter { item ->
-                    val tx = item.transaction
-                    val catNameEn = item.category?.nameEn.orEmpty().lowercase()
-                    val catNameBn = item.category?.nameBn.orEmpty().lowercase()
-                    val subCatNameEn = item.subCategory?.nameEn.orEmpty().lowercase()
-                    val subCatNameBn = item.subCategory?.nameBn.orEmpty().lowercase()
-                    val debitAccEn = item.debitAccount?.nameEn.orEmpty().lowercase()
-                    val debitAccBn = item.debitAccount?.nameBn.orEmpty().lowercase()
-                    val creditAccEn = item.creditAccount?.nameEn.orEmpty().lowercase()
-                    val creditAccBn = item.creditAccount?.nameBn.orEmpty().lowercase()
-                    val payee = tx.payeeOrPayer.orEmpty().lowercase()
-                    val note = tx.note.orEmpty().lowercase()
-                    val ref = tx.referenceNo.orEmpty().lowercase()
-                    val amtStr = tx.amount.toString()
+        // 1. Transactions Index
+        transactions.forEach { item ->
+            val tx = item.transaction
+            val catNameEn = item.category?.nameEn.orEmpty()
+            val catNameBn = item.category?.nameBn.orEmpty()
+            val subCatNameEn = item.subCategory?.nameEn.orEmpty()
+            val subCatNameBn = item.subCategory?.nameBn.orEmpty()
+            val debitAccEn = item.debitAccount?.nameEn.orEmpty()
+            val debitAccBn = item.debitAccount?.nameBn.orEmpty()
+            val creditAccEn = item.creditAccount?.nameEn.orEmpty()
+            val creditAccBn = item.creditAccount?.nameBn.orEmpty()
+            val payee = tx.payeeOrPayer.orEmpty()
+            val note = tx.note.orEmpty()
+            val ref = tx.referenceNo.orEmpty()
+            val amtStr = tx.amount.toString()
+            val amtFormatted = LanguageHelper.formatCurrency(tx.amount, languageMode)
+            val dateKeywords = SearchMatcher.generateDateKeywords(tx.dateEpochMs)
 
-                    note.contains(query) ||
-                    payee.contains(query) ||
-                    ref.contains(query) ||
-                    catNameEn.contains(query) ||
-                    catNameBn.contains(query) ||
-                    subCatNameEn.contains(query) ||
-                    subCatNameBn.contains(query) ||
-                    debitAccEn.contains(query) ||
-                    debitAccBn.contains(query) ||
-                    creditAccEn.contains(query) ||
-                    creditAccBn.contains(query) ||
-                    amtStr.contains(query)
-                }.take(30).forEach { item ->
-                    val tx = item.transaction
-                    val titleText = when {
-                        !tx.payeeOrPayer.isNullOrBlank() -> tx.payeeOrPayer
-                        !tx.note.isNullOrBlank() -> tx.note.take(40)
-                        item.subCategory != null -> item.subCategory.localizedName(languageMode)
-                        item.category != null -> item.category.localizedName(languageMode)
-                        else -> tx.type.name
-                    }
-                    val iconName = ItemCacheHelper.resolveTransactionIconName(
-                        transaction = tx,
-                        category = item.category,
-                        subCategory = item.subCategory,
-                        cacheMap = itemImageCacheMap
-                    )
-                    val iconVector = IconHelper.getIconByName(iconName)
-                    val tint = when (tx.type) {
-                        TransactionType.EXPENSE -> SolidExpense
-                        TransactionType.INCOME -> SolidIncome
-                        TransactionType.TRANSFER -> SolidTransfer
-                    }
-                    val formattedAmt = (if (tx.type == TransactionType.INCOME) "+" else if (tx.type == TransactionType.EXPENSE) "-" else "") +
-                            LanguageHelper.formatCurrency(tx.amount, languageMode)
-                    val catDisplay = item.subCategory?.localizedName(languageMode)
-                        ?: item.category?.localizedName(languageMode)
-                        ?: tx.type.name
-                    val subtitleText = "${DateUtils.formatDate(tx.dateEpochMs, languageMode)} • $catDisplay"
-
-                    results.add(
-                        MasterSearchResult.TransactionItem(
-                            transactionWithDetails = item,
-                            formattedAmount = formattedAmt,
-                            formattedDate = DateUtils.formatDate(tx.dateEpochMs, languageMode),
-                            resolvedIconName = iconName,
-                            title = titleText,
-                            subtitle = subtitleText,
-                            groupTag = if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "TRANSACTIONS",
-                            iconVector = iconVector,
-                            iconTint = tint
-                        )
-                    )
-                }
+            val typeWords = when (tx.type) {
+                TransactionType.EXPENSE -> "expense ব্যয় খরচ debit"
+                TransactionType.INCOME -> "income আয় আয় credit"
+                TransactionType.TRANSFER -> "transfer ট্রান্সফার স্থানান্তর"
             }
 
-            // 2. Accounts & Wallets
-            if (selectedCategory == SearchFilterCategory.ALL || selectedCategory == SearchFilterCategory.ACCOUNTS) {
-                allAccounts.filter { acc ->
-                    acc.nameEn.lowercase().contains(query) ||
-                    acc.nameBn.lowercase().contains(query) ||
-                    acc.description.lowercase().contains(query) ||
-                    acc.accountNumber.lowercase().contains(query) ||
-                    acc.type.name.lowercase().contains(query)
-                }.forEach { acc ->
-                    val matchedBalance = accountsWithBalances.find { it.account.id == acc.id }?.currentBalance ?: 0.0
-                    val typeLabel = if (acc.type == AccountType.ASSET) {
-                        if (languageMode == LanguageMode.BANGLA) "সম্পদ একাউন্ট" else "Asset Account"
-                    } else {
-                        if (languageMode == LanguageMode.BANGLA) "দায় / ঋণ" else "Liability Account"
-                    }
-                    results.add(
-                        MasterSearchResult.AccountItem(
-                            account = acc,
-                            balanceFormatted = LanguageHelper.formatCurrency(matchedBalance, languageMode),
-                            title = acc.localizedName(languageMode),
-                            subtitle = "$typeLabel • ${LanguageHelper.formatCurrency(matchedBalance, languageMode)}",
-                            groupTag = if (languageMode == LanguageMode.BANGLA) "একাউন্ট ও ওয়ালেট" else "ACCOUNTS & WALLETS",
-                            iconVector = IconHelper.getIconByName(acc.iconName),
-                            iconTint = if (acc.type == AccountType.ASSET) SolidIncome else SolidExpense
-                        )
-                    )
-                }
+            val titleText = when {
+                !tx.payeeOrPayer.isNullOrBlank() -> tx.payeeOrPayer
+                !tx.note.isNullOrBlank() -> tx.note.take(40)
+                item.subCategory != null -> item.subCategory.localizedName(languageMode)
+                item.category != null -> item.category.localizedName(languageMode)
+                else -> tx.type.name
             }
 
-            // 3. Categories & Subcategories
-            if (selectedCategory == SearchFilterCategory.ALL || selectedCategory == SearchFilterCategory.CATEGORIES) {
-                allCategories.filter { cat ->
-                    cat.nameEn.lowercase().contains(query) ||
-                    cat.nameBn.lowercase().contains(query) ||
-                    cat.type.name.lowercase().contains(query)
-                }.forEach { cat ->
-                    val isSub = cat.parentId != null
-                    val typeLabel = if (cat.type == CategoryType.EXPENSE) {
-                        if (languageMode == LanguageMode.BANGLA) "ব্যয় বিভাগ" else "Expense Category"
-                    } else {
-                        if (languageMode == LanguageMode.BANGLA) "আয় বিভাগ" else "Income Category"
-                    }
-                    val parentCat = if (isSub) allCategories.find { it.id == cat.parentId } else null
-                    val parentNote = if (parentCat != null) " (${parentCat.localizedName(languageMode)})" else ""
-
-                    results.add(
-                        MasterSearchResult.CategoryItem(
-                            category = cat,
-                            isSubCategory = isSub,
-                            title = cat.localizedName(languageMode),
-                            subtitle = "$typeLabel$parentNote",
-                            groupTag = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "CATEGORIES",
-                            iconVector = IconHelper.getIconByName(cat.iconName),
-                            iconTint = if (cat.type == CategoryType.EXPENSE) SolidExpense else SolidIncome
-                        )
-                    )
-                }
+            val iconName = ItemCacheHelper.resolveTransactionIconName(
+                transaction = tx,
+                category = item.category,
+                subCategory = item.subCategory,
+                cacheMap = itemImageCacheMap
+            )
+            val iconVector = IconHelper.getIconByName(iconName)
+            val tint = when (tx.type) {
+                TransactionType.EXPENSE -> SolidExpense
+                TransactionType.INCOME -> SolidIncome
+                TransactionType.TRANSFER -> SolidTransfer
             }
+            val formattedAmt = (if (tx.type == TransactionType.INCOME) "+" else if (tx.type == TransactionType.EXPENSE) "-" else "") +
+                    LanguageHelper.formatCurrency(tx.amount, languageMode)
+            val catDisplay = item.subCategory?.localizedName(languageMode)
+                ?: item.category?.localizedName(languageMode)
+                ?: tx.type.name
+            val subtitleText = "${DateUtils.formatDate(tx.dateEpochMs, languageMode)} • $catDisplay"
 
-            // 4. Budgets & Limits
-            if (selectedCategory == SearchFilterCategory.ALL || selectedCategory == SearchFilterCategory.BUDGETS) {
-                monthlyBudgets.forEach { budget ->
-                    val matchedCat = allCategories.find { it.id == budget.itemId }
-                    val catName = matchedCat?.localizedName(languageMode) ?: "Category #${budget.itemId}"
-                    if (catName.lowercase().contains(query) || "budget".contains(query) || "বাজেট".contains(query)) {
-                        val spent = transactions.filter {
-                            it.category?.id == budget.itemId && it.transaction.type == TransactionType.EXPENSE
-                        }.sumOf { it.transaction.amount }
-                        val remaining = (budget.budgetedAmount - spent).coerceAtLeast(0.0)
-                        val progress = if (budget.budgetedAmount > 0) (spent / budget.budgetedAmount).toFloat().coerceIn(0f, 1f) else 0f
+            val searchFields = listOf(
+                SearchMatcher.SearchField(payee, SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField(titleText, SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField(note, SearchMatcher.FieldWeight.SECONDARY.weight),
+                SearchMatcher.SearchField(ref, SearchMatcher.FieldWeight.SECONDARY.weight),
+                SearchMatcher.SearchField("$catNameEn $catNameBn $subCatNameEn $subCatNameBn", SearchMatcher.FieldWeight.SECONDARY.weight),
+                SearchMatcher.SearchField("$debitAccEn $debitAccBn $creditAccEn $creditAccBn", SearchMatcher.FieldWeight.SECONDARY.weight),
+                SearchMatcher.SearchField("$amtStr $amtFormatted", SearchMatcher.FieldWeight.SECONDARY.weight),
+                SearchMatcher.SearchField(dateKeywords, SearchMatcher.FieldWeight.SECONDARY.weight),
+                SearchMatcher.SearchField(typeWords, SearchMatcher.FieldWeight.KEYWORD.weight)
+            )
 
-                        results.add(
-                            MasterSearchResult.BudgetItem(
-                                monthlyBudget = budget,
-                                categoryName = catName,
-                                budgetedFormatted = LanguageHelper.formatCurrency(budget.budgetedAmount, languageMode),
-                                spentFormatted = LanguageHelper.formatCurrency(spent, languageMode),
-                                remainingFormatted = LanguageHelper.formatCurrency(remaining, languageMode),
-                                progressPercent = progress,
-                                isOverBudget = spent > budget.budgetedAmount,
-                                title = catName,
-                                subtitle = if (languageMode == LanguageMode.BANGLA)
-                                    "বাজেট: ${LanguageHelper.formatCurrency(budget.budgetedAmount, languageMode)} • অবশিষ্ট: ${LanguageHelper.formatCurrency(remaining, languageMode)}"
-                                else
-                                    "Limit: ${LanguageHelper.formatCurrency(budget.budgetedAmount, languageMode)} • Rem: ${LanguageHelper.formatCurrency(remaining, languageMode)}",
-                                groupTag = if (languageMode == LanguageMode.BANGLA) "বাজেট ও লিমিট" else "BUDGETS & LIMITS",
-                                iconVector = IconHelper.getIconByName(matchedCat?.iconName ?: "PieChart"),
-                                iconTint = if (spent > budget.budgetedAmount) SolidExpense else SolidPrimary
-                            )
-                        )
-                    }
-                }
-            }
+            val result = MasterSearchResult.TransactionItem(
+                transactionWithDetails = item,
+                formattedAmount = formattedAmt,
+                formattedDate = DateUtils.formatDate(tx.dateEpochMs, languageMode),
+                resolvedIconName = iconName,
+                title = titleText,
+                subtitle = subtitleText,
+                groupTag = if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "TRANSACTIONS",
+                iconVector = iconVector,
+                iconTint = tint
+            )
 
-            // 5. Goals, Bills & Wishlist
-            if (selectedCategory == SearchFilterCategory.ALL || selectedCategory == SearchFilterCategory.GOALS_AND_BILLS) {
-                // Goals
-                savingsGoals.filter {
-                    it.goal.name.lowercase().contains(query) ||
-                    it.goal.nameBn.lowercase().contains(query) ||
-                    it.goal.notes.lowercase().contains(query) ||
-                    "goal".contains(query) || "সঞ্চয়".contains(query)
-                }.forEach { goal ->
-                    val progress = (goal.progressPercent / 100f).coerceIn(0f, 1f)
-                    results.add(
-                        MasterSearchResult.SavingsGoalItem(
-                            goalWithDetails = goal,
-                            targetFormatted = LanguageHelper.formatCurrency(goal.goal.targetAmount, languageMode),
-                            savedFormatted = LanguageHelper.formatCurrency(goal.effectiveSaved, languageMode),
-                            progressPercent = progress,
-                            title = if (languageMode == LanguageMode.BANGLA && goal.goal.nameBn.isNotBlank()) goal.goal.nameBn else goal.goal.name,
-                            subtitle = if (languageMode == LanguageMode.BANGLA)
-                                "সঞ্চয় লক্ষ্য: ${LanguageHelper.formatCurrency(goal.goal.targetAmount, languageMode)} (${goal.progressPercent.toInt()}%)"
-                            else
-                                "Goal: ${LanguageHelper.formatCurrency(goal.goal.targetAmount, languageMode)} (${goal.progressPercent.toInt()}% saved)",
-                            groupTag = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য" else "SAVINGS GOALS",
-                            iconVector = IconHelper.getIconByName(goal.goal.iconName),
-                            iconTint = SolidIncome
-                        )
-                    )
-                }
-
-                // Bills
-                recurringBills.filter {
-                    it.bill.title.lowercase().contains(query) ||
-                    it.bill.payeeOrPayer.lowercase().contains(query) ||
-                    it.bill.note.lowercase().contains(query) ||
-                    "bill".contains(query) || "বিল".contains(query)
-                }.forEach { bill ->
-                    val billTitle = bill.bill.title.ifBlank { bill.bill.payeeOrPayer }
-                    results.add(
-                        MasterSearchResult.RecurringBillItem(
-                            billWithDetails = bill,
-                            amountFormatted = LanguageHelper.formatCurrency(bill.bill.amount, languageMode),
-                            title = billTitle,
-                            subtitle = "${bill.bill.recurrencePeriod.name} • ${LanguageHelper.formatCurrency(bill.bill.amount, languageMode)}",
-                            groupTag = if (languageMode == LanguageMode.BANGLA) "পুনরাবৃত্ত বিল" else "RECURRING BILLS",
-                            iconVector = Icons.Default.EventRepeat,
-                            iconTint = SolidExpense
-                        )
-                    )
-                }
-
-                // Wishlist
-                wishlistItems.filter {
-                    it.item.title.lowercase().contains(query) ||
-                    it.item.notes.lowercase().contains(query) ||
-                    "wishlist".contains(query) || "উইশলিস্ট".contains(query)
-                }.forEach { wish ->
-                    results.add(
-                        MasterSearchResult.WishlistResultItem(
-                            wishlistItem = wish,
-                            amountFormatted = LanguageHelper.formatCurrency(wish.item.estimatedAmount, languageMode),
-                            title = wish.item.title,
-                            subtitle = if (wish.category != null)
-                                "${wish.category.localizedName(languageMode)} • ${LanguageHelper.formatCurrency(wish.item.estimatedAmount, languageMode)}"
-                            else
-                                LanguageHelper.formatCurrency(wish.item.estimatedAmount, languageMode),
-                            groupTag = if (languageMode == LanguageMode.BANGLA) "উইশলিস্ট" else "WISHLIST",
-                            iconVector = Icons.Default.Favorite,
-                            iconTint = SolidPrimary
-                        )
-                    )
-                }
-            }
-
-            // 6. Settings, Tools & Reports Shortcuts
-            if (selectedCategory == SearchFilterCategory.ALL || selectedCategory == SearchFilterCategory.SETTINGS_AND_TOOLS) {
-                val actionCatalog = listOf(
-                    // --- TRANSACTION SETUP & DEFAULTS (SUB-SETTINGS & SUB-SUB-SETTINGS) ---
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_default_names",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট নাম / নামহীন লেনদেন মোড" else "Default Payee Names / Unnamed Payee",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যক্তির নামহীন লেনদেনে স্বয়ংক্রিয় ডিফল্ট নাম বসানো (যেমন অন্যান্য বা কাস্টম)" else "Configure default fallback name for transactions without payee",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.EditNote,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("default", "default names", "default name", "default payee", "unnamed payee", "unnamed", "payee name", "payee", "নাম", "ডিফল্ট নাম", "ডিফল্ট পেয়ি", "নামহীন", "অন্যান্য")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_custom_default_name",
-                        title = if (languageMode == LanguageMode.BANGLA) "কাস্টম ডিফল্ট নাম" else "Custom Default Payee Name",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট পেয়ি নাম নিজের পছন্দমতো লিখুন (যেমন বিবিধ, অন্যান্য)" else "Set your own custom default payee label for transactions",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.EditNote,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("default", "default name", "custom default", "custom default payee", "custom payee", "others", "ডিফল্ট", "ডিফল্ট নাম", "কাস্টম ডিফল্ট", "অন্যান্য", "নাম")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_default_account",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট অ্যাকাউন্ট নির্বাচন" else "Default Pre-selected Account",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেন তৈরির সময় যে অ্যাকাউন্ট স্বয়ংক্রিয়ভাবে নির্বাচিত থাকবে" else "Pre-selected account for new transaction entries",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.AccountBalance,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("default", "default account", "preselected account", "initial account", "ডিফল্ট", "ডিফল্ট অ্যাকাউন্ট", "অ্যাকাউন্ট")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_default_income_cat",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট আয় ক্যাটাগরি" else "Default Income Category",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন আয় এন্ট্রি করার সময় যে ক্যাটাগরি ডিফল্টভাবে বসবে" else "Pre-selected category for new income entries",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.Category,
-                        iconTint = SolidIncome,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("default", "default income", "income category", "default category", "ডিফল্ট", "ডিফল্ট আয়", "ক্যাটাগরি")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_default_expense_cat",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট ব্যয় ক্যাটাগরি" else "Default Expense Category",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "নতুন ব্যয় এন্ট্রি করার সময় যে ক্যাটাগরি ডিফল্টভাবে বসবে" else "Pre-selected category for new expense entries",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.Category,
-                        iconTint = SolidExpense,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("default", "default expense", "expense category", "default category", "ডিফল্ট", "ডিফল্ট ব্যয়", "ডিফল্ট খরচ", "ক্যাটাগরি")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_defaults_display_tab",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট ও প্রদর্শন সেটিংস" else "Defaults & Display Settings",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট অ্যাকাউন্ট, ক্যাটাগরি, দ্রুত মোড ও প্রদর্শন পছন্দ" else "Pre-selected accounts, categories, quick mode & display defaults",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.Tune,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("default", "defaults", "defaults and display", "display settings", "ডিফল্ট", "ডিফল্ট ও প্রদর্শন", "প্রদর্শন")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_default_tx_type",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট লেনদেন প্রকার" else "Default Transaction Type",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "এন্ট্রি ওপেন করার সময় ব্যয়, আয় নাকি ট্রান্সফার খুলবে" else "Initial tab when adding transaction (Expense, Income, or Transfer)",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.SwapHoriz,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("default", "default type", "transaction type", "expense", "income", "transfer", "ডিফল্ট টাইপ", "লেনদেনের প্রকার")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_quick_tx_mode",
-                        title = if (languageMode == LanguageMode.BANGLA) "দ্রুত লেনদেন মোড" else "Quick Transaction Mode",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "শীট বন্ধ না করে ১ ট্যাপে দ্রুত লেনদেন সেভ করার সুবিধা" else "Save transactions in 1 tap without closing the sheet",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.AddCircleOutline,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("quick transaction", "quick mode", "fast entry", "1 tap", "দ্রুত লেনদেন", "১ ট্যাপ")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_autofocus_amount",
-                        title = if (languageMode == LanguageMode.BANGLA) "পরিমাণ ফিল্ডে অটো-ফোকাস" else "Auto-Focus Amount Keyboard",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন তৈরির সময় স্বয়ংক্রিয়ভাবে টাকার অঙ্কে কিবোর্ড চালু" else "Automatically focus amount field and show numeric keyboard",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.Numbers,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 1,
-                        keywords = listOf("auto focus", "focus amount", "keyboard focus", "অটো ফোকাস", "কিবোর্ড", "টাকার অঙ্ক")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_input_calendar",
-                        title = if (languageMode == LanguageMode.BANGLA) "লেনদেন ইনপুট ও ক্যালেন্ডার" else "Transaction Input & Calendar",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "দ্রুত তারিখ চয়ন, ১-ট্যাপ নির্বাচন ও কিবোর্ড আচরণ" else "Fast date presets, 1-tap auto-selection & keyboard behavior",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.CalendarToday,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 0,
-                        keywords = listOf("input", "calendar picker", "date picker", "transaction input", "ইনপুট", "তারিখ নির্বাচন", "ক্যালেন্ডার")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_repeat_entry",
-                        title = if (languageMode == LanguageMode.BANGLA) "+১ ধারাবাহিক এন্ট্রি মোড" else "+1 Repeat Continuous Entry",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "একের পর এক দ্রুত লেনদেন এন্ট্রি করার সুবিধা" else "Keep form open for rapid consecutive transactions",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.AddCircleOutline,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                        targetSettingsTab = 2,
-                        keywords = listOf("repeat entry", "continuous entry", "+1 entry", "ধারাবাহিক", "একটানা এন্ট্রি", "ধারাবাহিক এন্ট্রি")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_payment_sources",
-                        title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম কনফিগারেশন" else "Payment Sources Setup",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাশ, ব্যাংক ও মোবাইল ব্যাংকিং (বিকাশ/নগদ) নির্বাচন" else "Customize Cash, Bank, and Mobile Banking accounts",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.Payments,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.PAYMENT_SOURCES,
-                        keywords = listOf("payment sources", "payment source", "cash", "bank", "mfs", "bkash", "nagad", "rocket", "পেমেন্ট মাধ্যম", "পেমেন্ট সোর্স", "ক্যাশ", "ব্যাংক", "বিকাশ", "নগদ")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_smart_autofill",
-                        title = if (languageMode == LanguageMode.BANGLA) "স্মার্ট অটোফিল সেটিংস" else "Smart Autofill Rules",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন রুল ও ক্যাটাগরি স্বয়ংক্রিয় নির্ধারণ" else "Auto-categorize transactions & payee keyword rules",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.Tune,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.SMART_AUTOFILL,
-                        keywords = listOf("autofill", "smart autofill", "rules", "auto categorize", "payee", "অটোফিল", "স্মার্ট অটোফিল", "রুল")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_payee_memory",
-                        title = if (languageMode == LanguageMode.BANGLA) "পেয়ি মেমোরি ও অটো সাজেস্ট" else "Payee Memory & Suggestion",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "পূর্বে ব্যবহৃত পেয়ি ও অ্যাকাউন্ট স্মরণ রাখা" else "Remember previously used payees and last used accounts",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও ডিফল্ট" else "SETTINGS & DEFAULTS",
-                        iconVector = Icons.Default.Tune,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.SMART_AUTOFILL,
-                        keywords = listOf("payee memory", "payee suggestion", "autofill payee", "পেয়ি মেমোরি", "সাজেস্ট")
-                    ),
-
-                    // --- APPEARANCE, THEMES & INTERFACE ---
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_themes",
-                        title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা কাস্টমাইজেশন" else "Themes & Appearance",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ডার্ক মোড, কালার প্যালেট ও ফ্রেম" else "Dark/Light mode, Emerald palette & M3 dynamic",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
-                        iconVector = Icons.Default.Palette,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.THEMES,
-                        keywords = listOf("theme", "themes", "appearance", "dark mode", "light mode", "color", "palette", "থিম", "ডার্ক মোড", "রং", "প্যালেট")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_dark_mode",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডার্ক মোড / লাইট মোড" else "Dark Mode / Light Mode",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "সিস্টেম, ডার্ক মোড অথবা লাইট মোড পছন্দ" else "Switch System, Pure Dark, or Pure Light mode",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
-                        iconVector = Icons.Default.Palette,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.THEMES,
-                        keywords = listOf("dark mode", "light mode", "system mode", "night mode", "mode", "ডার্ক মোড", "লাইট মোড", "নাইট মোড")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_color_palette",
-                        title = if (languageMode == LanguageMode.BANGLA) "কালার প্যালেট ও থিম স্টাইল" else "Color Palette & Accents",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "অবসিডিয়ান, এমেরাল্ড গোল্ড ও ম্যাটেরিয়াল ইউ" else "Obsidian Slate, Emerald Fintech, Royal Gold & Material You",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
-                        iconVector = Icons.Default.Palette,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.THEMES,
-                        keywords = listOf("palette", "color palette", "emerald", "gold", "slate", "material you", "accent", "প্যালেট", "রং", "গোল্ড")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_font_style",
-                        title = if (languageMode == LanguageMode.BANGLA) "ফন্ট স্টাইল ও টাইপোগ্রাফি" else "Font Style & Typography",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "বাংলা ও ইংরেজি ফন্ট নির্বাচন এবং ফন্ট সাইজ স্কেল" else "Choose Bangla & English fonts, font scale & weight",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
-                        iconVector = Icons.Default.Language,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.THEMES,
-                        keywords = listOf("font", "typography", "bangla font", "english font", "font size", "scale", "ফন্ট", "টাইপোগ্রাফি", "অক্ষর")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_card_corners",
-                        title = if (languageMode == LanguageMode.BANGLA) "কার্ড কর্নার ও লেআউট ডেনসিটি" else "Card Shape & Layout Density",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "কার্ড কর্নার রেডিয়াস ও কমপ্যাক্ট স্পেসিং" else "Adjust card corner radius and compact vs spacious spacing",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
-                        iconVector = Icons.Default.Widgets,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.THEMES,
-                        keywords = listOf("corner radius", "shape", "density", "compact", "spacious", "কার্ড কর্নার", "শেপ", "স্পেসিং")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_navigation_tabs",
-                        title = if (languageMode == LanguageMode.BANGLA) "ট্যাব বার কাস্টমাইজেশন" else "Navigation Tabs Bar",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব লুকানো/দেখানো ও সাজানো" else "Reorder & toggle visible navigation tabs",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সেটিংস ও রূপরেখা" else "SETTINGS & THEMES",
-                        iconVector = Icons.Default.ViewCarousel,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.NAVIGATION_TABS,
-                        keywords = listOf("tab", "tabs", "navigation tabs", "navigation", "bottom bar", "reorder tabs", "default tab", "ট্যাব", "ট্যাব বার", "নেভিগেশন")
-                    ),
-
-                    // --- REGIONAL, CURRENCY & FORMATTING ---
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_language",
-                        title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ (ইংরেজি / বাংলা)" else "Language Preference (English / বাংলা)",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "বাংলা বা ইংরেজি ভাষায় সম্পূর্ণ অ্যাপ ব্যবহার করুন" else "Switch between English and বাংলা (Bengali)",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.Language,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.LANGUAGE,
-                        keywords = listOf("language", "english", "bangla", "bengali", "locale", "ভাষা", "ইংরেজি", "বাংলা")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_currency",
-                        title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা পছন্দ (BDT ৳ / USD $)" else "Currency Setup",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "মুদ্রা কোড, প্রতীক ও অবস্থান" else "Change currency code, symbol & placement",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.CurrencyExchange,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.CURRENCY,
-                        keywords = listOf("currency", "taka", "dollar", "bdt", "usd", "symbol", "মুদ্রা", "টাকা", "ডলার", "প্রতীক")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_currency_placement",
-                        title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রতীকের অবস্থান" else "Currency Symbol Placement",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "টাকার চিহ্ন অঙ্কের আগে (৳ ১০০) নাকি পরে (১০০ ৳)" else "Show symbol before (৳ 100) or after (100 ৳)",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.MonetizationOn,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.CURRENCY,
-                        keywords = listOf("currency placement", "symbol placement", "before", "after", "টাকার চিহ্ন", "চিহ্ন", "অবস্থান")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_amount_format",
-                        title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format & Grouping",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "লাখ/কোটি (১,০০,০০০) বা আন্তর্জাতিক মিলিয়নের কমা" else "Indian / Bangladeshi Lakh & Crore (1,00,000) or Western (100,000)",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.Numbers,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.AMOUNT_FORMAT,
-                        keywords = listOf("amount format", "digit grouping", "lakh", "crore", "comma", "separator", "লাখ", "কোটি", "কমা", "সেপারেটর")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_decimal_places",
-                        title = if (languageMode == LanguageMode.BANGLA) "দশমিক সংখ্যা ও রাউন্ডিং" else "Decimal Places & Rounding",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "টাকার অঙ্কে দশমিকের পর ০, ১ বা ২ ঘর নির্ধারণ" else "Configure 0, 1, or 2 decimal digits for amounts",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.Numbers,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.AMOUNT_FORMAT,
-                        keywords = listOf("decimal", "precision", "rounding", "দশমিক", "রাউন্ডিং")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_date_time",
-                        title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date & Time Settings",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "তারিখের ফরম্যাট, ১২/২৪ ঘণ্টা ঘড়ি ও ক্যালেন্ডার" else "Date format pattern, 12h/24h time & calendar style",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.CalendarToday,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.DATE_TIME,
-                        keywords = listOf("date format", "time format", "date", "time", "clock", "12-hour", "24-hour", "তারিখ", "সময়", "ঘড়ি")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_first_day_week",
-                        title = if (languageMode == LanguageMode.BANGLA) "সপ্তাহের শুরুর দিন" else "First Day of the Week",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "শুক্রবার, রবিবার নাকি সোমবার থেকে সপ্তাহ শুরু" else "Set starting day (Friday, Sunday, Monday) for weekly views",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.CalendarMonth,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.DATE_TIME,
-                        keywords = listOf("first day of week", "week start", "friday", "sunday", "monday", "সপ্তাহের শুরুর দিন", "শুক্রবার")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_fiscal_year",
-                        title = if (languageMode == LanguageMode.BANGLA) "অর্থবছরের শুরুর মাস" else "Fiscal Year Start Month",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "বাৎসরিক অর্থবছরের সূচনা মাস (যেমন জুলাই বা জানুয়ারি)" else "Set annual fiscal baseline month (e.g. July or January)",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.CalendarMonth,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.DATE_TIME,
-                        keywords = listOf("fiscal year", "fiscal month", "annual year", "অর্থবছর", "অর্থবছরের মাস")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_calendar_display",
-                        title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার প্রদর্শন" else "Calendar Display",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের ইনডিকেটর প্রদর্শন ও ডট ব্যাজ" else "Visual indicators, dots & fiscal calendar",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "আঞ্চলিক ও ফরম্যাটিং" else "REGIONAL & FORMATS",
-                        iconVector = Icons.Default.CalendarMonth,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.CALENDAR,
-                        keywords = listOf("calendar", "indicators", "calendar display", "dots", "ক্যালেন্ডার", "ইনডিকেটর")
-                    ),
-
-                    // --- SECURITY, PERMISSIONS & NOTIFICATIONS ---
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_security",
-                        title = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা, পিন ও ফিঙ্গারপ্রিন্ট" else "Security & App Lock",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ লক, পিন সুরক্ষা ও বায়োমেট্রিক" else "PIN code, biometric lock & delete protection",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.Fingerprint,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.SECURITY,
-                        keywords = listOf("security", "pin", "password", "lock", "fingerprint", "biometric", "নিরাপত্তা", "পিন", "লক", "পাসওয়ার্ড")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_fingerprint",
-                        title = if (languageMode == LanguageMode.BANGLA) "বায়োমেট্রিক ও ফিঙ্গারপ্রিন্ট আনলক" else "Biometric & Fingerprint Unlock",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ফিঙ্গারপ্রিন্ট সেন্সর দিয়ে দ্রুত অ্যাপ আনলক সুবিধা" else "Use device fingerprint sensor for instant app unlock",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.Fingerprint,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.SECURITY,
-                        keywords = listOf("fingerprint", "biometric", "face unlock", "ফিঙ্গারপ্রিন্ট", "বায়োমেট্রিক")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_delete_protection",
-                        title = if (languageMode == LanguageMode.BANGLA) "ডাটা মোছার পিন সুরক্ষা" else "Delete Protection Authentication",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন বা গ্রুপ মোছার আগে পিন যাচাই সুরক্ষা" else "Require PIN authentication before deleting records or trash",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.Lock,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.SECURITY,
-                        keywords = listOf("delete protection", "require pin", "trash protection", "ডিলিট প্রোটেকশন", "মুছতে পিন", "নিরাপত্তা")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_lock_timeout",
-                        title = if (languageMode == LanguageMode.BANGLA) "অটো-লক সময়সীমা" else "Auto-Lock Timeout",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ ব্যাকগ্রাউন্ডে যাওয়ার পর স্বয়ংক্রিয় লক হওয়ার সময়" else "Immediately, 30s, 1m, or 5m background lock timeout",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.Security,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.SECURITY,
-                        keywords = listOf("auto lock", "timeout", "lock delay", "অটো লক", "সময়সীমা")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_recovery_question",
-                        title = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা রিকভারি প্রশ্ন" else "Security Recovery Question",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "পিন ভুলে গেলে রিকভার করার সিকিউরিটি প্রশ্ন সেট করুন" else "Set security question to reset PIN if forgotten",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.Security,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.SECURITY,
-                        keywords = listOf("recovery question", "forgot pin", "reset pin", "রিকভারি প্রশ্ন", "পিন ভুলে গেলে")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_notifications",
-                        title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন ও অ্যালার্ম" else "Phone Notifications & Reminders",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডার ও বিল অ্যালার্ট" else "Daily expense alarms & due bill notifications",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.NotificationsNone,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.NOTIFICATIONS,
-                        keywords = listOf("notification", "notifications", "reminder", "alarm", "daily expense", "bill alert", "নোটিফিকেশন", "অ্যালার্ম", "রিমাইন্ডার")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_reminder_time",
-                        title = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডারের সময়" else "Daily Entry Reminder Time",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "প্রতিদিন হিসাব লেখার অ্যালার্মের সময় নির্ধারণ" else "Set preferred time for daily accounting reminder",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.NotificationsNone,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.NOTIFICATIONS,
-                        keywords = listOf("reminder time", "daily alarm", "evening reminder", "রিমাইন্ডারের সময়", "সময়")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_bill_alerts",
-                        title = if (languageMode == LanguageMode.BANGLA) "বিলের সতর্কবার্তা ও নোটিফিকেশন" else "Bill Due Alerts",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "আসন্ন বিলের আগাম নোটিফিকেশন সুবিধা" else "Get notified before upcoming recurring bills",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.EventRepeat,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.NOTIFICATIONS,
-                        keywords = listOf("bill alerts", "bill reminder", "due bills", "বিলের সতর্কবার্তা", "বিল অ্যালার্ট")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_permissions",
-                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাপের অনুমতিসমূহ" else "App Permissions",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যামেরা, নোটিফিকেশন ও সিস্টেম অনুমতি নিয়ন্ত্রণ" else "Manage camera, notifications & system access",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও নোটিফিকেশন" else "SECURITY & ALERTS",
-                        iconVector = Icons.Default.Security,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.PERMISSIONS,
-                        keywords = listOf("permissions", "camera permission", "notification permission", "storage", "অনুমতি", "ক্যামেরা")
-                    ),
-
-                    // --- WIDGETS & ICONS ---
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_widgets",
-                        title = if (languageMode == LanguageMode.BANGLA) "হোম স্ক্রিন উইজেট" else "Home Screen Widgets",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "লাইভ বাজেট মিটার ও দ্রুত এন্ট্রি উইজেট পিন করুন" else "Pin live budget meter & quick entry widgets",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "উইজেট ও টুলস" else "WIDGETS & TOOLS",
-                        iconVector = Icons.Default.Widgets,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.WIDGETS,
-                        keywords = listOf("widget", "widgets", "home screen", "meter", "shortcut", "quick entry", "উইজেট", "হোম স্ক্রিন")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_icon_cache",
-                        title = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন লাইব্রেরি ও ফটো স্টুডিও" else "Item Icons & Photo Studio",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন আইকন গ্যালারি, ফটো ক্রপার ও কাস্টম আইকন" else "Vast icon store, image cropper & custom item icons",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "উইজেট ও টুলস" else "WIDGETS & TOOLS",
-                        iconVector = Icons.Default.Category,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.ICON_IMAGE_CACHE,
-                        keywords = listOf("icon", "icons", "cache", "crop", "studio", "photo", "custom icon", "আইকন", "ছবি", "স্টুডিও")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_clean_cache",
-                        title = if (languageMode == LanguageMode.BANGLA) "আইকন ক্যাশ ও মেমোরি ক্লিন" else "Clean Icon Cache & Storage",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যবহৃত আইকন ঠিক রেখে অব্যবহৃত ক্যাশ পরিষ্কার করুন" else "Clear unused orphan icons to free storage safely",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "উইজেট ও টুলস" else "WIDGETS & TOOLS",
-                        iconVector = Icons.Default.RestartAlt,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.ICON_IMAGE_CACHE,
-                        keywords = listOf("clean cache", "clear cache", "icon storage", "free memory", "ক্যাশ", "মেমোরি পরিষ্কার", "স্টোরেজ")
-                    ),
-
-                    // --- BACKUP, ARCHIVE, RESET & SUPPORT ---
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_backup_sync",
-                        title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ, ড্রপবক্স ও লোকাল ব্যাকআপ রিস্টোর" else "Google Drive, Dropbox & Local backup restore",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "ডাটা ও ব্যাকআপ" else "DATA & BACKUP",
-                        iconVector = Icons.Default.CloudSync,
-                        iconTint = primaryColor,
-                        targetView = AppView.BACKUP_SYNC,
-                        keywords = listOf("backup", "sync", "cloud", "google drive", "drive", "dropbox", "local", "restore", "ব্যাকআপ", "সিঙ্ক", "ড্রাইভ", "রিস্টোর")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_archive_prune",
-                        title = if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও ডাটা প্রুনিং" else "Archive & Data Pruning",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স ঠিক রেখে পুরাতন লেনদেন আর্কাইভ ও প্রুন" else "Fiscal year roll-forward & encrypted archive",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "ডাটা ও ব্যাকআপ" else "DATA & BACKUP",
-                        iconVector = Icons.Default.Archive,
-                        iconTint = primaryColor,
-                        targetView = AppView.ARCHIVE_PRUNE,
-                        keywords = listOf("archive", "prune", "fiscal year", "shrink db", "roll-forward", "আর্কাইভ", "প্রুন", "পুরাতন ডাটা")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_reset",
-                        title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ক্লিন ডাটা" else "Reset & Wipe Data",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন মোছা বা ফ্যাক্টরি ক্লিন রিসেট" else "Clear transactions or factory reset application",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "ডাটা ও ব্যাকআপ" else "DATA & BACKUP",
-                        iconVector = Icons.Default.DeleteSweep,
-                        iconTint = errorColor,
-                        targetView = AppView.RESET,
-                        keywords = listOf("reset", "wipe", "delete", "factory reset", "clear transactions", "রিসেট", "মুছুন", "পরিষ্কার")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_reset_defaults",
-                        title = if (languageMode == LanguageMode.BANGLA) "সেটিংস ডিফল্টে রিসেট করুন" else "Reset Preferences to Defaults",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "সমস্ত থিম, ফরম্যাট ও লেনদেন সেটিংস ডিফল্টে ফেরান" else "Reset all themes, formats, and transaction settings to default",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "ডাটা ও ব্যাকআপ" else "DATA & BACKUP",
-                        iconVector = Icons.Default.RestartAlt,
-                        iconTint = errorColor,
-                        targetView = AppView.RESET,
-                        keywords = listOf("default", "defaults", "reset defaults", "default settings", "restore defaults", "ডিফল্ট", "ডিফল্ট রিসেট")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_faq",
-                        title = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও প্রশ্নোত্তর (FAQ)" else "User Guide & FAQ",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যবহার নির্দেশিকা ও সাধারণ জিজ্ঞাসার উত্তর" else "Answers to common questions and tutorial guides",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
-                        iconVector = Icons.Default.HelpOutline,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.FAQ,
-                        keywords = listOf("faq", "help", "guide", "user guide", "tutorial", "support", "সহায়তা", "প্রশ্নোত্তর", "গাইড")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "set_about",
-                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সংস্করণ ও তথ্য" else "App Version & About",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "বাজেটার অ্যাপ ভার্সন ও ডেভেলপমেন্ট তথ্য" else "Budgeter Release v3.23 (100% Offline-First Fintech)",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT",
-                        iconVector = Icons.Default.Info,
-                        iconTint = primaryColor,
-                        targetSettingsSubPage = SettingsSubPage.ABOUT,
-                        keywords = listOf("about", "version", "developer", "release", "update", "সম্পর্কে", "ভার্সন", "রিলিজ")
-                    ),
-
-                    // --- APPS, MODULES & NAVIGATION VIEWS ---
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_dashboard",
-                        title = if (languageMode == LanguageMode.BANGLA) "ড্যাশবোর্ড ও আর্থিক সারসংক্ষেপ" else "Dashboard & Overview",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ, খরচযোগ্য অর্থ ও চার্ট" else "Net worth, expendable balance & summaries",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.PieChart,
-                        iconTint = primaryColor,
-                        targetView = AppView.DASHBOARD,
-                        keywords = listOf("dashboard", "overview", "net worth", "home", "ড্যাশবোর্ড", "মোট সম্পদ")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_ledger",
-                        title = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও খতিয়ান" else "Ledger & Transactions",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "সকল আয় ও ব্যয়ের তালিকা ও ফিল্টার" else "View and filter all transactions statement",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.Receipt,
-                        iconTint = primaryColor,
-                        targetView = AppView.LEDGER,
-                        keywords = listOf("ledger", "transactions", "statement", "history", "লেজার", "লেনদেন", "বিবরণী")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_cash_flow",
-                        title = if (languageMode == LanguageMode.BANGLA) "ক্যাশ ফ্লো ও প্রবাহ বিশ্লেষণ" else "Cash Flow & Analytics",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "মাসিক আয়, ব্যয় ও নিট সঞ্চয় ট্রেন্ড" else "Inflow, outflow & net cash flow trends",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.AutoMirrored.Filled.TrendingUp,
-                        iconTint = SolidIncome,
-                        targetView = AppView.CASH_FLOW,
-                        keywords = listOf("cash flow", "analytics", "analysis", "trend", "inflow", "outflow", "ক্যাশ ফ্লো", "প্রবাহ", "ট্রেন্ড")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_balance_sheet",
-                        title = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স শিট ও আর্থিক অবস্থান" else "Balance Sheet & Financial Position",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ, দায় ও সমন্বিত ব্যালেন্সের হিসাব" else "Assets, liabilities, adjusted balances & net worth breakdown",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.TableChart,
-                        iconTint = primaryColor,
-                        targetView = AppView.BALANCE_SHEET,
-                        keywords = listOf("balance sheet", "balance", "net worth", "assets", "liabilities", "statement", "ব্যালেন্স শিট", "সম্পদ", "দায়")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_accounts",
-                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট ও ফিন্যান্সিয়াল গ্রুপ" else "Accounts & Financial Groups",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ব্যাংক, ক্যাশ, বিকাশ ও ওয়ালেট ব্যবস্থাপনা" else "Manage banks, mobile wallets, cash & group balances",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.AccountBalance,
-                        iconTint = primaryColor,
-                        targetView = AppView.ACCOUNTS,
-                        keywords = listOf("accounts", "account", "bank", "wallet", "mfs", "অ্যাকাউন্ট", "ব্যাংক", "ওয়ালেট")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_categories",
-                        title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও সাব-ক্যাটাগরি" else "Categories & Sub-Categories",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের খাত, আইকন ও কালার ট্যাগ" else "Income & expense categories, icons & color tags",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.Category,
-                        iconTint = primaryColor,
-                        targetView = AppView.CATEGORIES,
-                        keywords = listOf("categories", "category", "subcategories", "expense category", "income category", "ক্যাটাগরি", "খাত")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_budget",
-                        title = if (languageMode == LanguageMode.BANGLA) "মাসিক বাজেট ও লিমিট" else "Monthly Budgets & Category Limits",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "মাসিক খরচের বাজেট নির্ধারণ ও ট্র্যাকিং" else "Set spending limits and track real-time utilization",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.PieChart,
-                        iconTint = primaryColor,
-                        targetView = AppView.BUDGET,
-                        keywords = listOf("budget", "budgets", "monthly budget", "spending limit", "limit", "বাজেট", "লিমিট")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_savings_goals",
-                        title = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য ও মাইলস্টোন" else "Savings Goals & Milestones",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ভবিষ্যত লক্ষ্য ও জরুরি তহবিলের অগ্রগতি" else "Track targets, emergency funds & target deadlines",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.Savings,
-                        iconTint = SolidIncome,
-                        targetView = AppView.SAVINGS_GOALS,
-                        keywords = listOf("savings", "savings goals", "goals", "target", "emergency fund", "সঞ্চয়", "লক্ষ্য")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_recurring_bills",
-                        title = if (languageMode == LanguageMode.BANGLA) "পুনরাবৃত্ত বিল ও সাবস্ক্রিপশন" else "Recurring Bills & Subscriptions",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "বিদ্যুৎ, বাড়ি ভাড়া ও নিয়মিত মাসিক বিল" else "Utility bills, rent, internet & recurring expenses",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.EventRepeat,
-                        iconTint = SolidExpense,
-                        targetView = AppView.RECURRING_BILLS,
-                        keywords = listOf("recurring bills", "bills", "subscriptions", "bill", "বিল", "সাবস্ক্রিপশন")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_wishlist",
-                        title = if (languageMode == LanguageMode.BANGLA) "উইশলিস্ট ও কাঙ্ক্ষিত কেনাকাটা" else "Wishlist & Planned Purchases",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ভবিষ্যতে কেনাকাটার তালিকা ও পরিকল্পনা" else "Plan upcoming purchases and convert directly to transactions",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.Favorite,
-                        iconTint = SolidPrimary,
-                        targetView = AppView.WISHLIST,
-                        keywords = listOf("wishlist", "wish", "planned purchase", "shopping", "উইশলিস্ট", "কেনাকাটা")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_rm_manager",
-                        title = if (languageMode == LanguageMode.BANGLA) "ঋণ ও দেনা-পাওনা (RM Manager)" else "Loans & Debts (RM Manager)",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ধার দেওয়া ও নেওয়া টাকার সঠিক হিসাব" else "Track borrowings, lendings & repayments",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.Handshake,
-                        iconTint = SolidExpense,
-                        targetView = AppView.RM_MANAGER,
-                        keywords = listOf("rm manager", "loan", "debt", "borrow", "lend", "ধার", "দেনা", "পাওনা")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "nav_trash",
-                        title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash & Recycle Bin",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "মুছে ফেলা লেনদেন পুনরুদ্ধার বা চিরতরে মুছে ফেলা" else "Restore or permanently delete removed transactions",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.DeleteSweep,
-                        iconTint = errorColor,
-                        targetView = AppView.TRASH,
-                        keywords = listOf("trash", "recycle bin", "deleted", "restore", "ট্র্যাশ", "রিসাইকেল বিন")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "tool_calculator",
-                        title = if (languageMode == LanguageMode.BANGLA) "পপআপ ক্যালকুলেটর" else "Standalone Calculator",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "দ্রুত হিসাব ও গাণিতিক হিসেব" else "Quick arithmetic & math calculations",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.Calculate,
-                        iconTint = tertiaryColor,
-                        actionType = "CALCULATOR",
-                        keywords = listOf("calculator", "calc", "math", "ক্যালকুলেটর", "হিসাব", "গণনা")
-                    ),
-                    MasterSearchResult.NavigationActionItem(
-                        id = "tool_export",
-                        title = if (languageMode == LanguageMode.BANGLA) "এক্সেল ও সিএসভি এক্সপোর্ট" else "Export to Excel & CSV",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও ব্যালেন্স শিট এক্সেল ফাইলে এক্সপোর্ট করুন" else "Export transactions, accounts, and balance sheet to Excel/CSV",
-                        groupTag = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ও টুলস" else "APPS & TOOLS",
-                        iconVector = Icons.Default.FormatListBulleted,
-                        iconTint = primaryColor,
-                        targetView = AppView.LEDGER,
-                        keywords = listOf("export", "excel", "csv", "sheet", "report", "statement", "এক্সপোর্ট", "এক্সেল")
-                    )
+            list.add(
+                IndexedEntity(
+                    result = result,
+                    fields = searchFields,
+                    dateEpochMs = tx.dateEpochMs,
+                    secondarySortKey = titleText,
+                    categoryFilter = SearchFilterCategory.TRANSACTIONS
                 )
+            )
+        }
 
-                actionCatalog.filter { item ->
-                    item.title.lowercase().contains(query) ||
-                    item.subtitle?.lowercase()?.contains(query) == true ||
-                    item.keywords.any { it.contains(query) }
-                }.forEach {
-                    results.add(it)
+        // 2. Accounts Index
+        allAccounts.forEach { acc ->
+            val matchedBalance = accountsWithBalances.find { it.account.id == acc.id }?.currentBalance ?: 0.0
+            val typeLabel = if (acc.type == AccountType.ASSET) {
+                if (languageMode == LanguageMode.BANGLA) "সম্পদ একাউন্ট" else "Asset Account"
+            } else {
+                if (languageMode == LanguageMode.BANGLA) "দায় / ঋণ" else "Liability Account"
+            }
+            val balanceStr = LanguageHelper.formatCurrency(matchedBalance, languageMode)
+            val keywords = "${acc.nameEn} ${acc.nameBn} ${acc.description} ${acc.accountNumber} ${acc.type.name} account wallet ব্যাংক বিকাশ নগদ রকেট একাউন্ট ওয়ালেট"
+
+            val searchFields = listOf(
+                SearchMatcher.SearchField(acc.localizedName(languageMode), SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("${acc.nameEn} ${acc.nameBn}", SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField(keywords, SearchMatcher.FieldWeight.KEYWORD.weight),
+                SearchMatcher.SearchField("${acc.accountNumber} ${acc.description} $balanceStr", SearchMatcher.FieldWeight.SECONDARY.weight)
+            )
+
+            val result = MasterSearchResult.AccountItem(
+                account = acc,
+                balanceFormatted = balanceStr,
+                title = acc.localizedName(languageMode),
+                subtitle = "$typeLabel • $balanceStr",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "একাউন্ট ও ওয়ালেট" else "ACCOUNTS & WALLETS",
+                iconVector = IconHelper.getIconByName(acc.iconName),
+                iconTint = if (acc.type == AccountType.ASSET) SolidIncome else SolidExpense
+            )
+
+            list.add(
+                IndexedEntity(
+                    result = result,
+                    fields = searchFields,
+                    dateEpochMs = 0L,
+                    secondarySortKey = acc.localizedName(languageMode),
+                    categoryFilter = SearchFilterCategory.ACCOUNTS
+                )
+            )
+        }
+
+        // 3. Categories Index
+        allCategories.forEach { cat ->
+            val isSub = cat.parentId != null
+            val typeLabel = if (cat.type == CategoryType.EXPENSE) {
+                if (languageMode == LanguageMode.BANGLA) "ব্যয় বিভাগ" else "Expense Category"
+            } else {
+                if (languageMode == LanguageMode.BANGLA) "আয় বিভাগ" else "Income Category"
+            }
+            val parentCat = if (isSub) allCategories.find { it.id == cat.parentId } else null
+            val parentNote = if (parentCat != null) " (${parentCat.localizedName(languageMode)})" else ""
+
+            val typeWords = if (cat.type == CategoryType.EXPENSE) "expense ব্যয় খরচ category ক্যাটাগরি" else "income আয় আয় category ক্যাটাগরি"
+
+            val searchFields = listOf(
+                SearchMatcher.SearchField(cat.localizedName(languageMode), SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("${cat.nameEn} ${cat.nameBn}", SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField(typeWords, SearchMatcher.FieldWeight.KEYWORD.weight),
+                SearchMatcher.SearchField(parentCat?.localizedName(languageMode).orEmpty(), SearchMatcher.FieldWeight.SECONDARY.weight)
+            )
+
+            val result = MasterSearchResult.CategoryItem(
+                category = cat,
+                isSubCategory = isSub,
+                title = cat.localizedName(languageMode),
+                subtitle = "$typeLabel$parentNote",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "CATEGORIES",
+                iconVector = IconHelper.getIconByName(cat.iconName),
+                iconTint = if (cat.type == CategoryType.EXPENSE) SolidExpense else SolidIncome
+            )
+
+            list.add(
+                IndexedEntity(
+                    result = result,
+                    fields = searchFields,
+                    dateEpochMs = 0L,
+                    secondarySortKey = cat.localizedName(languageMode),
+                    categoryFilter = SearchFilterCategory.CATEGORIES
+                )
+            )
+        }
+
+        // 4. Budgets Index
+        monthlyBudgets.forEach { budget ->
+            val matchedCat = allCategories.find { it.id == budget.itemId }
+            val catName = matchedCat?.localizedName(languageMode) ?: "Category #${budget.itemId}"
+            val spent = transactions.filter {
+                it.category?.id == budget.itemId && it.transaction.type == TransactionType.EXPENSE
+            }.sumOf { it.transaction.amount }
+            val remaining = (budget.budgetedAmount - spent).coerceAtLeast(0.0)
+            val progress = if (budget.budgetedAmount > 0) (spent / budget.budgetedAmount).toFloat().coerceIn(0f, 1f) else 0f
+
+            val budgetedStr = LanguageHelper.formatCurrency(budget.budgetedAmount, languageMode)
+            val remainingStr = LanguageHelper.formatCurrency(remaining, languageMode)
+            val spentStr = LanguageHelper.formatCurrency(spent, languageMode)
+
+            val searchFields = listOf(
+                SearchMatcher.SearchField(catName, SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("budget monthly limit বাজেট লিমিট খরচের সীমা", SearchMatcher.FieldWeight.KEYWORD.weight),
+                SearchMatcher.SearchField("$budgetedStr $spentStr $remainingStr", SearchMatcher.FieldWeight.SECONDARY.weight)
+            )
+
+            val result = MasterSearchResult.BudgetItem(
+                monthlyBudget = budget,
+                categoryName = catName,
+                budgetedFormatted = budgetedStr,
+                spentFormatted = spentStr,
+                remainingFormatted = remainingStr,
+                progressPercent = progress,
+                isOverBudget = spent > budget.budgetedAmount,
+                title = catName,
+                subtitle = if (languageMode == LanguageMode.BANGLA)
+                    "বাজেট: $budgetedStr • অবশিষ্ট: $remainingStr"
+                else
+                    "Limit: $budgetedStr • Rem: $remainingStr",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "বাজেট ও লিমিট" else "BUDGETS & LIMITS",
+                iconVector = IconHelper.getIconByName(matchedCat?.iconName ?: "PieChart"),
+                iconTint = if (spent > budget.budgetedAmount) SolidExpense else SolidPrimary
+            )
+
+            list.add(
+                IndexedEntity(
+                    result = result,
+                    fields = searchFields,
+                    dateEpochMs = 0L,
+                    secondarySortKey = catName,
+                    categoryFilter = SearchFilterCategory.BUDGETS
+                )
+            )
+        }
+
+        // 5. Savings Goals, Recurring Bills, Wishlist
+        savingsGoals.forEach { goal ->
+            val progress = (goal.progressPercent / 100f).coerceIn(0f, 1f)
+            val targetStr = LanguageHelper.formatCurrency(goal.goal.targetAmount, languageMode)
+            val savedStr = LanguageHelper.formatCurrency(goal.effectiveSaved, languageMode)
+            val goalTitle = if (languageMode == LanguageMode.BANGLA && goal.goal.nameBn.isNotBlank()) goal.goal.nameBn else goal.goal.name
+
+            val searchFields = listOf(
+                SearchMatcher.SearchField(goalTitle, SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("${goal.goal.name} ${goal.goal.nameBn}", SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("goal savings milestone সঞ্চয় লক্ষ্য ফান্ড", SearchMatcher.FieldWeight.KEYWORD.weight),
+                SearchMatcher.SearchField("${goal.goal.notes} $targetStr $savedStr", SearchMatcher.FieldWeight.SECONDARY.weight)
+            )
+
+            val result = MasterSearchResult.SavingsGoalItem(
+                goalWithDetails = goal,
+                targetFormatted = targetStr,
+                savedFormatted = savedStr,
+                progressPercent = progress,
+                title = goalTitle,
+                subtitle = if (languageMode == LanguageMode.BANGLA)
+                    "সঞ্চয় লক্ষ্য: $targetStr (${goal.progressPercent.toInt()}%)"
+                else
+                    "Goal: $targetStr (${goal.progressPercent.toInt()}% saved)",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য" else "SAVINGS GOALS",
+                iconVector = IconHelper.getIconByName(goal.goal.iconName),
+                iconTint = SolidIncome
+            )
+
+            list.add(
+                IndexedEntity(
+                    result = result,
+                    fields = searchFields,
+                    dateEpochMs = goal.goal.targetDate,
+                    secondarySortKey = goalTitle,
+                    categoryFilter = SearchFilterCategory.GOALS_AND_BILLS
+                )
+            )
+        }
+
+        recurringBills.forEach { bill ->
+            val billTitle = bill.bill.title.ifBlank { bill.bill.payeeOrPayer }
+            val amtStr = LanguageHelper.formatCurrency(bill.bill.amount, languageMode)
+
+            val searchFields = listOf(
+                SearchMatcher.SearchField(billTitle, SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("${bill.bill.payeeOrPayer} ${bill.bill.title}", SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("bill subscription recurring বিদ্যুৎ বিল গ্যাস সাবস্ক্রিপশন", SearchMatcher.FieldWeight.KEYWORD.weight),
+                SearchMatcher.SearchField("${bill.bill.note} $amtStr ${bill.bill.recurrencePeriod.name}", SearchMatcher.FieldWeight.SECONDARY.weight)
+            )
+
+            val result = MasterSearchResult.RecurringBillItem(
+                billWithDetails = bill,
+                amountFormatted = amtStr,
+                title = billTitle,
+                subtitle = "${bill.bill.recurrencePeriod.name} • $amtStr",
+                groupTag = if (languageMode == LanguageMode.BANGLA) "পুনরাবৃত্ত বিল" else "RECURRING BILLS",
+                iconVector = Icons.Default.EventRepeat,
+                iconTint = SolidExpense
+            )
+
+            list.add(
+                IndexedEntity(
+                    result = result,
+                    fields = searchFields,
+                    dateEpochMs = 0L,
+                    secondarySortKey = billTitle,
+                    categoryFilter = SearchFilterCategory.GOALS_AND_BILLS
+                )
+            )
+        }
+
+        wishlistItems.forEach { wish ->
+            val amtStr = LanguageHelper.formatCurrency(wish.item.estimatedAmount, languageMode)
+            val catName = wish.category?.localizedName(languageMode).orEmpty()
+
+            val searchFields = listOf(
+                SearchMatcher.SearchField(wish.item.title, SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField("wishlist shopping planned কেনাকাটা উইশলিস্ট পরিকল্পনা", SearchMatcher.FieldWeight.KEYWORD.weight),
+                SearchMatcher.SearchField("${wish.item.notes} $amtStr $catName", SearchMatcher.FieldWeight.SECONDARY.weight)
+            )
+
+            val result = MasterSearchResult.WishlistResultItem(
+                wishlistItem = wish,
+                amountFormatted = amtStr,
+                title = wish.item.title,
+                subtitle = if (wish.category != null)
+                    "$catName • $amtStr"
+                else
+                    amtStr,
+                groupTag = if (languageMode == LanguageMode.BANGLA) "উইশলিস্ট" else "WISHLIST",
+                iconVector = Icons.Default.Favorite,
+                iconTint = SolidPrimary
+            )
+
+            list.add(
+                IndexedEntity(
+                    result = result,
+                    fields = searchFields,
+                    dateEpochMs = 0L,
+                    secondarySortKey = wish.item.title,
+                    categoryFilter = SearchFilterCategory.GOALS_AND_BILLS
+                )
+            )
+        }
+
+        // 6. Actions & Settings Navigation Index
+        actionCatalog.forEach { action ->
+            val searchFields = listOf(
+                SearchMatcher.SearchField(action.title, SearchMatcher.FieldWeight.PRIMARY.weight),
+                SearchMatcher.SearchField(action.keywords.joinToString(" "), SearchMatcher.FieldWeight.KEYWORD.weight),
+                SearchMatcher.SearchField(action.subtitle.orEmpty(), SearchMatcher.FieldWeight.SECONDARY.weight)
+            )
+
+            list.add(
+                IndexedEntity(
+                    result = action,
+                    fields = searchFields,
+                    dateEpochMs = 0L,
+                    secondarySortKey = action.title,
+                    categoryFilter = SearchFilterCategory.SETTINGS_AND_TOOLS
+                )
+            )
+        }
+
+        list
+    }
+
+    var isSearching by remember { mutableStateOf(false) }
+
+    // Debounced and ranked search computation on Dispatchers.Default
+    val searchResultsState = produceState(
+        initialValue = emptyList<SearchGroupResult>(),
+        key1 = searchQuery,
+        key2 = selectedCategory,
+        key3 = indexedEntities
+    ) {
+        val trimmedQuery = searchQuery.trim()
+        if (trimmedQuery.isEmpty()) {
+            isSearching = false
+            value = emptyList()
+            return@produceState
+        }
+
+        val startTime = System.currentTimeMillis()
+        delay(200) // 200 ms debounce
+
+        val tokens = SearchMatcher.tokenize(trimmedQuery)
+        if (tokens.isEmpty()) {
+            isSearching = false
+            value = emptyList()
+            return@produceState
+        }
+
+        if (System.currentTimeMillis() - startTime > 150) {
+            isSearching = true
+        }
+
+        val grouped = withContext(Dispatchers.Default) {
+            val matchedItems = mutableListOf<SearchMatcher.MatchResult<MasterSearchResult>>()
+
+            for (indexed in indexedEntities) {
+                if (selectedCategory != SearchFilterCategory.ALL && indexed.categoryFilter != selectedCategory) {
+                    continue
+                }
+
+                val score = SearchMatcher.computeScore(tokens, indexed.fields)
+                if (score > 0.0) {
+                    matchedItems.add(
+                        SearchMatcher.MatchResult(
+                            item = indexed.result,
+                            score = score,
+                            dateEpochMs = indexed.dateEpochMs,
+                            secondarySortKey = indexed.secondarySortKey
+                        )
+                    )
                 }
             }
 
-            results
+            // Sort matched items by score descending, then date descending (recency), then alphabetical
+            matchedItems.sortWith(
+                compareByDescending<SearchMatcher.MatchResult<MasterSearchResult>> { it.score }
+                    .thenByDescending { it.dateEpochMs }
+                    .thenBy { it.secondarySortKey }
+            )
+
+            // Group by groupTag and sort groups by the highest topScore
+            val groupsMap = matchedItems.groupBy { it.item.groupTag }
+            groupsMap.map { (groupTag, itemsList) ->
+                val topScore = itemsList.maxOfOrNull { it.score } ?: 0.0
+                SearchGroupResult(
+                    groupTag = groupTag,
+                    items = itemsList.map { it.item },
+                    topScore = topScore
+                )
+            }.sortedByDescending { it.topScore }
         }
+
+        isSearching = false
+        value = grouped
     }
+
+    val groupedResults = searchResultsState.value
+    val totalMatches = remember(groupedResults) { groupedResults.sumOf { it.items.size } }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -1324,6 +1302,17 @@ fun MasterSearchModal(
                             }
                         }
 
+                        // Progress bar indicator for long searches
+                        AnimatedVisibility(visible = isSearching, enter = fadeIn(), exit = fadeOut()) {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(2.dp)
+                                    .padding(top = 4.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
                         // Category Filter Chips Row
                         Row(
                             modifier = Modifier
@@ -1365,7 +1354,7 @@ fun MasterSearchModal(
 
                 // Search Results or Empty State
                 if (searchQuery.isBlank()) {
-                    // Initial Quick Search Recommendations
+                    // Initial Quick Search Recommendations & Recent Transactions
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1413,7 +1402,7 @@ fun MasterSearchModal(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         quickTags.forEach { (tag, icon) ->
-                                            Surface(
+                                             Surface(
                                                 shape = RoundedCornerShape(20.dp),
                                                 color = MaterialTheme.colorScheme.surface,
                                                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
@@ -1484,6 +1473,7 @@ fun MasterSearchModal(
                                         iconVector = iconVector,
                                         iconTint = tint
                                     ),
+                                    searchQuery = "",
                                     onClick = {
                                         onDismiss()
                                         onTransactionClick(tx)
@@ -1492,8 +1482,9 @@ fun MasterSearchModal(
                             }
                         }
                     }
-                } else if (searchResults.isEmpty()) {
-                    // No Results Found
+                } else if (groupedResults.isEmpty() && !isSearching) {
+                    // No Results Found - Friendly Empty State with suggestions
+                    val normQuery = SearchMatcher.normalize(searchQuery)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1503,7 +1494,7 @@ fun MasterSearchModal(
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Surface(
                                 shape = CircleShape,
@@ -1520,32 +1511,28 @@ fun MasterSearchModal(
                                 }
                             }
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "\"$searchQuery\" এর জন্য কিছু পাওয়া যায়নি" else "No results found for \"$searchQuery\"",
+                                text = if (languageMode == LanguageMode.BANGLA) "\"$normQuery\" এর জন্য কিছু পাওয়া যায়নি" else "No results found for \"$normQuery\"",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA)
-                                    "বানান পরীক্ষা করুন বা অন্য ফিল্টার ক্যাটাগরি চেষ্টা করুন।"
+                                    "পরামর্শ: শব্দ সংখ্যা কমিয়ে খুঁজুন, বানান পরীক্ষা করুন বা 'সকল' ক্যাটাগরি নির্বাচন করুন।"
                                 else
-                                    "Check spelling or try searching across All categories.",
+                                    "Suggestions: Try fewer words, check for typos, or switch filter to 'All'.",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
                             if (selectedCategory != SearchFilterCategory.ALL) {
                                 TextButton(onClick = { selectedCategory = SearchFilterCategory.ALL }) {
-                                    Text(if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরিতে খুঁজুন" else "Search in All")
+                                    Text(if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরিতে খুঁজুন" else "Search across All categories")
                                 }
                             }
                         }
                     }
                 } else {
-                    // Search Results List Grouped cleanly
-                    val groupedResults = remember(searchResults) {
-                        searchResults.groupBy { it.groupTag }
-                    }
-
+                    // Search Results List Grouped cleanly by highest group score
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1553,8 +1540,12 @@ fun MasterSearchModal(
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        groupedResults.forEach { (groupTag, itemsList) ->
-                            item(key = "header_$groupTag") {
+                        groupedResults.forEach { group ->
+                            val isExpanded = expandedGroups.contains(group.groupTag)
+                            val visibleItems = if (isExpanded) group.items else group.items.take(30)
+                            val hasMore = group.items.size > 30
+
+                            item(key = "header_${group.groupTag}") {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1563,22 +1554,23 @@ fun MasterSearchModal(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = groupTag,
+                                        text = group.groupTag,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                     Text(
-                                        text = "${itemsList.size}",
+                                        text = "${group.items.size}",
                                         fontSize = 11.5.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
                             }
 
-                            items(itemsList, key = { it.id }) { result ->
+                            items(visibleItems, key = { it.id }) { result ->
                                 MasterSearchResultRow(
                                     result = result,
+                                    searchQuery = searchQuery,
                                     onClick = {
                                         onDismiss()
                                         when (result) {
@@ -1620,6 +1612,50 @@ fun MasterSearchModal(
                                     }
                                 )
                             }
+
+                            if (hasMore) {
+                                item(key = "expand_${group.groupTag}") {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                expandedGroups = if (isExpanded) {
+                                                    expandedGroups - group.groupTag
+                                                } else {
+                                                    expandedGroups + group.groupTag
+                                                }
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (isExpanded) {
+                                                    if (languageMode == LanguageMode.BANGLA) "সংক্ষেপ করুন" else "Show less"
+                                                } else {
+                                                    if (languageMode == LanguageMode.BANGLA) "সবগুলো (${group.items.size} টি) দেখুন" else "Show all ${group.items.size}"
+                                                },
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(
+                                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1631,8 +1667,19 @@ fun MasterSearchModal(
 @Composable
 private fun MasterSearchResultRow(
     result: MasterSearchResult,
+    searchQuery: String,
     onClick: () -> Unit
 ) {
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val highlightedTitle = remember(result.title, searchQuery, highlightColor) {
+        SearchMatcher.highlight(
+            text = result.title,
+            query = searchQuery,
+            highlightColor = highlightColor,
+            highlightWeight = FontWeight.Bold
+        )
+    }
+
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1667,7 +1714,7 @@ private fun MasterSearchResultRow(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = result.title,
+                    text = highlightedTitle,
                     fontSize = 14.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
