@@ -3101,7 +3101,7 @@ private fun ScreenRouter(
         AppView.CATEGORIES -> CategoriesScreen(
             categories = allCategories,
             languageMode = languageMode,
-            initialTab = 0,
+            initialTab = null,
             allTransactions = transactionsWithDetails,
             monthlyBudgets = monthlyBudgets,
             onOpenDrawer = onOpenDrawer,

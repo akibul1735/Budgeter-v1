@@ -334,9 +334,11 @@ class UnifiedFilterTest {
         )
 
         val testKey = "test_roundtrip_spec"
-        filterStore.saveFilterState(testKey, originalState)
+        val stateWithSearch = originalState + ("search" to FilterValue.Search("stale query"))
+        filterStore.saveFilterState(testKey, stateWithSearch)
 
         val loadedState = filterStore.loadFilterState(testKey)
+        assertFalse("FilterValue.Search must be stripped and never persisted", loadedState.containsKey("search"))
         assertEquals(originalState.size, loadedState.size)
         assertEquals((originalState["select"] as FilterValue.Select).selectedIds, (loadedState["select"] as FilterValue.Select).selectedIds)
         assertEquals((originalState["single_select"] as FilterValue.SingleSelect).selectedId, (loadedState["single_select"] as FilterValue.SingleSelect).selectedId)

@@ -97,7 +97,6 @@ import com.example.ui.components.filter.withSearchQuery
 import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import com.example.util.TabFilterPreferences
 
 private val SlateText = Color(0xFF64748B)
 
@@ -128,7 +127,7 @@ data class FlattenedCategoryItem(
 fun CategoriesScreen(
     categories: List<Category>,
     languageMode: LanguageMode,
-    initialTab: Int = 0,
+    initialTab: Int? = null,
     allTransactions: List<TransactionWithDetails> = emptyList(),
     monthlyBudgets: List<MonthlyBudget> = emptyList(),
     onOpenDrawer: () -> Unit = {},
@@ -140,14 +139,7 @@ fun CategoriesScreen(
     onDeleteCategories: ((List<Category>) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
-
-    // Synchronously migrate and load persistent FilterState from FilterStore
-    val filterStore = remember {
-        FilterStore.getInstance(context).also { store ->
-            store.migrateFromTabFilterPreferences(tabFilterPrefs)
-        }
-    }
+    val filterStore = remember { FilterStore.getInstance(context) }
 
     val categoriesSpec = remember {
         com.example.ui.components.filter.specs.CategoriesFilterSpec.createSpec()
@@ -156,10 +148,9 @@ fun CategoriesScreen(
     var filterState by remember {
         val loaded = filterStore.loadFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY)
         val initial = if (loaded.isEmpty()) {
-            val initialType = if (initialTab == 1) {
-                com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
-            } else {
-                com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+            val initialType = when (initialTab) {
+                1 -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
+                else -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
             }
             mapOf(
                 com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(initialType)),
@@ -173,8 +164,10 @@ fun CategoriesScreen(
     }
 
     val updateFilterState: (FilterState) -> Unit = { newState ->
-        filterState = newState
-        filterStore.saveFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY, newState)
+        if (newState != filterState) {
+            filterState = newState
+            filterStore.saveFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY, newState)
+        }
     }
 
     var showFilterDialog by remember { mutableStateOf(false) }
@@ -196,14 +189,18 @@ fun CategoriesScreen(
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
     LaunchedEffect(initialTab) {
-        val targetType = if (initialTab == 1) {
-            com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
-        } else {
-            com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+        if (initialTab != null) {
+            val targetType = when (initialTab) {
+                1 -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
+                else -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+            }
+            val currentType = (filterState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE] as? FilterValue.ToggleGroup)?.activeIds?.firstOrNull()
+            if (currentType != targetType) {
+                updateFilterState(
+                    filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(targetType)))
+                )
+            }
         }
-        updateFilterState(
-            filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(targetType)))
-        )
     }
 
     // Usage Frequency Map from transactions

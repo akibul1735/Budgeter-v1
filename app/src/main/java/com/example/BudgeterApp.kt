@@ -38,6 +38,14 @@ class BudgeterApp : Application(), ImageLoaderFactory, Configuration.Provider {
         // Trigger an initial check on app boot and schedule daily auto backup
         SyncManager.checkAndTriggerDatabaseBackup(applicationContext)
         SyncManager.scheduleDailyAutoBackup(applicationContext)
+
+        // One-time unified filter migration from legacy TabFilterPreferences to FilterStore
+        try {
+            val tabFilterPrefs = com.example.util.TabFilterPreferences.getInstance(applicationContext)
+            com.example.util.FilterStore.getInstance(applicationContext).migrateFromTabFilterPreferences(tabFilterPrefs)
+        } catch (e: Exception) {
+            Log.e("BudgeterApp", "Filter migration notice: ${e.message}")
+        }
     }
 
     override fun newImageLoader(): ImageLoader {

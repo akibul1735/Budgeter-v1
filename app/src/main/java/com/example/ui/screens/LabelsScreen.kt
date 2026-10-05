@@ -97,7 +97,6 @@ import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
-import com.example.util.TabFilterPreferences
 
 private val CrimsonPink = Color(0xFFE91E63)
 private val SlateText = Color(0xFF64748B)
@@ -133,14 +132,7 @@ fun LabelsScreen(
     onAddTransactionClick: ((TransactionType) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
-
-    // Synchronously migrate and load persistent FilterState from FilterStore
-    val filterStore = remember {
-        FilterStore.getInstance(context).also { store ->
-            store.migrateFromTabFilterPreferences(tabFilterPrefs)
-        }
-    }
+    val filterStore = remember { FilterStore.getInstance(context) }
 
     val labelsSpec = remember(categories, accounts) {
         LabelsFilterSpec.createSpec(categories, accounts)

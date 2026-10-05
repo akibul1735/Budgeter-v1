@@ -17,7 +17,99 @@ class FilterStore private constructor(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "unified_filter_store"
-        private const val KEY_MIGRATED = "migrated_tab_filter_preferences_v1"
+        const val KEY_MIGRATED_LABELS = "migrated_labels_v1"
+        const val KEY_MIGRATED_CATEGORIES = "migrated_categories_v1"
+
+        val VALID_LABELS_DATE_PRESETS = setOf(
+            "this_month", "last_month", "this_week", "today", "yesterday",
+            "last_30_days", "last_90_days", "this_year", "last_year", "all_time"
+        )
+        const val DEFAULT_LABELS_DATE_PRESET = "this_month"
+
+        val VALID_LABELS_SORT_ORDERS = setOf(
+            "amount_desc", "amount_asc", "count_desc", "count_asc",
+            "avg_desc", "avg_asc", "name_asc", "name_desc", "recent_date"
+        )
+        const val DEFAULT_LABELS_SORT_ORDER = "amount_desc"
+
+        val VALID_LABELS_TAB_MODES = setOf(
+            com.example.ui.components.filter.specs.LabelsFilterSpec.MODE_EXPENSE,
+            com.example.ui.components.filter.specs.LabelsFilterSpec.MODE_ALL,
+            com.example.ui.components.filter.specs.LabelsFilterSpec.MODE_INCOME
+        )
+        const val DEFAULT_LABELS_TAB_MODE = com.example.ui.components.filter.specs.LabelsFilterSpec.MODE_ALL
+
+        val VALID_LABELS_CATEGORY_SEGMENTS = setOf(
+            com.example.ui.components.filter.specs.LabelsFilterSpec.SEGMENT_HASHTAGS,
+            com.example.ui.components.filter.specs.LabelsFilterSpec.SEGMENT_NOTES,
+            com.example.ui.components.filter.specs.LabelsFilterSpec.SEGMENT_PAYEES,
+            com.example.ui.components.filter.specs.LabelsFilterSpec.SEGMENT_UNTAGGED,
+            com.example.ui.components.filter.specs.LabelsFilterSpec.SEGMENT_ALL
+        )
+        const val DEFAULT_LABELS_CATEGORY_SEGMENT = com.example.ui.components.filter.specs.LabelsFilterSpec.SEGMENT_HASHTAGS
+
+        val VALID_CATEGORIES_TYPES = setOf(
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE,
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_ALL,
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
+        )
+        const val DEFAULT_CATEGORIES_TYPE = com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+
+        val VALID_CATEGORIES_HIERARCHIES = setOf(
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ALL,
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ONLY_GROUPS,
+            com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ONLY_CATEGORIES
+        )
+        const val DEFAULT_CATEGORIES_HIERARCHY = com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ALL
+
+        val VALID_CATEGORIES_SORTS = setOf(
+            "default",
+            "budget_high_to_low",
+            "budget_low_to_high",
+            "most_used",
+            "least_used",
+            "name_az",
+            "name_za"
+        )
+        const val DEFAULT_CATEGORIES_SORT = "default"
+
+        fun mapLabelsDatePreset(preset: com.example.ui.dialogs.AggregatedDatePreset?): String {
+            val id = preset?.name?.lowercase()
+            return if (id != null && id in VALID_LABELS_DATE_PRESETS) id else DEFAULT_LABELS_DATE_PRESET
+        }
+
+        fun mapLabelsSortOrder(sort: com.example.ui.dialogs.AggregatedSortOrder?): String {
+            val id = sort?.name?.lowercase()
+            return if (id != null && id in VALID_LABELS_SORT_ORDERS) id else DEFAULT_LABELS_SORT_ORDER
+        }
+
+        fun mapLabelsTabMode(mode: String?): String {
+            val id = mode?.lowercase()
+            return if (id != null && id in VALID_LABELS_TAB_MODES) id else DEFAULT_LABELS_TAB_MODE
+        }
+
+        fun mapLabelsCategorySegment(segment: String?): String {
+            val id = segment?.lowercase()
+            return if (id != null && id in VALID_LABELS_CATEGORY_SEGMENTS) id else DEFAULT_LABELS_CATEGORY_SEGMENT
+        }
+
+        fun mapCategoriesType(type: com.example.data.model.CategoryType?): String {
+            return when (type) {
+                com.example.data.model.CategoryType.EXPENSE -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+                com.example.data.model.CategoryType.INCOME -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
+                null -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_ALL
+            }
+        }
+
+        fun mapCategoriesHierarchy(hierarchy: com.example.ui.screens.CategoryViewHierarchyFilter?): String {
+            val id = hierarchy?.name?.lowercase()
+            return if (id != null && id in VALID_CATEGORIES_HIERARCHIES) id else DEFAULT_CATEGORIES_HIERARCHY
+        }
+
+        fun mapCategoriesSort(sort: com.example.ui.screens.CategorySortFilter?): String {
+            val id = sort?.name?.lowercase()
+            return if (id != null && id in VALID_CATEGORIES_SORTS) id else DEFAULT_CATEGORIES_SORT
+        }
 
         @Volatile
         private var instance: FilterStore? = null
@@ -31,16 +123,19 @@ class FilterStore private constructor(context: Context) {
 
     /**
      * Saves a FilterState to SharedPreferences as a JSON string for [specKey].
+     * Note: FilterValue.Search is stripped so search queries are never persisted.
      */
     fun saveFilterState(specKey: String, state: FilterState) {
-        if (state.isEmpty()) {
+        val nonSearchState = state.filter { (_, v) -> v !is FilterValue.Search }
+        if (nonSearchState.isEmpty()) {
             prefs.edit().remove("filter_$specKey").apply()
             return
         }
 
         try {
             val rootObj = JSONObject()
-            for ((fieldId, value) in state) {
+            for ((fieldId, value) in nonSearchState) {
+                if (value is FilterValue.Search) continue
                 val fieldObj = JSONObject()
                 when (value) {
                     is FilterValue.Select -> {
@@ -83,8 +178,7 @@ class FilterStore private constructor(context: Context) {
                     }
 
                     is FilterValue.Search -> {
-                        fieldObj.put("type", "search")
-                        fieldObj.put("query", value.query)
+                        // Stripped: search queries are never persisted
                     }
 
                     is FilterValue.BooleanVal -> {
@@ -99,7 +193,7 @@ class FilterStore private constructor(context: Context) {
                 }
                 rootObj.put(fieldId, fieldObj)
             }
-            prefs.edit().putString("filter_$specKey", rootObj.toString()).apply()
+            prefs.edit().putString("filter_$specKey", rootObj.toString()).commit()
         } catch (_: Exception) {
             // Graceful fallback
         }
@@ -107,6 +201,7 @@ class FilterStore private constructor(context: Context) {
 
     /**
      * Loads a FilterState from SharedPreferences for [specKey].
+     * Note: Search values are never restored from storage so stale searches never reappear.
      */
     fun loadFilterState(specKey: String): FilterState {
         val jsonStr = prefs.getString("filter_$specKey", null) ?: return emptyMap()
@@ -166,10 +261,7 @@ class FilterStore private constructor(context: Context) {
                         FilterValue.Sort(sortId)
                     }
 
-                    "search" -> {
-                        val q = fieldObj.optString("query", "")
-                        FilterValue.Search(q)
-                    }
+                    "search" -> null
 
                     "boolean" -> {
                         val b = fieldObj.optBoolean("value", false)
@@ -184,7 +276,7 @@ class FilterStore private constructor(context: Context) {
                     else -> null
                 }
 
-                if (value != null) {
+                if (value != null && value !is FilterValue.Search) {
                     result[fieldId] = value
                 }
             }
@@ -199,66 +291,78 @@ class FilterStore private constructor(context: Context) {
      * Clears saved state for [specKey].
      */
     fun clearFilterState(specKey: String) {
-        prefs.edit().remove("filter_$specKey").apply()
+        prefs.edit().remove("filter_$specKey").commit()
+    }
+
+    /**
+     * Clears all filter preferences and migration flags (used for deterministic testing).
+     */
+    fun clearAllForTesting() {
+        prefs.edit().clear().commit()
+    }
+
+    /**
+     * Clears migration flags (used for testing).
+     */
+    fun resetMigrationFlagsForTesting() {
+        prefs.edit()
+            .remove(KEY_MIGRATED_LABELS)
+            .remove(KEY_MIGRATED_CATEGORIES)
+            .remove("migrated_tab_filter_preferences_v1")
+            .commit()
     }
 
     /**
      * One-time migration hook from TabFilterPreferences.
-     * Legacy quick filters, sort options, and search queries in TabFilterPreferences continue
-     * to operate independently in BudgetScreen without being duplicated into FilterStore states.
-     * Note: If any display option like hideEmptyGroups is ever migrated, it is placed in "display_options".
+     * Uses separate per-screen flags (migrated_labels_v1, migrated_categories_v1).
+     * Existing users who already have the old flag set still get their Labels and Categories
+     * values migrated, as long as no filter_labels / filter_categories state exists yet.
+     * Existing FilterStore state is never overwritten.
+     * Search values are stripped so a stale search query is never persisted.
      */
     fun migrateFromTabFilterPreferences(tabFilterPrefs: TabFilterPreferences) {
-        if (prefs.getBoolean(KEY_MIGRATED, false)) return
-
         try {
-            // 1. Migrate LabelsScreen saved preferences if not already present in FilterStore
-            if (!prefs.contains("filter_${com.example.ui.components.filter.specs.LabelsFilterSpec.SPEC_KEY}")) {
-                val labelsState = mutableMapOf<String, FilterValue>()
-                if (tabFilterPrefs.labelsSearchQuery.isNotBlank()) {
-                    labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SEARCH] = FilterValue.Search(tabFilterPrefs.labelsSearchQuery)
+            // 1. Migrate LabelsScreen saved preferences with per-screen flag
+            if (!prefs.getBoolean(KEY_MIGRATED_LABELS, false)) {
+                val labelsKey = "filter_${com.example.ui.components.filter.specs.LabelsFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(labelsKey)) {
+                    val labelsState = mutableMapOf<String, FilterValue>()
+                    labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SEGMENT] = FilterValue.ToggleGroup(
+                        setOf(mapLabelsCategorySegment(tabFilterPrefs.labelsCategorySegment))
+                    )
+                    labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_TYPE_MODE] = FilterValue.ToggleGroup(
+                        setOf(mapLabelsTabMode(tabFilterPrefs.labelsTabMode))
+                    )
+                    labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_DATE] = FilterValue.Date(
+                        presetId = mapLabelsDatePreset(tabFilterPrefs.labelsDatePreset)
+                    )
+                    labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SORT] = FilterValue.Sort(
+                        mapLabelsSortOrder(tabFilterPrefs.labelsSortOrder)
+                    )
+                    saveFilterState(com.example.ui.components.filter.specs.LabelsFilterSpec.SPEC_KEY, labelsState)
                 }
-                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SEGMENT] = FilterValue.ToggleGroup(
-                    setOf(tabFilterPrefs.labelsCategorySegment.lowercase())
-                )
-                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_TYPE_MODE] = FilterValue.ToggleGroup(
-                    setOf(tabFilterPrefs.labelsTabMode.lowercase())
-                )
-                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_DATE] = FilterValue.Date(
-                    presetId = tabFilterPrefs.labelsDatePreset.name.lowercase()
-                )
-                labelsState[com.example.ui.components.filter.specs.LabelsFilterSpec.FIELD_SORT] = FilterValue.Sort(
-                    tabFilterPrefs.labelsSortOrder.name.lowercase()
-                )
-                saveFilterState(com.example.ui.components.filter.specs.LabelsFilterSpec.SPEC_KEY, labelsState)
+                prefs.edit().putBoolean(KEY_MIGRATED_LABELS, true).commit()
             }
 
-            // 2. Migrate CategoriesScreen saved preferences if not already present in FilterStore
-            if (!prefs.contains("filter_${com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY}")) {
-                val catState = mutableMapOf<String, FilterValue>()
-                if (tabFilterPrefs.categoriesSearchQuery.isNotBlank()) {
-                    catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SEARCH] = FilterValue.Search(tabFilterPrefs.categoriesSearchQuery)
+            // 2. Migrate CategoriesScreen saved preferences with per-screen flag
+            if (!prefs.getBoolean(KEY_MIGRATED_CATEGORIES, false)) {
+                val categoriesKey = "filter_${com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(categoriesKey)) {
+                    val catState = mutableMapOf<String, FilterValue>()
+                    val typeMode = mapCategoriesType(tabFilterPrefs.categoriesTypeFilter)
+                    catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE] = FilterValue.ToggleGroup(setOf(typeMode))
+                    catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(
+                        setOf(mapCategoriesHierarchy(tabFilterPrefs.categoriesHierarchyFilter))
+                    )
+                    catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SORT] = FilterValue.Sort(
+                        mapCategoriesSort(tabFilterPrefs.categoriesSortFilter)
+                    )
+                    saveFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY, catState)
                 }
-                val typeMode = when (tabFilterPrefs.categoriesTypeFilter) {
-                    com.example.data.model.CategoryType.EXPENSE -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
-                    com.example.data.model.CategoryType.INCOME -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
-                    null -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_ALL
-                }
-                catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE] = FilterValue.ToggleGroup(setOf(typeMode))
-                catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(
-                    setOf(tabFilterPrefs.categoriesHierarchyFilter.name.lowercase())
-                )
-                catState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SORT] = FilterValue.Sort(
-                    tabFilterPrefs.categoriesSortFilter.name.lowercase()
-                )
-                saveFilterState(com.example.ui.components.filter.specs.CategoriesFilterSpec.SPEC_KEY, catState)
+                prefs.edit().putBoolean(KEY_MIGRATED_CATEGORIES, true).commit()
             }
-
-            // Quick filters, sort, and search in TabFilterPreferences for Budget Maker operate independently
-            // at the screen level. We set the migrated flag so migration runs once.
-            prefs.edit().putBoolean(KEY_MIGRATED, true).apply()
         } catch (_: Exception) {
-            // If migration fails, do not mark as migrated so it can retry safely
+            // Graceful fallback
         }
     }
 }
