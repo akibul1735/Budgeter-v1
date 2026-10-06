@@ -79,6 +79,8 @@ import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -147,9 +149,17 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.specs.RmManagerFilterSpec
+import com.example.ui.components.filter.withSearchQuery
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidTransfer
+import com.example.util.FilterStore
 import com.example.util.LanguageHelper
 import com.example.util.RmManagerHelper
 import com.example.util.RmManagerHelper.RmEntityBreakdown
@@ -189,10 +199,20 @@ fun RmManagerScreen(
     val focusManager = LocalFocusManager.current
 
     val filterConfig by RmManagerPreferences.getInstance(context).config.collectAsState()
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    val filterStore = remember { FilterStore.getInstance(context) }
+    var filterState by remember {
+        mutableStateOf<FilterState>(filterStore.loadFilterState(RmManagerFilterSpec.SPEC_KEY))
+    }
 
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.rmSearchQuery) }
-    var isSearchExpanded by remember { mutableStateOf(tabFilterPrefs.rmSearchQuery.isNotEmpty()) }
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(RmManagerFilterSpec.SPEC_KEY, newState)
+    }
+
+    val selectedFilterCategory = remember(filterState) { RmManagerFilterSpec.getCategory(filterState) }
+    val selectedSortOption = remember(filterState) { RmManagerFilterSpec.getSort(filterState) }
+    val searchQuery = remember(filterState) { RmManagerFilterSpec.getSearchQuery(filterState) }
+    var isSearchExpanded by remember { mutableStateOf(searchQuery.isNotEmpty()) }
     val searchFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -206,14 +226,6 @@ fun RmManagerScreen(
         }
     }
     var isUnifiedFilterOpen by remember { mutableStateOf(false) }
-    var selectedFilterCategory by remember { mutableStateOf(tabFilterPrefs.rmFilterCategory) }
-    var selectedSortOption by remember { mutableStateOf(tabFilterPrefs.rmSortOption) }
-
-    LaunchedEffect(searchQuery, selectedFilterCategory, selectedSortOption) {
-        tabFilterPrefs.rmSearchQuery = searchQuery
-        tabFilterPrefs.rmFilterCategory = selectedFilterCategory
-        tabFilterPrefs.rmSortOption = selectedSortOption
-    }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
     var selectedEntityId by remember { mutableStateOf<String?>(null) }
     var refreshTrigger by remember { mutableStateOf(0) }
@@ -347,7 +359,9 @@ fun RmManagerScreen(
                             onClick = {
                                 isSearchExpanded = !isSearchExpanded
                                 if (!isSearchExpanded) {
-                                    searchQuery = ""
+                                    val newMap = filterState.toMutableMap()
+                                    newMap.remove(RmManagerFilterSpec.FIELD_SEARCH)
+                                    updateFilterState(newMap)
                                     focusManager.clearFocus()
                                     keyboardController?.hide()
                                 }
@@ -359,7 +373,7 @@ fun RmManagerScreen(
                                 tint = if (isSearchExpanded || searchQuery.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        // Sort Menu Button
+                        // Sort Menu Button (dynamically populated from RmManagerFilterSpec.SORT_OPTIONS)
                         Box {
                             IconButton(onClick = { isSortMenuExpanded = true }) {
                                 Icon(
@@ -368,83 +382,73 @@ fun RmManagerScreen(
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
+                            val currentSortId = (filterState[RmManagerFilterSpec.FIELD_SORT] as? FilterValue.Sort)?.sortId ?: RmManagerFilterSpec.SORT_HIGHEST_DUE
                             DropdownMenu(
                                 expanded = isSortMenuExpanded,
                                 onDismissRequest = { isSortMenuExpanded = false }
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text(LanguageHelper.getString("sort_highest_due", languageMode)) },
-                                    onClick = {
-                                        selectedSortOption = RmSortOption.HIGHEST_DUE
-                                        isSortMenuExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (selectedSortOption == RmSortOption.HIGHEST_DUE) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                RmManagerFilterSpec.SORT_OPTIONS.forEach { option ->
+                                    val isSelected = option.id == currentSortId
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                if (isSelected) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                } else {
+                                                    Spacer(modifier = Modifier.size(16.dp))
+                                                }
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) option.titleBn else option.titleEn,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            val newMap = filterState.toMutableMap()
+                                            newMap[RmManagerFilterSpec.FIELD_SORT] = FilterValue.Sort(option.id)
+                                            updateFilterState(newMap)
+                                            isSortMenuExpanded = false
                                         }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(LanguageHelper.getString("sort_lowest_due", languageMode)) },
-                                    onClick = {
-                                        selectedSortOption = RmSortOption.LOWEST_DUE
-                                        isSortMenuExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (selectedSortOption == RmSortOption.LOWEST_DUE) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(LanguageHelper.getString("sort_most_repaid", languageMode)) },
-                                    onClick = {
-                                        selectedSortOption = RmSortOption.MOST_REPAID
-                                        isSortMenuExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (selectedSortOption == RmSortOption.MOST_REPAID) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(LanguageHelper.getString("sort_name_az", languageMode)) },
-                                    onClick = {
-                                        selectedSortOption = RmSortOption.NAME_AZ
-                                        isSortMenuExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (selectedSortOption == RmSortOption.NAME_AZ) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(LanguageHelper.getString("sort_recent_activity", languageMode)) },
-                                    onClick = {
-                                        selectedSortOption = RmSortOption.RECENT_ACTIVITY
-                                        isSortMenuExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (selectedSortOption == RmSortOption.RECENT_ACTIVITY) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
 
-                        // United Single Filter & Settings Button
+                        // United Single Filter & Settings Button with Active Badge
+                        val rmSpec = remember { RmManagerFilterSpec.createSpec() }
+                        val activeFilterCnt = rmSpec.activeFilterCount(filterState)
                         IconButton(onClick = { isUnifiedFilterOpen = true }) {
-                            Icon(
-                                imageVector = Icons.Default.FilterList,
-                                contentDescription = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও সেটিংস" else "Filter & Settings",
-                                tint = if (selectedFilterCategory != RmFilterCategory.ALL || filterConfig.includeKeyword != "RM" || filterConfig.excludeKeyword != "RM Others")
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurface
-                            )
+                            if (activeFilterCnt > 0) {
+                                BadgedBox(
+                                    badge = {
+                                        Badge {
+                                            Text(activeFilterCnt.toString())
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও সেটিংস" else "Filter & Settings",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও সেটিংস" else "Filter & Settings",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 },
@@ -523,7 +527,15 @@ fun RmManagerScreen(
                             }
                             BasicTextField(
                                 value = searchQuery,
-                                onValueChange = { searchQuery = it },
+                                onValueChange = { q ->
+                                    val newMap = filterState.toMutableMap()
+                                    if (q.isBlank()) {
+                                        newMap.remove(RmManagerFilterSpec.FIELD_SEARCH)
+                                    } else {
+                                        newMap[RmManagerFilterSpec.FIELD_SEARCH] = FilterValue.Search(q)
+                                    }
+                                    updateFilterState(newMap)
+                                },
                                 singleLine = true,
                                 textStyle = TextStyle(
                                     fontSize = 14.sp,
@@ -539,7 +551,11 @@ fun RmManagerScreen(
                         }
                         if (searchQuery.isNotEmpty()) {
                             IconButton(
-                                onClick = { searchQuery = "" },
+                                onClick = {
+                                    val newMap = filterState.toMutableMap()
+                                    newMap.remove(RmManagerFilterSpec.FIELD_SEARCH)
+                                    updateFilterState(newMap)
+                                },
                                 modifier = Modifier.size(24.dp)
                             ) {
                                 Icon(
@@ -553,6 +569,17 @@ fun RmManagerScreen(
                     }
                 }
             }
+
+            // Unified Active Filter Bar
+            val rmActiveBarSpec = remember { RmManagerFilterSpec.createSpec() }
+            UnifiedActiveFilterBar(
+                spec = rmActiveBarSpec,
+                state = filterState,
+                onFilterChange = updateFilterState,
+                onOpenFilterDialog = { isUnifiedFilterOpen = true },
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
 
             if (selectedEntity != null) {
                 // Drill-down Detail: Khatian Ledger (Side-by-Side Dr/Cr/Jer) & Timeline
@@ -588,7 +615,22 @@ fun RmManagerScreen(
                     rmData = rmData,
                     languageMode = languageMode,
                     selectedFilterCategory = selectedFilterCategory,
-                    onSelectFilterCategory = { selectedFilterCategory = it },
+                    onSelectFilterCategory = { cat ->
+                        val newMap = filterState.toMutableMap()
+                        val catId = when (cat) {
+                            RmFilterCategory.PENDING_ONLY -> RmManagerFilterSpec.CAT_PENDING_ONLY
+                            RmFilterCategory.RM_ACCOUNTS -> RmManagerFilterSpec.CAT_RM_ACCOUNTS
+                            RmFilterCategory.RM_OTHERS -> RmManagerFilterSpec.CAT_RM_OTHERS
+                            RmFilterCategory.SETTLED_ONLY -> RmManagerFilterSpec.CAT_SETTLED_ONLY
+                            RmFilterCategory.UNRECONCILED -> RmManagerFilterSpec.CAT_UNRECONCILED
+                            RmFilterCategory.RECONCILED -> RmManagerFilterSpec.CAT_RECONCILED
+                            RmFilterCategory.HIGH_LIABILITY -> RmManagerFilterSpec.CAT_HIGH_LIABILITY
+                            RmFilterCategory.RECENT_WEEK -> RmManagerFilterSpec.CAT_RECENT_WEEK
+                            else -> RmManagerFilterSpec.CAT_ALL
+                        }
+                        newMap[RmManagerFilterSpec.FIELD_CATEGORY] = FilterValue.ToggleGroup(setOf(catId))
+                        updateFilterState(newMap)
+                    },
                     onSelectEntity = { selectedEntityId = it.id },
                     onRepayEntity = { entity ->
                         onExecuteRepayTransfer(entity.account, if (!entity.isAccount) entity.name else null, entity.remainingLiability)
@@ -773,23 +815,30 @@ fun RmManagerScreen(
 
     // Unified RM Filter & Settings Dialog
     if (isUnifiedFilterOpen) {
-        UnifiedRmFilterDialog(
-            selectedCategory = selectedFilterCategory,
-            currentIncludeKeyword = filterConfig.includeKeyword,
-            currentExcludeKeyword = filterConfig.excludeKeyword,
+        val rmSpec = remember { RmManagerFilterSpec.createSpec() }
+        UnifiedFilterDialog(
+            spec = rmSpec,
+            initialState = filterState,
             languageMode = languageMode,
             onDismiss = { isUnifiedFilterOpen = false },
-            onApply = { newCategory, newInclude, newExclude ->
-                selectedFilterCategory = newCategory
-                RmManagerPreferences.getInstance(context).saveConfig(newInclude, newExclude)
+            onApply = { newState ->
+                updateFilterState(newState)
                 isUnifiedFilterOpen = false
-                refreshTrigger++
             },
-            onReset = {
-                RmManagerPreferences.getInstance(context).resetToDefaults()
-                selectedFilterCategory = RmFilterCategory.ALL
-                isUnifiedFilterOpen = false
-                refreshTrigger++
+            countProvider = { candidateState ->
+                val q = RmManagerFilterSpec.getSearchQuery(candidateState)
+                val cat = RmManagerFilterSpec.getCategory(candidateState)
+                val s = RmManagerFilterSpec.getSort(candidateState)
+                RmManagerHelper.computeRmManagerData(
+                    allAccounts = allAccounts,
+                    allTransactions = allTransactions,
+                    searchQuery = q,
+                    filterCategory = cat,
+                    sortOption = s,
+                    languageMode = languageMode,
+                    includeKeyword = filterConfig.includeKeyword,
+                    excludeKeyword = filterConfig.excludeKeyword
+                ).allEntities.size
             }
         )
     }
@@ -2641,238 +2690,6 @@ private fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText("Resting Money Statement", text)
     clipboard.setPrimaryClip(clip)
-}
-
-@Composable
-private fun UnifiedRmFilterDialog(
-    selectedCategory: RmFilterCategory,
-    currentIncludeKeyword: String,
-    currentExcludeKeyword: String,
-    languageMode: LanguageMode,
-    onDismiss: () -> Unit,
-    onApply: (RmFilterCategory, String, String) -> Unit,
-    onReset: () -> Unit
-) {
-    var tempCategory by remember { mutableStateOf(selectedCategory) }
-    var tempInclude by remember { mutableStateOf(currentIncludeKeyword) }
-    var tempExclude by remember { mutableStateOf(currentExcludeKeyword) }
-    var showKeywordSettings by remember { mutableStateOf(false) }
-
-    val filterOptions = remember(languageMode) {
-        listOf(
-            Triple(RmFilterCategory.ALL, if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Entities", Icons.Default.DoneAll),
-            Triple(RmFilterCategory.PENDING_ONLY, if (languageMode == LanguageMode.BANGLA) "বকেয়া দেনা" else "Pending Due Only", Icons.AutoMirrored.Filled.TrendingDown),
-            Triple(RmFilterCategory.RM_ACCOUNTS, if (languageMode == LanguageMode.BANGLA) "আরএম অ্যাকাউন্ট" else "RM Accounts Only", Icons.Default.AccountBalance),
-            Triple(RmFilterCategory.RM_OTHERS, if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য লেবেল" else "RM Others Labels", Icons.AutoMirrored.Filled.ReceiptLong),
-            Triple(RmFilterCategory.SETTLED_ONLY, if (languageMode == LanguageMode.BANGLA) "পরিশোধিত" else "Settled Only", Icons.Default.CheckCircle),
-            Triple(RmFilterCategory.UNRECONCILED, if (languageMode == LanguageMode.BANGLA) "আমিলকৃত" else "Unreconciled Only", Icons.Default.History),
-            Triple(RmFilterCategory.RECONCILED, if (languageMode == LanguageMode.BANGLA) "মিলকৃত" else "Reconciled Only", Icons.Default.Verified),
-            Triple(RmFilterCategory.HIGH_LIABILITY, if (languageMode == LanguageMode.BANGLA) "বড় দেনা (> ৳১০,০০০)" else "High Due (> ৳10k)", Icons.Default.Payment),
-            Triple(RmFilterCategory.RECENT_WEEK, if (languageMode == LanguageMode.BANGLA) "গত ৭ দিনে সক্রিয়" else "Active (Last 7 Days)", Icons.Default.Timeline)
-        )
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.FilterList,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও সেটিংস" else "Filter & Settings",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "বিভাগ ফিল্টার নির্বাচন করুন:" else "Filter by Entity Status:",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                // Category options
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    filterOptions.forEach { (cat, title, icon) ->
-                        val isSelected = tempCategory == cat
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { tempCategory = cat }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = title,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                // Collapsible / Expandable Keyword Settings
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showKeywordSettings = !showKeywordSettings }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "কি-ওয়ার্ড ফিল্টার সেটিংস" else "Keyword Filter Rules",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Icon(
-                        imageVector = if (showKeywordSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                AnimatedVisibility(visible = showKeywordSettings) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = LanguageHelper.getString("rm_include_keyword", languageMode).ifEmpty { "Account Filter Keyword" },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            OutlinedTextField(
-                                value = tempInclude,
-                                onValueChange = { tempInclude = it },
-                                placeholder = { Text("RM") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = LanguageHelper.getString("rm_exclude_keyword", languageMode).ifEmpty { "Exclude Account Keyword" },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            OutlinedTextField(
-                                value = tempExclude,
-                                onValueChange = { tempExclude = it },
-                                placeholder = { Text("RM Others") },
-                                singleLine = true,
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        TextButton(
-                            onClick = onReset,
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text(
-                                text = LanguageHelper.getString("reset_defaults", languageMode).ifEmpty { "Reset Defaults" },
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onApply(tempCategory, tempInclude, tempExclude) },
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply Filter",
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text(LanguageHelper.getString("cancel", languageMode).ifEmpty { "Cancel" })
-            }
-        },
-        shape = RoundedCornerShape(20.dp)
-    )
 }
 
 /**

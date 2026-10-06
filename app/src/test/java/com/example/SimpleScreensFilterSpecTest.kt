@@ -13,15 +13,24 @@ import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.CategoriesFilterSpec
 import com.example.ui.components.filter.specs.LabelsFilterSpec
+import com.example.ui.components.filter.specs.PaymentSourceFilterSpec
+import com.example.ui.components.filter.specs.RmManagerFilterSpec
 import com.example.ui.components.filter.specs.SavingsGoalsFilterSpec
 import com.example.ui.components.filter.specs.WishlistFilterSpec
 import com.example.ui.components.filter.toggleCondition
 import com.example.ui.components.filter.withSearchQuery
+import com.example.ui.screens.AccountStatusFilter
+import com.example.ui.screens.AssignedItemSectionFilter
+import com.example.ui.screens.AssignedItemSortOption
+import com.example.ui.screens.AssignedItemStatusFilter
 import com.example.ui.screens.CategorySortFilter
 import com.example.ui.screens.CategoryViewHierarchyFilter
 import com.example.ui.screens.GoalFilterType
+import com.example.ui.screens.MainPaymentSourceTab
+import com.example.ui.screens.PaymentSourceSortOption
 import com.example.ui.screens.WishlistFilterTab
 import com.example.ui.screens.WishlistSort
+import com.example.data.model.RequirementCalculationBasis
 import com.example.data.model.SavingsGoal
 import com.example.data.model.SavingsGoalWithDetails
 import com.example.data.model.WishlistItem
@@ -29,6 +38,8 @@ import com.example.data.model.WishlistItemWithCategory
 import com.example.data.model.WishlistPriority
 import com.example.data.model.WishlistTargetType
 import com.example.util.FilterStore
+import com.example.util.RmManagerHelper.RmFilterCategory
+import com.example.util.RmManagerHelper.RmSortOption
 import com.example.util.TabFilterPreferences
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -590,5 +601,250 @@ class SimpleScreensFilterSpecTest {
             assertEquals(goalFilter.name.lowercase(), activeStatusId)
         }
         assertEquals(FilterStore.DEFAULT_SAVINGS_GOALS_STATUS, FilterStore.mapSavingsGoalsStatus(null))
+    }
+
+    @Test
+    fun testPaymentSourceFilterSpecFiltersAndToggles() {
+        val sampleAccounts = listOf(
+            Account(id = 1L, nameEn = "City Bank", nameBn = "সিটি ব্যাংক", initialBalance = 5000.0, type = com.example.data.model.AccountType.ASSET),
+            Account(id = 2L, nameEn = "bKash", nameBn = "বিকাশ", initialBalance = 2000.0, type = com.example.data.model.AccountType.ASSET)
+        )
+        val sourcesSpec = PaymentSourceFilterSpec.createSpec(sampleAccounts, isAssignedTab = false)
+        val assignedSpec = PaymentSourceFilterSpec.createSpec(sampleAccounts, isAssignedTab = true)
+
+        assertEquals(PaymentSourceFilterSpec.SPEC_KEY, sourcesSpec.key)
+        assertEquals(PaymentSourceFilterSpec.SPEC_KEY, assignedSpec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(sourcesSpec.isActive(state))
+
+        // 1. Search Query
+        state = state.withSearchQuery("Bank", PaymentSourceFilterSpec.FIELD_SEARCH)
+        assertEquals("Bank", PaymentSourceFilterSpec.getSearchQuery(state))
+
+        // 2. Main Tab
+        state = sourcesSpec.toggleCondition(state, PaymentSourceFilterSpec.FIELD_MAIN_TAB, PaymentSourceFilterSpec.TAB_ASSIGNED)
+        assertEquals(MainPaymentSourceTab.ASSIGNED_ITEMS, PaymentSourceFilterSpec.getMainTab(state))
+
+        state = sourcesSpec.toggleCondition(state, PaymentSourceFilterSpec.FIELD_MAIN_TAB, PaymentSourceFilterSpec.TAB_SOURCES)
+        assertEquals(MainPaymentSourceTab.PAYMENT_SOURCES, PaymentSourceFilterSpec.getMainTab(state))
+
+        // 3. Calculation Basis
+        state = sourcesSpec.toggleCondition(state, PaymentSourceFilterSpec.FIELD_CALC_BASIS, PaymentSourceFilterSpec.BASIS_REMAINING)
+        assertEquals(RequirementCalculationBasis.REMAINING_AMOUNT, PaymentSourceFilterSpec.getCalcBasis(state))
+
+        state = sourcesSpec.toggleCondition(state, PaymentSourceFilterSpec.FIELD_CALC_BASIS, PaymentSourceFilterSpec.BASIS_BUDGET)
+        assertEquals(RequirementCalculationBasis.BUDGET_AMOUNT, PaymentSourceFilterSpec.getCalcBasis(state))
+
+        // 4. Source Status & Sort
+        state = sourcesSpec.toggleCondition(state, PaymentSourceFilterSpec.FIELD_SOURCE_STATUS, PaymentSourceFilterSpec.STATUS_SHORTFALL)
+        assertEquals(AccountStatusFilter.SHORTFALL_ONLY, PaymentSourceFilterSpec.getSourceStatus(state))
+
+        state = state + (PaymentSourceFilterSpec.FIELD_SOURCE_SORT to FilterValue.Sort(PaymentSourceFilterSpec.SORT_SOURCE_BALANCE_DESC))
+        assertEquals(PaymentSourceSortOption.BALANCE_DESC, PaymentSourceFilterSpec.getSourceSort(state))
+
+        // 5. Assigned Section, Status, Account & Sort
+        state = assignedSpec.toggleCondition(state, PaymentSourceFilterSpec.FIELD_ASSIGNED_SECTION, PaymentSourceFilterSpec.SECTION_EXPENSES)
+        assertEquals(AssignedItemSectionFilter.EXPENSES, PaymentSourceFilterSpec.getAssignedSection(state))
+
+        state = assignedSpec.toggleCondition(state, PaymentSourceFilterSpec.FIELD_ASSIGNED_STATUS, PaymentSourceFilterSpec.ASSIGNED_STATUS_SPLIT)
+        assertEquals(AssignedItemStatusFilter.SPLIT_ONLY, PaymentSourceFilterSpec.getAssignedStatus(state))
+
+        state = state + (PaymentSourceFilterSpec.FIELD_ASSIGNED_SOURCE_ACCOUNT to FilterValue.SingleSelect("1"))
+        assertEquals(1L, PaymentSourceFilterSpec.getSelectedSourceAccountId(state))
+
+        state = state + (PaymentSourceFilterSpec.FIELD_ASSIGNED_SORT to FilterValue.Sort(PaymentSourceFilterSpec.SORT_ASSIGNED_AMOUNT_DESC))
+        assertEquals(AssignedItemSortOption.BUDGET_DESC, PaymentSourceFilterSpec.getAssignedSort(state))
+
+        val chips = assignedSpec.activeChips(state, LanguageMode.ENGLISH)
+        assertTrue(chips.isNotEmpty())
+    }
+
+    @Test
+    fun testRmManagerFilterSpecFiltersAndToggles() {
+        val spec = RmManagerFilterSpec.createSpec()
+        assertEquals(RmManagerFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+
+        // 1. Search Query
+        state = state.withSearchQuery("Office", RmManagerFilterSpec.FIELD_SEARCH)
+        assertEquals("Office", RmManagerFilterSpec.getSearchQuery(state))
+
+        // 2. Status Category
+        state = spec.toggleCondition(state, RmManagerFilterSpec.FIELD_CATEGORY, RmManagerFilterSpec.CAT_PENDING_ONLY)
+        assertEquals(RmFilterCategory.PENDING_ONLY, RmManagerFilterSpec.getCategory(state))
+
+        state = spec.toggleCondition(state, RmManagerFilterSpec.FIELD_CATEGORY, RmManagerFilterSpec.CAT_HIGH_LIABILITY)
+        assertEquals(RmFilterCategory.HIGH_LIABILITY, RmManagerFilterSpec.getCategory(state))
+
+        // 3. Sort Order
+        state = state + (RmManagerFilterSpec.FIELD_SORT to FilterValue.Sort(RmManagerFilterSpec.SORT_NAME_AZ))
+        assertEquals(RmSortOption.NAME_AZ, RmManagerFilterSpec.getSort(state))
+
+        val chips = spec.activeChips(state, LanguageMode.ENGLISH)
+        assertTrue(chips.isNotEmpty())
+    }
+
+    @Test
+    fun testMigrationFromTabFilterPreferencesForPaymentSourceAndRmManager() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val tabFilterPrefs = TabFilterPreferences.getInstance(context)
+        val store = FilterStore.getInstance(context)
+        val prefs = context.getSharedPreferences("unified_filter_store", Context.MODE_PRIVATE)
+
+        store.clearAllForTesting()
+
+        // Set old payment source preferences
+        tabFilterPrefs.paymentSourceSearchQuery = "Old PS Search"
+        tabFilterPrefs.paymentSourceTab = MainPaymentSourceTab.ASSIGNED_ITEMS
+        tabFilterPrefs.paymentSourceCalcBasis = RequirementCalculationBasis.REMAINING_AMOUNT
+        tabFilterPrefs.paymentSourceAccountStatus = AccountStatusFilter.SHORTFALL_ONLY
+        tabFilterPrefs.paymentSourceSortOption = PaymentSourceSortOption.REQUIRED_DESC
+        tabFilterPrefs.paymentSourceAssignedSection = AssignedItemSectionFilter.EXPENSES
+        tabFilterPrefs.paymentSourceAssignedStatus = AssignedItemStatusFilter.SPLIT_ONLY
+        tabFilterPrefs.paymentSourceAssignedSort = AssignedItemSortOption.MOST_USED
+
+        // Set old RM Manager preferences
+        tabFilterPrefs.rmSearchQuery = "Old RM Search"
+        tabFilterPrefs.rmFilterCategory = RmFilterCategory.UNRECONCILED
+        tabFilterPrefs.rmSortOption = RmSortOption.MOST_REPAID
+
+        store.migrateFromTabFilterPreferences(tabFilterPrefs)
+
+        // Check PaymentSource migration
+        val migratedPs = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+        assertNull("Search must not be persisted in PaymentSource", migratedPs[PaymentSourceFilterSpec.FIELD_SEARCH])
+        assertEquals(setOf(PaymentSourceFilterSpec.TAB_ASSIGNED), (migratedPs[PaymentSourceFilterSpec.FIELD_MAIN_TAB] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(setOf(PaymentSourceFilterSpec.BASIS_REMAINING), (migratedPs[PaymentSourceFilterSpec.FIELD_CALC_BASIS] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(setOf(PaymentSourceFilterSpec.STATUS_SHORTFALL), (migratedPs[PaymentSourceFilterSpec.FIELD_SOURCE_STATUS] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(PaymentSourceFilterSpec.SORT_SOURCE_REQUIRED_DESC, (migratedPs[PaymentSourceFilterSpec.FIELD_SOURCE_SORT] as FilterValue.Sort).sortId)
+        assertEquals(setOf(PaymentSourceFilterSpec.SECTION_EXPENSES), (migratedPs[PaymentSourceFilterSpec.FIELD_ASSIGNED_SECTION] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(setOf(PaymentSourceFilterSpec.ASSIGNED_STATUS_SPLIT), (migratedPs[PaymentSourceFilterSpec.FIELD_ASSIGNED_STATUS] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(PaymentSourceFilterSpec.SORT_ASSIGNED_MOST_USED, (migratedPs[PaymentSourceFilterSpec.FIELD_ASSIGNED_SORT] as FilterValue.Sort).sortId)
+        assertTrue("migrated_payment_source_v1 flag must be true", prefs.getBoolean(FilterStore.KEY_MIGRATED_PAYMENT_SOURCE, false))
+
+        // Check RM Manager migration
+        val migratedRm = store.loadFilterState(RmManagerFilterSpec.SPEC_KEY)
+        assertNull("Search must not be persisted in RM Manager", migratedRm[RmManagerFilterSpec.FIELD_SEARCH])
+        assertEquals(setOf(RmManagerFilterSpec.CAT_UNRECONCILED), (migratedRm[RmManagerFilterSpec.FIELD_CATEGORY] as FilterValue.ToggleGroup).activeIds)
+        assertEquals(RmManagerFilterSpec.SORT_MOST_REPAID, (migratedRm[RmManagerFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId)
+        assertTrue("migrated_rm_manager_v1 flag must be true", prefs.getBoolean(FilterStore.KEY_MIGRATED_RM_MANAGER, false))
+    }
+
+    @Test
+    fun testEveryMigratedEnumValueForPaymentSourceAndRmManagerWithDefaults() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val tabFilterPrefs = TabFilterPreferences.getInstance(context)
+        val store = FilterStore.getInstance(context)
+
+        // 1. PaymentSource Main Tab
+        for (tab in MainPaymentSourceTab.values()) {
+            store.clearFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.paymentSourceTab = tab
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            val tabVal = (state[PaymentSourceFilterSpec.FIELD_MAIN_TAB] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_PAYMENT_SOURCE_TABS.contains(tabVal))
+        }
+        assertEquals(FilterStore.DEFAULT_PAYMENT_SOURCE_TAB, FilterStore.mapPaymentSourceTab(null))
+
+        // 2. PaymentSource Calc Basis
+        for (basis in RequirementCalculationBasis.values()) {
+            store.clearFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.paymentSourceCalcBasis = basis
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            val basisVal = (state[PaymentSourceFilterSpec.FIELD_CALC_BASIS] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_PAYMENT_SOURCE_CALC_BASES.contains(basisVal))
+        }
+        assertEquals(FilterStore.DEFAULT_PAYMENT_SOURCE_CALC_BASIS, FilterStore.mapPaymentSourceCalcBasis(null))
+
+        // 3. PaymentSource Account Status
+        for (status in AccountStatusFilter.values()) {
+            store.clearFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.paymentSourceAccountStatus = status
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            val statusVal = (state[PaymentSourceFilterSpec.FIELD_SOURCE_STATUS] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_PAYMENT_SOURCE_STATUSES.contains(statusVal))
+        }
+        assertEquals(FilterStore.DEFAULT_PAYMENT_SOURCE_STATUS, FilterStore.mapPaymentSourceStatus(null))
+
+        // 4. PaymentSource Source Sort
+        for (sort in PaymentSourceSortOption.values()) {
+            store.clearFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.paymentSourceSortOption = sort
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            val sortVal = (state[PaymentSourceFilterSpec.FIELD_SOURCE_SORT] as FilterValue.Sort).sortId
+            assertTrue(FilterStore.VALID_PAYMENT_SOURCE_SORTS.contains(sortVal))
+        }
+        assertEquals(FilterStore.DEFAULT_PAYMENT_SOURCE_SORT, FilterStore.mapPaymentSourceSort(null))
+
+        // 5. PaymentSource Assigned Section
+        for (sec in AssignedItemSectionFilter.values()) {
+            store.clearFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.paymentSourceAssignedSection = sec
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            val secVal = (state[PaymentSourceFilterSpec.FIELD_ASSIGNED_SECTION] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_ASSIGNED_SECTIONS.contains(secVal))
+        }
+        assertEquals(FilterStore.DEFAULT_ASSIGNED_SECTION, FilterStore.mapAssignedSection(null))
+
+        // 6. PaymentSource Assigned Status
+        for (st in AssignedItemStatusFilter.values()) {
+            store.clearFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.paymentSourceAssignedStatus = st
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            val stVal = (state[PaymentSourceFilterSpec.FIELD_ASSIGNED_STATUS] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_ASSIGNED_STATUSES.contains(stVal))
+        }
+        assertEquals(FilterStore.DEFAULT_ASSIGNED_STATUS, FilterStore.mapAssignedStatus(null))
+
+        // 7. PaymentSource Assigned Sort
+        for (st in AssignedItemSortOption.values()) {
+            store.clearFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.paymentSourceAssignedSort = st
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY)
+            val stVal = (state[PaymentSourceFilterSpec.FIELD_ASSIGNED_SORT] as FilterValue.Sort).sortId
+            assertTrue(FilterStore.VALID_ASSIGNED_SORTS.contains(stVal))
+        }
+        assertEquals(FilterStore.DEFAULT_ASSIGNED_SORT, FilterStore.mapAssignedSort(null))
+
+        // 8. RM Filter Category
+        for (cat in RmFilterCategory.values()) {
+            store.clearFilterState(RmManagerFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.rmFilterCategory = cat
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(RmManagerFilterSpec.SPEC_KEY)
+            val catVal = (state[RmManagerFilterSpec.FIELD_CATEGORY] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_RM_CATEGORIES.contains(catVal))
+        }
+        assertEquals(FilterStore.DEFAULT_RM_CATEGORY, FilterStore.mapRmCategory(null))
+
+        // 9. RM Sort Option
+        for (sort in RmSortOption.values()) {
+            store.clearFilterState(RmManagerFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.rmSortOption = sort
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(RmManagerFilterSpec.SPEC_KEY)
+            val sortVal = (state[RmManagerFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId
+            assertTrue(FilterStore.VALID_RM_SORTS.contains(sortVal))
+        }
+        assertEquals(FilterStore.DEFAULT_RM_SORT, FilterStore.mapRmSort(null))
     }
 }

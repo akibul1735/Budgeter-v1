@@ -106,7 +106,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import com.example.util.TabFilterPreferences
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.PaymentSourceFilterSpec
+import com.example.ui.components.filter.withSearchQuery
+import com.example.util.FilterStore
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -181,38 +189,26 @@ fun PaymentSourceScreen(
     onBulkAssignSource: (accountIds: List<Long>, categoryIds: List<Long>, sourceAccountId: Long) -> Unit = { _, _, _ -> }
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
-
-    var selectedTab by remember { mutableStateOf(tabFilterPrefs.paymentSourceTab) }
-    var calculationBasis by remember { mutableStateOf(tabFilterPrefs.paymentSourceCalcBasis) }
-    var accountStatusFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAccountStatus) }
-    var paymentSourceSortOption by remember { mutableStateOf(tabFilterPrefs.paymentSourceSortOption) }
-
-    // Assigned items tab filters and sorting
-    var assignedSectionFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedSection) }
-    var assignedStatusFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedStatus) }
-    var assignedItemSortOption by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedSort) }
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.paymentSourceSearchQuery) }
-
-    LaunchedEffect(
-        selectedTab,
-        calculationBasis,
-        accountStatusFilter,
-        paymentSourceSortOption,
-        assignedSectionFilter,
-        assignedStatusFilter,
-        assignedItemSortOption,
-        searchQuery
-    ) {
-        tabFilterPrefs.paymentSourceTab = selectedTab
-        tabFilterPrefs.paymentSourceCalcBasis = calculationBasis
-        tabFilterPrefs.paymentSourceAccountStatus = accountStatusFilter
-        tabFilterPrefs.paymentSourceSortOption = paymentSourceSortOption
-        tabFilterPrefs.paymentSourceAssignedSection = assignedSectionFilter
-        tabFilterPrefs.paymentSourceAssignedStatus = assignedStatusFilter
-        tabFilterPrefs.paymentSourceAssignedSort = assignedItemSortOption
-        tabFilterPrefs.paymentSourceSearchQuery = searchQuery
+    val filterStore = remember { FilterStore.getInstance(context) }
+    var filterState by remember {
+        mutableStateOf<FilterState>(filterStore.loadFilterState(PaymentSourceFilterSpec.SPEC_KEY))
     }
+
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(PaymentSourceFilterSpec.SPEC_KEY, newState)
+    }
+
+    val selectedTab = PaymentSourceFilterSpec.getMainTab(filterState)
+    val calculationBasis = PaymentSourceFilterSpec.getCalcBasis(filterState)
+    val accountStatusFilter = PaymentSourceFilterSpec.getSourceStatus(filterState)
+    val paymentSourceSortOption = PaymentSourceFilterSpec.getSourceSort(filterState)
+    val assignedSectionFilter = PaymentSourceFilterSpec.getAssignedSection(filterState)
+    val assignedStatusFilter = PaymentSourceFilterSpec.getAssignedStatus(filterState)
+    val assignedItemSortOption = PaymentSourceFilterSpec.getAssignedSort(filterState)
+    val searchQuery = PaymentSourceFilterSpec.getSearchQuery(filterState)
+
+    var showFilterDialog by remember { mutableStateOf(false) }
 
     // Dialogs state
     var showSourceSelectorDialog by remember { mutableStateOf(false) }
@@ -301,12 +297,23 @@ fun PaymentSourceScreen(
             .testTag("payment_source_screen")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            val isAssignedTab = selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS
+            val psSpec = remember(availableSourceAccounts, isAssignedTab) {
+                PaymentSourceFilterSpec.createSpec(availableSourceAccounts, isAssignedTab)
+            }
+
             AppTabHeader(
                 title = LanguageHelper.getString("payment_source", languageMode),
                 onOpenDrawer = onOpenDrawer,
                 searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
+                onSearchQueryChange = { q ->
+                    updateFilterState(filterState.withSearchQuery(q, PaymentSourceFilterSpec.FIELD_SEARCH))
+                },
                 showSearchButton = true,
+                showFilterButton = true,
+                isFilterActive = psSpec.isActive(filterState),
+                activeFilterCount = psSpec.activeFilterCount(filterState),
+                onFilterClick = { showFilterDialog = true },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স বা আইটেম খুঁজুন..." else "Search payment sources or items..."
             )
 
@@ -372,7 +379,9 @@ fun PaymentSourceScreen(
             // Back navigation handling: If on Assigned Items tab, return to Payment Source tab
             BackHandler(enabled = selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS) {
                 filterAccountIdForAssignedItems = null
-                selectedTab = MainPaymentSourceTab.PAYMENT_SOURCES
+                val newMap = filterState.toMutableMap()
+                newMap[PaymentSourceFilterSpec.FIELD_MAIN_TAB] = FilterValue.ToggleGroup(setOf(PaymentSourceFilterSpec.TAB_SOURCES))
+                updateFilterState(newMap)
             }
 
             // TWO MAIN TABS: 1. Payment Source, 2. Assigned Items
@@ -392,7 +401,11 @@ fun PaymentSourceScreen(
             ) {
                 Tab(
                     selected = selectedTab == MainPaymentSourceTab.PAYMENT_SOURCES,
-                    onClick = { selectedTab = MainPaymentSourceTab.PAYMENT_SOURCES },
+                    onClick = {
+                        val newMap = filterState.toMutableMap()
+                        newMap[PaymentSourceFilterSpec.FIELD_MAIN_TAB] = FilterValue.ToggleGroup(setOf(PaymentSourceFilterSpec.TAB_SOURCES))
+                        updateFilterState(newMap)
+                    },
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -409,7 +422,10 @@ fun PaymentSourceScreen(
                     onClick = {
                         // Tapping the tab header directly always shows items from ALL sources
                         filterAccountIdForAssignedItems = null
-                        selectedTab = MainPaymentSourceTab.ASSIGNED_ITEMS
+                        val newMap = filterState.toMutableMap()
+                        newMap[PaymentSourceFilterSpec.FIELD_MAIN_TAB] = FilterValue.ToggleGroup(setOf(PaymentSourceFilterSpec.TAB_ASSIGNED))
+                        newMap.remove(PaymentSourceFilterSpec.FIELD_ASSIGNED_SOURCE_ACCOUNT)
+                        updateFilterState(newMap)
                     },
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -424,6 +440,16 @@ fun PaymentSourceScreen(
                 )
             }
 
+            // Unified Active Filter Bar
+            UnifiedActiveFilterBar(
+                spec = psSpec,
+                state = filterState,
+                onFilterChange = updateFilterState,
+                onOpenFilterDialog = { showFilterDialog = true },
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+            )
+
             // Tab Content
             when (selectedTab) {
                 MainPaymentSourceTab.PAYMENT_SOURCES -> {
@@ -432,11 +458,37 @@ fun PaymentSourceScreen(
                         languageMode = languageMode,
                         searchQuery = searchQuery,
                         calculationBasis = calculationBasis,
-                        onCalculationBasisChange = { calculationBasis = it },
+                        onCalculationBasisChange = { basis ->
+                            val newMap = filterState.toMutableMap()
+                            val id = if (basis == RequirementCalculationBasis.REMAINING_AMOUNT) PaymentSourceFilterSpec.BASIS_REMAINING else PaymentSourceFilterSpec.BASIS_BUDGET
+                            newMap[PaymentSourceFilterSpec.FIELD_CALC_BASIS] = FilterValue.ToggleGroup(setOf(id))
+                            updateFilterState(newMap)
+                        },
                         accountStatusFilter = accountStatusFilter,
-                        onStatusFilterChange = { accountStatusFilter = it },
+                        onStatusFilterChange = { status ->
+                            val newMap = filterState.toMutableMap()
+                            val id = when (status) {
+                                AccountStatusFilter.SHORTFALL_ONLY -> PaymentSourceFilterSpec.STATUS_SHORTFALL
+                                AccountStatusFilter.SURPLUS_ONLY -> PaymentSourceFilterSpec.STATUS_SURPLUS
+                                else -> PaymentSourceFilterSpec.STATUS_ALL
+                            }
+                            newMap[PaymentSourceFilterSpec.FIELD_SOURCE_STATUS] = FilterValue.ToggleGroup(setOf(id))
+                            updateFilterState(newMap)
+                        },
                         sortOption = paymentSourceSortOption,
-                        onSortOptionChange = { paymentSourceSortOption = it },
+                        onSortOptionChange = { sort ->
+                            val newMap = filterState.toMutableMap()
+                            val id = when (sort) {
+                                PaymentSourceSortOption.BALANCE_DESC -> PaymentSourceFilterSpec.SORT_SOURCE_BALANCE_DESC
+                                PaymentSourceSortOption.BALANCE_ASC -> PaymentSourceFilterSpec.SORT_SOURCE_BALANCE_ASC
+                                PaymentSourceSortOption.REQUIRED_DESC -> PaymentSourceFilterSpec.SORT_SOURCE_REQUIRED_DESC
+                                PaymentSourceSortOption.SHORTFALL_DESC -> PaymentSourceFilterSpec.SORT_SOURCE_SHORTFALL_DESC
+                                PaymentSourceSortOption.NAME_ASC -> PaymentSourceFilterSpec.SORT_SOURCE_NAME_ASC
+                                else -> PaymentSourceFilterSpec.SORT_SOURCE_DEFAULT
+                            }
+                            newMap[PaymentSourceFilterSpec.FIELD_SOURCE_SORT] = FilterValue.Sort(id)
+                            updateFilterState(newMap)
+                        },
                         onOpenSourceSelector = { showSourceSelectorDialog = true },
                         onOpenSuggestedTransfers = { showSuggestedTransfersDialog = true },
                         onOpenAddObligation = {
@@ -446,7 +498,10 @@ fun PaymentSourceScreen(
                         onExecuteTransferSuggestion = { transferSuggestionToExecute = it },
                         onAccountClick = { accId ->
                             filterAccountIdForAssignedItems = accId
-                            selectedTab = MainPaymentSourceTab.ASSIGNED_ITEMS
+                            val newMap = filterState.toMutableMap()
+                            newMap[PaymentSourceFilterSpec.FIELD_MAIN_TAB] = FilterValue.ToggleGroup(setOf(PaymentSourceFilterSpec.TAB_ASSIGNED))
+                            newMap[PaymentSourceFilterSpec.FIELD_ASSIGNED_SOURCE_ACCOUNT] = FilterValue.SingleSelect(accId.toString())
+                            updateFilterState(newMap)
                         },
                         onAssignItem = { acc ->
                             showAssignItemChoiceDialogForAccount = acc
@@ -459,19 +514,66 @@ fun PaymentSourceScreen(
                         overview = analysisOverview,
                         languageMode = languageMode,
                         selectedAccountId = filterAccountIdForAssignedItems,
-                        onClearAccountFilter = { filterAccountIdForAssignedItems = null },
-                        onSelectAccountFilter = { filterAccountIdForAssignedItems = it },
+                        onClearAccountFilter = {
+                            filterAccountIdForAssignedItems = null
+                            val newMap = filterState.toMutableMap()
+                            newMap.remove(PaymentSourceFilterSpec.FIELD_ASSIGNED_SOURCE_ACCOUNT)
+                            updateFilterState(newMap)
+                        },
+                        onSelectAccountFilter = { accId ->
+                            filterAccountIdForAssignedItems = accId
+                            val newMap = filterState.toMutableMap()
+                            newMap[PaymentSourceFilterSpec.FIELD_ASSIGNED_SOURCE_ACCOUNT] = FilterValue.SingleSelect(accId.toString())
+                            updateFilterState(newMap)
+                        },
                         allPaymentSourceAccounts = analysisOverview.accountAnalyses.map { it.account },
                         allAccounts = allAccounts,
                         allCategories = allCategories,
                         sectionFilter = assignedSectionFilter,
-                        onSectionFilterChange = { assignedSectionFilter = it },
+                        onSectionFilterChange = { sec ->
+                            val newMap = filterState.toMutableMap()
+                            val id = when (sec) {
+                                AssignedItemSectionFilter.ONLY_ITEMS -> PaymentSourceFilterSpec.SECTION_ONLY_ITEMS
+                                AssignedItemSectionFilter.OTHER_ACCOUNTS -> PaymentSourceFilterSpec.SECTION_OTHER_ACCOUNTS
+                                AssignedItemSectionFilter.EXPENSES -> PaymentSourceFilterSpec.SECTION_EXPENSES
+                                AssignedItemSectionFilter.INCOMES -> PaymentSourceFilterSpec.SECTION_INCOMES
+                                else -> PaymentSourceFilterSpec.SECTION_ALL
+                            }
+                            newMap[PaymentSourceFilterSpec.FIELD_ASSIGNED_SECTION] = FilterValue.ToggleGroup(setOf(id))
+                            updateFilterState(newMap)
+                        },
                         statusFilter = assignedStatusFilter,
-                        onStatusFilterChange = { assignedStatusFilter = it },
+                        onStatusFilterChange = { stat ->
+                            val newMap = filterState.toMutableMap()
+                            val id = when (stat) {
+                                AssignedItemStatusFilter.BUDGETED_ONLY -> PaymentSourceFilterSpec.ASSIGNED_STATUS_BUDGETED
+                                AssignedItemStatusFilter.REMAINING_ONLY -> PaymentSourceFilterSpec.ASSIGNED_STATUS_REMAINING
+                                AssignedItemStatusFilter.MOST_FREQUENT -> PaymentSourceFilterSpec.ASSIGNED_STATUS_MOST_FREQUENT
+                                AssignedItemStatusFilter.SPLIT_ONLY -> PaymentSourceFilterSpec.ASSIGNED_STATUS_SPLIT
+                                AssignedItemStatusFilter.UNASSIGNED_ONLY -> PaymentSourceFilterSpec.ASSIGNED_STATUS_UNASSIGNED
+                                else -> PaymentSourceFilterSpec.ASSIGNED_STATUS_ALL
+                            }
+                            newMap[PaymentSourceFilterSpec.FIELD_ASSIGNED_STATUS] = FilterValue.ToggleGroup(setOf(id))
+                            updateFilterState(newMap)
+                        },
                         sortOption = assignedItemSortOption,
-                        onSortOptionChange = { assignedItemSortOption = it },
+                        onSortOptionChange = { sort ->
+                            val newMap = filterState.toMutableMap()
+                            val id = when (sort) {
+                                AssignedItemSortOption.BUDGET_DESC -> PaymentSourceFilterSpec.SORT_ASSIGNED_AMOUNT_DESC
+                                AssignedItemSortOption.BUDGET_ASC -> PaymentSourceFilterSpec.SORT_ASSIGNED_AMOUNT_ASC
+                                AssignedItemSortOption.REMAINING_DESC -> PaymentSourceFilterSpec.SORT_ASSIGNED_REMAINING_DESC
+                                AssignedItemSortOption.NAME_ASC -> PaymentSourceFilterSpec.SORT_ASSIGNED_NAME_AZ
+                                AssignedItemSortOption.MOST_USED -> PaymentSourceFilterSpec.SORT_ASSIGNED_MOST_USED
+                                else -> PaymentSourceFilterSpec.SORT_ASSIGNED_DEFAULT
+                            }
+                            newMap[PaymentSourceFilterSpec.FIELD_ASSIGNED_SORT] = FilterValue.Sort(id)
+                            updateFilterState(newMap)
+                        },
                         searchQuery = searchQuery,
-                        onSearchChange = { searchQuery = it },
+                        onSearchChange = { q ->
+                            updateFilterState(filterState.withSearchQuery(q, PaymentSourceFilterSpec.FIELD_SEARCH))
+                        },
                         usageFrequencyMap = categoryUsageFrequencyMap,
                         onOpenCategorySplitDialog = { showCategorySplitDialog = it },
                         onOpenOtherAccountSplitDialog = { showOtherAccountSplitDialog = it },
@@ -622,6 +724,51 @@ fun PaymentSourceScreen(
                 onConfirm = { note ->
                     onExecuteTransfer(suggestion.fromAccount.id, suggestion.toAccount.id, suggestion.transferAmount, note)
                     transferSuggestionToExecute = null
+                }
+            )
+        }
+
+        // 10. Unified Filter Dialog
+        if (showFilterDialog) {
+            val isAssigned = selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS
+            val psSpecForDialog = remember(availableSourceAccounts, isAssigned) {
+                PaymentSourceFilterSpec.createSpec(availableSourceAccounts, isAssigned)
+            }
+            UnifiedFilterDialog(
+                spec = psSpecForDialog,
+                initialState = filterState,
+                languageMode = languageMode,
+                onDismiss = { showFilterDialog = false },
+                onApply = { newState ->
+                    updateFilterState(newState)
+                    showFilterDialog = false
+                },
+                countProvider = { state ->
+                    val query = PaymentSourceFilterSpec.getSearchQuery(state).trim().lowercase()
+                    if (PaymentSourceFilterSpec.getMainTab(state) == MainPaymentSourceTab.PAYMENT_SOURCES) {
+                        val status = PaymentSourceFilterSpec.getSourceStatus(state)
+                        val list = when (status) {
+                            AccountStatusFilter.ALL -> analysisOverview.accountAnalyses
+                            AccountStatusFilter.SHORTFALL_ONLY -> analysisOverview.accountAnalyses.filter { it.isShortfall }
+                            AccountStatusFilter.SURPLUS_ONLY -> analysisOverview.accountAnalyses.filter { it.isSurplus }
+                        }
+                        if (query.isEmpty()) list.size
+                        else list.count {
+                            it.account.nameEn.lowercase().contains(query) ||
+                            it.account.nameBn.lowercase().contains(query)
+                        }
+                    } else {
+                        val sec = PaymentSourceFilterSpec.getAssignedSection(state)
+                        val oCount = analysisOverview.otherAccountAllocations.count { it.isActive }
+                        val eCount = analysisOverview.categoryAllocations.count { it.isActive }
+                        val iCount = analysisOverview.incomeAllocations.count { it.isActive }
+                        when (sec) {
+                            AssignedItemSectionFilter.ALL, AssignedItemSectionFilter.ONLY_ITEMS -> oCount + eCount + iCount
+                            AssignedItemSectionFilter.OTHER_ACCOUNTS -> oCount
+                            AssignedItemSectionFilter.EXPENSES -> eCount
+                            AssignedItemSectionFilter.INCOMES -> iCount
+                        }
+                    }
                 }
             )
         }

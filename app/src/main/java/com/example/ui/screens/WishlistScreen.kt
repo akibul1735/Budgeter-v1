@@ -468,46 +468,45 @@ fun WishlistScreen(
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                                val currentSortId = (filterState[WishlistFilterSpec.FIELD_SORT] as? FilterValue.Sort)?.sortId ?: WishlistFilterSpec.SORT_PRIORITY
                                 DropdownMenu(
                                     expanded = showSortMenu,
                                     onDismissRequest = { showSortMenu = false }
                                 ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Priority (High to Low)") },
-                                        onClick = {
-                                            val newMap = filterState.toMutableMap()
-                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_PRIORITY)
-                                            updateFilterState(newMap)
-                                            showSortMenu = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Amount (High to Low)") },
-                                        onClick = {
-                                            val newMap = filterState.toMutableMap()
-                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_AMOUNT_DESC)
-                                            updateFilterState(newMap)
-                                            showSortMenu = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Amount (Low to High)") },
-                                        onClick = {
-                                            val newMap = filterState.toMutableMap()
-                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_AMOUNT_ASC)
-                                            updateFilterState(newMap)
-                                            showSortMenu = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Recently Added") },
-                                        onClick = {
-                                            val newMap = filterState.toMutableMap()
-                                            newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(WishlistFilterSpec.SORT_RECENT)
-                                            updateFilterState(newMap)
-                                            showSortMenu = false
-                                        }
-                                    )
+                                    WishlistFilterSpec.SORT_OPTIONS.forEach { option ->
+                                        val isSelected = option.id == currentSortId
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    if (isSelected) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Check,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    } else {
+                                                        Spacer(modifier = Modifier.size(16.dp))
+                                                    }
+                                                    Text(
+                                                        text = if (languageMode == LanguageMode.BANGLA) option.titleBn else option.titleEn,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                val newMap = filterState.toMutableMap()
+                                                newMap[WishlistFilterSpec.FIELD_SORT] = FilterValue.Sort(option.id)
+                                                updateFilterState(newMap)
+                                                showSortMenu = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
 

@@ -55,6 +55,13 @@ object WishlistFilterSpec {
     const val SORT_AMOUNT_ASC = "amount_asc"
     const val SORT_RECENT = "recent"
 
+    val SORT_OPTIONS: List<SortOptionItem<Any>> = listOf(
+        SortOptionItem(SORT_PRIORITY, "Priority (High to Low)", "অগ্রাধিকার: বেশি → কম"),
+        SortOptionItem(SORT_AMOUNT_DESC, "Amount: High → Low", "পরিমাণ: বেশি → কম"),
+        SortOptionItem(SORT_AMOUNT_ASC, "Amount: Low → High", "পরিমাণ: কম → বেশি"),
+        SortOptionItem(SORT_RECENT, "Recently Added", "সাম্প্রতিক যোগ করা")
+    )
+
     fun createSpec(categories: List<Category> = emptyList()): FilterSpec<Any> {
         val categoryOptions = categories.map { cat ->
             SelectItemOption(
@@ -63,13 +70,6 @@ object WishlistFilterSpec {
                 titleBn = cat.nameBn
             )
         }
-
-        val sortOptions: List<SortOptionItem<Any>> = listOf(
-            SortOptionItem(SORT_PRIORITY, "Priority (High to Low)", "অগ্রাধিকার: বেশি → কম"),
-            SortOptionItem(SORT_AMOUNT_DESC, "Amount: High → Low", "পরিমাণ: বেশি → কম"),
-            SortOptionItem(SORT_AMOUNT_ASC, "Amount: Low → High", "পরিমাণ: কম → বেশি"),
-            SortOptionItem(SORT_RECENT, "Recently Added", "সাম্প্রতিক যোগ করা")
-        )
 
         return FilterSpec(
             key = SPEC_KEY,
@@ -124,7 +124,7 @@ object WishlistFilterSpec {
                     titleEn = "Sort Order",
                     titleBn = "সাজানোর ক্রম",
                     icon = Icons.Default.Sort,
-                    options = sortOptions,
+                    options = SORT_OPTIONS,
                     defaultSortId = SORT_PRIORITY
                 )
             )

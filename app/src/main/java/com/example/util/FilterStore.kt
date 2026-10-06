@@ -22,6 +22,8 @@ class FilterStore private constructor(context: Context) {
         const val KEY_MIGRATED_CATEGORIES = "migrated_categories_v1"
         const val KEY_MIGRATED_WISHLIST = "migrated_wishlist_v1"
         const val KEY_MIGRATED_SAVINGS_GOALS = "migrated_savings_goals_v1"
+        const val KEY_MIGRATED_PAYMENT_SOURCE = "migrated_payment_source_v1"
+        const val KEY_MIGRATED_RM_MANAGER = "migrated_rm_manager_v1"
 
         val VALID_LABELS_DATE_PRESETS = setOf(
             "this_month", "last_month", "this_week", "today", "yesterday",
@@ -153,6 +155,147 @@ class FilterStore private constructor(context: Context) {
         fun mapSavingsGoalsStatus(filter: com.example.ui.screens.GoalFilterType?): String {
             val id = filter?.name?.lowercase()
             return if (id != null && id in VALID_SAVINGS_GOALS_STATUSES) id else DEFAULT_SAVINGS_GOALS_STATUS
+        }
+
+        // Payment Source Mappings
+        val VALID_PAYMENT_SOURCE_TABS = setOf(
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.TAB_SOURCES,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.TAB_ASSIGNED
+        )
+        const val DEFAULT_PAYMENT_SOURCE_TAB = com.example.ui.components.filter.specs.PaymentSourceFilterSpec.TAB_SOURCES
+
+        fun mapPaymentSourceTab(tab: com.example.ui.screens.MainPaymentSourceTab?): String {
+            return when (tab) {
+                com.example.ui.screens.MainPaymentSourceTab.ASSIGNED_ITEMS -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.TAB_ASSIGNED
+                else -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.TAB_SOURCES
+            }
+        }
+
+        val VALID_PAYMENT_SOURCE_CALC_BASES = setOf(
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.BASIS_BUDGET,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.BASIS_REMAINING
+        )
+        const val DEFAULT_PAYMENT_SOURCE_CALC_BASIS = com.example.ui.components.filter.specs.PaymentSourceFilterSpec.BASIS_BUDGET
+
+        fun mapPaymentSourceCalcBasis(basis: com.example.data.model.RequirementCalculationBasis?): String {
+            return when (basis) {
+                com.example.data.model.RequirementCalculationBasis.REMAINING_AMOUNT -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.BASIS_REMAINING
+                else -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.BASIS_BUDGET
+            }
+        }
+
+        val VALID_PAYMENT_SOURCE_STATUSES = setOf(
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.STATUS_ALL,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.STATUS_SHORTFALL,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.STATUS_SURPLUS
+        )
+        const val DEFAULT_PAYMENT_SOURCE_STATUS = com.example.ui.components.filter.specs.PaymentSourceFilterSpec.STATUS_ALL
+
+        fun mapPaymentSourceStatus(status: com.example.ui.screens.AccountStatusFilter?): String {
+            return when (status) {
+                com.example.ui.screens.AccountStatusFilter.SHORTFALL_ONLY -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.STATUS_SHORTFALL
+                com.example.ui.screens.AccountStatusFilter.SURPLUS_ONLY -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.STATUS_SURPLUS
+                else -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.STATUS_ALL
+            }
+        }
+
+        val VALID_PAYMENT_SOURCE_SORTS = setOf(
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_SOURCE_DEFAULT,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_SOURCE_BALANCE_DESC,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_SOURCE_BALANCE_ASC,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_SOURCE_REQUIRED_DESC,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_SOURCE_SHORTFALL_DESC,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_SOURCE_NAME_ASC
+        )
+        const val DEFAULT_PAYMENT_SOURCE_SORT = com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_SOURCE_DEFAULT
+
+        fun mapPaymentSourceSort(sort: com.example.ui.screens.PaymentSourceSortOption?): String {
+            val id = sort?.name?.lowercase()
+            return if (id != null && id in VALID_PAYMENT_SOURCE_SORTS) id else DEFAULT_PAYMENT_SOURCE_SORT
+        }
+
+        val VALID_ASSIGNED_SECTIONS = setOf(
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SECTION_ALL,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SECTION_ONLY_ITEMS,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SECTION_OTHER_ACCOUNTS,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SECTION_EXPENSES,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SECTION_INCOMES
+        )
+        const val DEFAULT_ASSIGNED_SECTION = com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SECTION_ALL
+
+        fun mapAssignedSection(section: com.example.ui.screens.AssignedItemSectionFilter?): String {
+            val id = section?.name?.lowercase()
+            return if (id != null && id in VALID_ASSIGNED_SECTIONS) id else DEFAULT_ASSIGNED_SECTION
+        }
+
+        val VALID_ASSIGNED_STATUSES = setOf(
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_ALL,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_BUDGETED,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_REMAINING,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_MOST_FREQUENT,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_SPLIT,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_UNASSIGNED
+        )
+        const val DEFAULT_ASSIGNED_STATUS = com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_ALL
+
+        fun mapAssignedStatus(status: com.example.ui.screens.AssignedItemStatusFilter?): String {
+            val id = when (status) {
+                com.example.ui.screens.AssignedItemStatusFilter.BUDGETED_ONLY -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_BUDGETED
+                com.example.ui.screens.AssignedItemStatusFilter.REMAINING_ONLY -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_REMAINING
+                com.example.ui.screens.AssignedItemStatusFilter.MOST_FREQUENT -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_MOST_FREQUENT
+                com.example.ui.screens.AssignedItemStatusFilter.SPLIT_ONLY -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_SPLIT
+                com.example.ui.screens.AssignedItemStatusFilter.UNASSIGNED_ONLY -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_UNASSIGNED
+                else -> com.example.ui.components.filter.specs.PaymentSourceFilterSpec.ASSIGNED_STATUS_ALL
+            }
+            return if (id in VALID_ASSIGNED_STATUSES) id else DEFAULT_ASSIGNED_STATUS
+        }
+
+        val VALID_ASSIGNED_SORTS = setOf(
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_ASSIGNED_DEFAULT,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_ASSIGNED_AMOUNT_DESC,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_ASSIGNED_AMOUNT_ASC,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_ASSIGNED_REMAINING_DESC,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_ASSIGNED_NAME_AZ,
+            com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_ASSIGNED_MOST_USED
+        )
+        const val DEFAULT_ASSIGNED_SORT = com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SORT_ASSIGNED_DEFAULT
+
+        fun mapAssignedSort(sort: com.example.ui.screens.AssignedItemSortOption?): String {
+            val id = sort?.name?.lowercase()
+            return if (id != null && id in VALID_ASSIGNED_SORTS) id else DEFAULT_ASSIGNED_SORT
+        }
+
+        // RM Manager Mappings
+        val VALID_RM_CATEGORIES = setOf(
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_ALL,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_PENDING_ONLY,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_RM_ACCOUNTS,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_RM_OTHERS,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_SETTLED_ONLY,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_UNRECONCILED,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_RECONCILED,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_HIGH_LIABILITY,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_RECENT_WEEK
+        )
+        const val DEFAULT_RM_CATEGORY = com.example.ui.components.filter.specs.RmManagerFilterSpec.CAT_ALL
+
+        fun mapRmCategory(cat: com.example.util.RmManagerHelper.RmFilterCategory?): String {
+            val id = cat?.name?.lowercase()
+            return if (id != null && id in VALID_RM_CATEGORIES) id else DEFAULT_RM_CATEGORY
+        }
+
+        val VALID_RM_SORTS = setOf(
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_HIGHEST_DUE,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_LOWEST_DUE,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_MOST_REPAID,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_NAME_AZ,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_RECENT_ACTIVITY
+        )
+        const val DEFAULT_RM_SORT = com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_HIGHEST_DUE
+
+        fun mapRmSort(sort: com.example.util.RmManagerHelper.RmSortOption?): String {
+            val id = sort?.name?.lowercase()
+            return if (id != null && id in VALID_RM_SORTS) id else DEFAULT_RM_SORT
         }
 
         @Volatile
@@ -358,13 +501,15 @@ class FilterStore private constructor(context: Context) {
             .remove(KEY_MIGRATED_CATEGORIES)
             .remove(KEY_MIGRATED_WISHLIST)
             .remove(KEY_MIGRATED_SAVINGS_GOALS)
+            .remove(KEY_MIGRATED_PAYMENT_SOURCE)
+            .remove(KEY_MIGRATED_RM_MANAGER)
             .remove("migrated_tab_filter_preferences_v1")
             .commit()
     }
 
     /**
      * One-time migration hook from TabFilterPreferences.
-     * Uses separate per-screen flags (migrated_labels_v1, migrated_categories_v1, migrated_wishlist_v1, migrated_savings_goals_v1).
+     * Uses separate per-screen flags (migrated_labels_v1, migrated_categories_v1, migrated_wishlist_v1, migrated_savings_goals_v1, migrated_payment_source_v1, migrated_rm_manager_v1).
      * Existing users who already have the old flag set still get their values migrated,
      * as long as no filter state exists yet.
      * Existing FilterStore state is never overwritten.
@@ -453,6 +598,54 @@ class FilterStore private constructor(context: Context) {
             }
         } catch (e: Exception) {
             Log.e("FilterStore", "Savings Goals migration failed", e)
+        }
+
+        // 5. Migrate PaymentSourceScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_PAYMENT_SOURCE, false)) {
+                val psKey = "filter_${com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(psKey)) {
+                    val psState = mutableMapOf<String, FilterValue>()
+                    val mainTab = mapPaymentSourceTab(tabFilterPrefs.paymentSourceTab)
+                    psState[com.example.ui.components.filter.specs.PaymentSourceFilterSpec.FIELD_MAIN_TAB] = FilterValue.ToggleGroup(setOf(mainTab))
+                    val calcBasis = mapPaymentSourceCalcBasis(tabFilterPrefs.paymentSourceCalcBasis)
+                    psState[com.example.ui.components.filter.specs.PaymentSourceFilterSpec.FIELD_CALC_BASIS] = FilterValue.ToggleGroup(setOf(calcBasis))
+                    val sourceStatus = mapPaymentSourceStatus(tabFilterPrefs.paymentSourceAccountStatus)
+                    psState[com.example.ui.components.filter.specs.PaymentSourceFilterSpec.FIELD_SOURCE_STATUS] = FilterValue.ToggleGroup(setOf(sourceStatus))
+                    val sourceSort = mapPaymentSourceSort(tabFilterPrefs.paymentSourceSortOption)
+                    psState[com.example.ui.components.filter.specs.PaymentSourceFilterSpec.FIELD_SOURCE_SORT] = FilterValue.Sort(sourceSort)
+                    val assignedSection = mapAssignedSection(tabFilterPrefs.paymentSourceAssignedSection)
+                    psState[com.example.ui.components.filter.specs.PaymentSourceFilterSpec.FIELD_ASSIGNED_SECTION] = FilterValue.ToggleGroup(setOf(assignedSection))
+                    val assignedStatus = mapAssignedStatus(tabFilterPrefs.paymentSourceAssignedStatus)
+                    psState[com.example.ui.components.filter.specs.PaymentSourceFilterSpec.FIELD_ASSIGNED_STATUS] = FilterValue.ToggleGroup(setOf(assignedStatus))
+                    val assignedSort = mapAssignedSort(tabFilterPrefs.paymentSourceAssignedSort)
+                    psState[com.example.ui.components.filter.specs.PaymentSourceFilterSpec.FIELD_ASSIGNED_SORT] = FilterValue.Sort(assignedSort)
+                    saveFilterState(com.example.ui.components.filter.specs.PaymentSourceFilterSpec.SPEC_KEY, psState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_PAYMENT_SOURCE, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Payment Source migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 6. Migrate RmManagerScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_RM_MANAGER, false)) {
+                val rmKey = "filter_${com.example.ui.components.filter.specs.RmManagerFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(rmKey)) {
+                    val rmState = mutableMapOf<String, FilterValue>()
+                    val catId = mapRmCategory(tabFilterPrefs.rmFilterCategory)
+                    rmState[com.example.ui.components.filter.specs.RmManagerFilterSpec.FIELD_CATEGORY] = FilterValue.ToggleGroup(setOf(catId))
+                    val sortId = mapRmSort(tabFilterPrefs.rmSortOption)
+                    rmState[com.example.ui.components.filter.specs.RmManagerFilterSpec.FIELD_SORT] = FilterValue.Sort(sortId)
+                    saveFilterState(com.example.ui.components.filter.specs.RmManagerFilterSpec.SPEC_KEY, rmState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_RM_MANAGER, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("RM Manager migration failed: $e")
+            e.printStackTrace()
         }
     }
 }
