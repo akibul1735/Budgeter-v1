@@ -24,6 +24,8 @@ class FilterStore private constructor(context: Context) {
         const val KEY_MIGRATED_SAVINGS_GOALS = "migrated_savings_goals_v1"
         const val KEY_MIGRATED_PAYMENT_SOURCE = "migrated_payment_source_v1"
         const val KEY_MIGRATED_RM_MANAGER = "migrated_rm_manager_v1"
+        const val KEY_MIGRATED_ACCOUNTS = "migrated_accounts_v1"
+        const val KEY_MIGRATED_ITEMS = "migrated_items_v1"
 
         val VALID_LABELS_DATE_PRESETS = setOf(
             "this_month", "last_month", "this_week", "today", "yesterday",
@@ -298,6 +300,127 @@ class FilterStore private constructor(context: Context) {
             return if (id != null && id in VALID_RM_SORTS) id else DEFAULT_RM_SORT
         }
 
+        // Accounts Mappings
+        val VALID_ACCOUNTS_TYPES = setOf(
+            com.example.ui.components.filter.specs.AccountsFilterSpec.TYPE_ALL,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.TYPE_ASSET,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.TYPE_LIABILITY
+        )
+        const val DEFAULT_ACCOUNTS_TYPE = com.example.ui.components.filter.specs.AccountsFilterSpec.TYPE_ALL
+
+        fun mapAccountsType(type: com.example.data.model.AccountType?): String {
+            return when (type) {
+                com.example.data.model.AccountType.ASSET -> com.example.ui.components.filter.specs.AccountsFilterSpec.TYPE_ASSET
+                com.example.data.model.AccountType.LIABILITY -> com.example.ui.components.filter.specs.AccountsFilterSpec.TYPE_LIABILITY
+                else -> com.example.ui.components.filter.specs.AccountsFilterSpec.TYPE_ALL
+            }
+        }
+
+        val VALID_ACCOUNTS_HIERARCHIES = setOf(
+            com.example.ui.components.filter.specs.AccountsFilterSpec.HIERARCHY_ALL,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.HIERARCHY_ONLY_GROUPS,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.HIERARCHY_EXCLUDED,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.HIERARCHY_ONLY_ACCOUNTS
+        )
+        const val DEFAULT_ACCOUNTS_HIERARCHY = com.example.ui.components.filter.specs.AccountsFilterSpec.HIERARCHY_ALL
+
+        fun mapAccountsHierarchy(hierarchy: com.example.ui.screens.AccountViewHierarchyFilter?): String {
+            val id = hierarchy?.name?.lowercase()
+            return if (id != null && id in VALID_ACCOUNTS_HIERARCHIES) id else DEFAULT_ACCOUNTS_HIERARCHY
+        }
+
+        val VALID_ACCOUNTS_STATUSES = setOf(
+            com.example.ui.components.filter.specs.AccountsFilterSpec.STATUS_ALL,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.STATUS_ACTIVE,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.STATUS_INACTIVE
+        )
+        const val DEFAULT_ACCOUNTS_STATUS = com.example.ui.components.filter.specs.AccountsFilterSpec.STATUS_ALL
+
+        fun mapAccountsStatus(status: com.example.ui.screens.AccountActiveStatusFilter?): String {
+            return when (status) {
+                com.example.ui.screens.AccountActiveStatusFilter.ACTIVE_ONLY -> com.example.ui.components.filter.specs.AccountsFilterSpec.STATUS_ACTIVE
+                com.example.ui.screens.AccountActiveStatusFilter.INACTIVE_ONLY -> com.example.ui.components.filter.specs.AccountsFilterSpec.STATUS_INACTIVE
+                else -> com.example.ui.components.filter.specs.AccountsFilterSpec.STATUS_ALL
+            }
+        }
+
+        val VALID_ACCOUNTS_SORTS = setOf(
+            com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_DEFAULT,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_AMOUNT_DESC,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_AMOUNT_ASC,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_MOST_USED,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_LEAST_USED,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_NAME_AZ,
+            com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_NAME_ZA
+        )
+        const val DEFAULT_ACCOUNTS_SORT = com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_DEFAULT
+
+        fun mapAccountsSort(sort: com.example.ui.screens.AccountSortFilter?): String {
+            return when (sort) {
+                com.example.ui.screens.AccountSortFilter.AMOUNT_HIGH_TO_LOW -> com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_AMOUNT_DESC
+                com.example.ui.screens.AccountSortFilter.AMOUNT_LOW_TO_HIGH -> com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_AMOUNT_ASC
+                com.example.ui.screens.AccountSortFilter.MOST_USED -> com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_MOST_USED
+                com.example.ui.screens.AccountSortFilter.LEAST_USED -> com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_LEAST_USED
+                com.example.ui.screens.AccountSortFilter.NAME_AZ -> com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_NAME_AZ
+                com.example.ui.screens.AccountSortFilter.NAME_ZA -> com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_NAME_ZA
+                else -> com.example.ui.components.filter.specs.AccountsFilterSpec.SORT_DEFAULT
+            }
+        }
+
+        // Items Summary Mappings
+        val VALID_ITEMS_TAB_MODES = setOf(
+            com.example.ui.components.filter.specs.ItemsFilterSpec.MODE_EXPENSE,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.MODE_ALL,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.MODE_INCOME
+        )
+        const val DEFAULT_ITEMS_TAB_MODE = com.example.ui.components.filter.specs.ItemsFilterSpec.MODE_ALL
+
+        fun mapItemsTabMode(mode: String?): String {
+            val id = mode?.lowercase()
+            return if (id != null && id in VALID_ITEMS_TAB_MODES) id else DEFAULT_ITEMS_TAB_MODE
+        }
+
+        val VALID_ITEMS_DATE_PRESETS = setOf(
+            "this_month", "last_month", "this_week", "today", "yesterday",
+            "last_30_days", "last_90_days", "this_year", "last_year", "all_time"
+        )
+        const val DEFAULT_ITEMS_DATE_PRESET = "this_month"
+
+        fun mapItemsDatePreset(preset: com.example.ui.dialogs.AggregatedDatePreset?): String {
+            val id = preset?.name?.lowercase()
+            return if (id != null && id in VALID_ITEMS_DATE_PRESETS) id else DEFAULT_ITEMS_DATE_PRESET
+        }
+
+        val VALID_ITEMS_SORT_ORDERS = setOf(
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AMOUNT_DESC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AMOUNT_ASC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_COUNT_DESC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_COUNT_ASC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AVG_DESC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AVG_ASC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_NAME_ASC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_NAME_DESC,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_RECENT_DATE,
+            com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_DEFAULT
+        )
+        const val DEFAULT_ITEMS_SORT_ORDER = com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AMOUNT_DESC
+
+        fun mapItemsSortOrder(sort: com.example.ui.dialogs.AggregatedSortOrder?): String {
+            return when (sort) {
+                com.example.ui.dialogs.AggregatedSortOrder.AMOUNT_DESC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AMOUNT_DESC
+                com.example.ui.dialogs.AggregatedSortOrder.AMOUNT_ASC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AMOUNT_ASC
+                com.example.ui.dialogs.AggregatedSortOrder.COUNT_DESC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_COUNT_DESC
+                com.example.ui.dialogs.AggregatedSortOrder.COUNT_ASC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_COUNT_ASC
+                com.example.ui.dialogs.AggregatedSortOrder.AVG_DESC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AVG_DESC
+                com.example.ui.dialogs.AggregatedSortOrder.AVG_ASC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_AVG_ASC
+                com.example.ui.dialogs.AggregatedSortOrder.NAME_ASC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_NAME_ASC
+                com.example.ui.dialogs.AggregatedSortOrder.NAME_DESC -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_NAME_DESC
+                com.example.ui.dialogs.AggregatedSortOrder.RECENT_DATE -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_RECENT_DATE
+                com.example.ui.dialogs.AggregatedSortOrder.DEFAULT -> com.example.ui.components.filter.specs.ItemsFilterSpec.SORT_DEFAULT
+                null -> DEFAULT_ITEMS_SORT_ORDER
+            }
+        }
+
         @Volatile
         private var instance: FilterStore? = null
 
@@ -503,6 +626,8 @@ class FilterStore private constructor(context: Context) {
             .remove(KEY_MIGRATED_SAVINGS_GOALS)
             .remove(KEY_MIGRATED_PAYMENT_SOURCE)
             .remove(KEY_MIGRATED_RM_MANAGER)
+            .remove(KEY_MIGRATED_ACCOUNTS)
+            .remove(KEY_MIGRATED_ITEMS)
             .remove("migrated_tab_filter_preferences_v1")
             .commit()
     }
@@ -645,6 +770,55 @@ class FilterStore private constructor(context: Context) {
             }
         } catch (e: Exception) {
             System.err.println("RM Manager migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 7. Migrate AccountsScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_ACCOUNTS, false)) {
+                val accountsKey = "filter_${com.example.ui.components.filter.specs.AccountsFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(accountsKey)) {
+                    val accState = mutableMapOf<String, FilterValue>()
+                    val typeMode = mapAccountsType(tabFilterPrefs.accountsTypeFilter)
+                    accState[com.example.ui.components.filter.specs.AccountsFilterSpec.FIELD_TYPE] = FilterValue.ToggleGroup(setOf(typeMode))
+                    val hierarchyMode = mapAccountsHierarchy(tabFilterPrefs.accountsHierarchyFilter)
+                    accState[com.example.ui.components.filter.specs.AccountsFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(hierarchyMode))
+                    val statusMode = mapAccountsStatus(tabFilterPrefs.accountsStatusFilter)
+                    accState[com.example.ui.components.filter.specs.AccountsFilterSpec.FIELD_STATUS] = FilterValue.ToggleGroup(setOf(statusMode))
+                    if (tabFilterPrefs.accountsExcludeZeroBalance) {
+                        accState[com.example.ui.components.filter.specs.AccountsFilterSpec.FIELD_EXCLUDE_ZERO] = FilterValue.ToggleGroup(
+                            setOf(com.example.ui.components.filter.specs.AccountsFilterSpec.EXCLUDE_ZERO_ID)
+                        )
+                    }
+                    val sortMode = mapAccountsSort(tabFilterPrefs.accountsSortFilter)
+                    accState[com.example.ui.components.filter.specs.AccountsFilterSpec.FIELD_SORT] = FilterValue.Sort(sortMode)
+                    saveFilterState(com.example.ui.components.filter.specs.AccountsFilterSpec.SPEC_KEY, accState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_ACCOUNTS, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Accounts migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 8. Migrate ItemsScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_ITEMS, false)) {
+                val itemsKey = "filter_${com.example.ui.components.filter.specs.ItemsFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(itemsKey)) {
+                    val itemsState = mutableMapOf<String, FilterValue>()
+                    val tabMode = mapItemsTabMode(tabFilterPrefs.itemsTabMode)
+                    itemsState[com.example.ui.components.filter.specs.ItemsFilterSpec.FIELD_TYPE_MODE] = FilterValue.ToggleGroup(setOf(tabMode))
+                    val datePreset = mapItemsDatePreset(tabFilterPrefs.itemsDatePreset)
+                    itemsState[com.example.ui.components.filter.specs.ItemsFilterSpec.FIELD_DATE] = FilterValue.Date(presetId = datePreset)
+                    val sortOrder = mapItemsSortOrder(tabFilterPrefs.itemsSortOrder)
+                    itemsState[com.example.ui.components.filter.specs.ItemsFilterSpec.FIELD_SORT] = FilterValue.Sort(sortOrder)
+                    saveFilterState(com.example.ui.components.filter.specs.ItemsFilterSpec.SPEC_KEY, itemsState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_ITEMS, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Items migration failed: $e")
             e.printStackTrace()
         }
     }

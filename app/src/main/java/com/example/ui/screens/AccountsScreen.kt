@@ -100,10 +100,16 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import androidx.compose.ui.platform.LocalContext
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.AccountsFilterSpec
 import com.example.util.AccountCalcConfig
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import com.example.util.TabFilterPreferences
 
 private val SlateText = Color(0xFF64748B)
 
@@ -164,25 +170,31 @@ fun AccountsScreen(
         isEditMode = false
     }
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
-
-    var selectedTypeFilter by remember { mutableStateOf(tabFilterPrefs.accountsTypeFilter) }
-    var hierarchyFilter by remember(initialHierarchyFilter) {
-        mutableStateOf(if (initialHierarchyFilter != AccountViewHierarchyFilter.ALL) initialHierarchyFilter else tabFilterPrefs.accountsHierarchyFilter)
+    val filterStore = remember { FilterStore.getInstance(context) }
+    var filterState by remember {
+        val loaded = filterStore.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+        mutableStateOf<FilterState>(
+            if (initialHierarchyFilter != AccountViewHierarchyFilter.ALL) {
+                AccountsFilterSpec.withHierarchy(loaded, initialHierarchyFilter)
+            } else {
+                loaded
+            }
+        )
     }
-    var sortFilter by remember { mutableStateOf(tabFilterPrefs.accountsSortFilter) }
-    var statusFilter by remember { mutableStateOf(tabFilterPrefs.accountsStatusFilter) }
-    var excludeZeroBalance by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var showFilterDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(selectedTypeFilter, hierarchyFilter, sortFilter, statusFilter, excludeZeroBalance, searchQuery) {
-        tabFilterPrefs.accountsTypeFilter = selectedTypeFilter
-        tabFilterPrefs.accountsHierarchyFilter = hierarchyFilter
-        tabFilterPrefs.accountsSortFilter = sortFilter
-        tabFilterPrefs.accountsStatusFilter = statusFilter
-        tabFilterPrefs.accountsExcludeZeroBalance = excludeZeroBalance
-        tabFilterPrefs.accountsSearchQuery = searchQuery
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(AccountsFilterSpec.SPEC_KEY, newState)
     }
+
+    val selectedTypeFilter = remember(filterState) { AccountsFilterSpec.getType(filterState) }
+    val hierarchyFilter = remember(filterState) { AccountsFilterSpec.getHierarchy(filterState) }
+    val sortFilter = remember(filterState) { AccountsFilterSpec.getSort(filterState) }
+    val statusFilter = remember(filterState) { AccountsFilterSpec.getStatus(filterState) }
+    val excludeZeroBalance = remember(filterState) { AccountsFilterSpec.getExcludeZeroBalance(filterState) }
+    val accountsSpec = remember { AccountsFilterSpec.createSpec() }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
     // State for Adjust Calculation Dialog
@@ -732,6 +744,36 @@ fun AccountsScreen(
         )
     }
 
+    if (showFilterDialog) {
+        UnifiedFilterDialog(
+            spec = accountsSpec,
+            initialState = filterState,
+            languageMode = languageMode,
+            onDismiss = { showFilterDialog = false },
+            onApply = { newFilter ->
+                updateFilterState(newFilter)
+                showFilterDialog = false
+            },
+            countProvider = { state ->
+                val type = AccountsFilterSpec.getType(state)
+                val st = AccountsFilterSpec.getStatus(state)
+                val ex0 = AccountsFilterSpec.getExcludeZeroBalance(state)
+
+                val base = when (st) {
+                    AccountActiveStatusFilter.INACTIVE_ONLY -> inactiveAccounts
+                    AccountActiveStatusFilter.ACTIVE_ONLY -> activeAccounts
+                    else -> accountsWithBalances
+                }
+                val typeFiltered = when (type) {
+                    AccountType.ASSET -> base.filter { isGroupAssetSide(it) }
+                    AccountType.LIABILITY -> base.filter { !isGroupAssetSide(it) }
+                    else -> base
+                }
+                if (ex0) filterZeroBalanceGroups(typeFiltered).size else typeFiltered.size
+            }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -746,6 +788,10 @@ fun AccountsScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
                 showSearchButton = true,
+                showFilterButton = true,
+                isFilterActive = accountsSpec.isActive(filterState),
+                activeFilterCount = accountsSpec.activeFilterCount(filterState),
+                onFilterClick = { showFilterDialog = true },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts..."
             )
 
@@ -908,7 +954,8 @@ fun AccountsScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
                                         .clickable {
-                                            selectedTypeFilter = if (selectedTypeFilter == AccountType.ASSET) null else AccountType.ASSET
+                                            val nextType = if (selectedTypeFilter == AccountType.ASSET) null else AccountType.ASSET
+                                            updateFilterState(AccountsFilterSpec.withType(filterState, nextType))
                                         }
                                         .padding(4.dp)
                                 ) {
@@ -958,7 +1005,8 @@ fun AccountsScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
                                         .clickable {
-                                            selectedTypeFilter = if (selectedTypeFilter == AccountType.LIABILITY) null else AccountType.LIABILITY
+                                            val nextType = if (selectedTypeFilter == AccountType.LIABILITY) null else AccountType.LIABILITY
+                                            updateFilterState(AccountsFilterSpec.withType(filterState, nextType))
                                         }
                                         .padding(4.dp)
                                 ) {
@@ -1014,22 +1062,22 @@ fun AccountsScreen(
                                     ViewScopePill(
                                         selected = hierarchyFilter == AccountViewHierarchyFilter.ALL,
                                         label = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
-                                        onClick = { hierarchyFilter = AccountViewHierarchyFilter.ALL }
+                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL)) }
                                     )
                                     ViewScopePill(
                                         selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS,
                                         label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র গ্রুপ" else "Only Groups",
-                                        onClick = { hierarchyFilter = AccountViewHierarchyFilter.ONLY_GROUPS }
+                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_GROUPS)) }
                                     )
                                     ViewScopePill(
                                         selected = hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED,
                                         label = if (languageMode == LanguageMode.BANGLA) "বর্জিত" else "Excluded",
-                                        onClick = { hierarchyFilter = AccountViewHierarchyFilter.EXCLUDED }
+                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.EXCLUDED)) }
                                     )
                                     ViewScopePill(
                                         selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS,
                                         label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র অ্যাকাউন্ট" else "Only Accounts",
-                                        onClick = { hierarchyFilter = AccountViewHierarchyFilter.ONLY_ACCOUNTS }
+                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_ACCOUNTS)) }
                                     )
                                 }
 
@@ -1092,7 +1140,7 @@ fun AccountsScreen(
                                                 }
                                             },
                                             onClick = {
-                                                excludeZeroBalance = !excludeZeroBalance
+                                                updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, !excludeZeroBalance))
                                                 showFilterMenu = false
                                             }
                                         )
@@ -1116,7 +1164,8 @@ fun AccountsScreen(
                                                 }
                                             },
                                             onClick = {
-                                                statusFilter = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.INACTIVE_ONLY
+                                                val next = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.INACTIVE_ONLY
+                                                updateFilterState(AccountsFilterSpec.withStatus(filterState, next))
                                                 showFilterMenu = false
                                             }
                                         )
@@ -1140,7 +1189,8 @@ fun AccountsScreen(
                                                 }
                                             },
                                             onClick = {
-                                                statusFilter = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.ACTIVE_ONLY
+                                                val next = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.ACTIVE_ONLY
+                                                updateFilterState(AccountsFilterSpec.withStatus(filterState, next))
                                                 showFilterMenu = false
                                             }
                                         )
@@ -1152,7 +1202,7 @@ fun AccountsScreen(
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
-                                                        text = getSortFilterMenuLabel(filter, languageMode),
+                                                        text = AccountsFilterSpec.getSortMenuLabel(filter, languageMode),
                                                         fontSize = 12.sp,
                                                         fontWeight = if (sortFilter == filter) FontWeight.Bold else FontWeight.Normal,
                                                         color = if (sortFilter == filter) SolidPrimary else MaterialTheme.colorScheme.onSurface
@@ -1166,11 +1216,37 @@ fun AccountsScreen(
                                                     }
                                                 },
                                                 onClick = {
-                                                    sortFilter = filter
+                                                    updateFilterState(AccountsFilterSpec.withSort(filterState, filter))
                                                     showFilterMenu = false
                                                 }
                                             )
                                         }
+
+                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                        // Open Full Filter Dialog
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "আরও ফিল্টার..." else "More Filters...",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = SolidPrimary
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Tune,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            },
+                                            onClick = {
+                                                showFilterMenu = false
+                                                showFilterDialog = true
+                                            }
+                                        )
 
                                         if (hasActiveFilters) {
                                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -1193,9 +1269,7 @@ fun AccountsScreen(
                                                     )
                                                 },
                                                 onClick = {
-                                                    statusFilter = AccountActiveStatusFilter.ALL
-                                                    excludeZeroBalance = false
-                                                    sortFilter = AccountSortFilter.DEFAULT
+                                                    updateFilterState(emptyMap())
                                                     showFilterMenu = false
                                                 }
                                             )
@@ -1231,6 +1305,17 @@ fun AccountsScreen(
                             }
                         }
                     }
+                }
+
+                // Unified Active Filter Bar
+                item {
+                    UnifiedActiveFilterBar(
+                        spec = accountsSpec,
+                        state = filterState,
+                        onFilterChange = { updateFilterState(it) },
+                        languageMode = languageMode,
+                        onOpenFilterDialog = { showFilterDialog = true }
+                    )
                 }
 
                 // --- 2. Accounts List Based on Hierarchy Filter ---
@@ -1499,7 +1584,7 @@ fun AccountsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedTypeFilter = AccountType.ASSET }
+                                .clickable { updateFilterState(AccountsFilterSpec.withType(filterState, AccountType.ASSET)) }
                                 .testTag("acc_filter_assets")
                         ) {
                             Row(
@@ -1532,7 +1617,7 @@ fun AccountsScreen(
                                 .weight(0.85f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedTypeFilter = null }
+                                .clickable { updateFilterState(AccountsFilterSpec.withType(filterState, null)) }
                                 .testTag("acc_filter_all")
                         ) {
                             Row(
@@ -1565,7 +1650,7 @@ fun AccountsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedTypeFilter = AccountType.LIABILITY }
+                                .clickable { updateFilterState(AccountsFilterSpec.withType(filterState, AccountType.LIABILITY)) }
                                 .testTag("acc_filter_liabilities")
                         ) {
                             Row(

@@ -11,7 +11,9 @@ import com.example.ui.components.filter.FilterValue
 import com.example.ui.components.filter.activeChips
 import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.AccountsFilterSpec
 import com.example.ui.components.filter.specs.CategoriesFilterSpec
+import com.example.ui.components.filter.specs.ItemsFilterSpec
 import com.example.ui.components.filter.specs.LabelsFilterSpec
 import com.example.ui.components.filter.specs.PaymentSourceFilterSpec
 import com.example.ui.components.filter.specs.RmManagerFilterSpec
@@ -19,7 +21,10 @@ import com.example.ui.components.filter.specs.SavingsGoalsFilterSpec
 import com.example.ui.components.filter.specs.WishlistFilterSpec
 import com.example.ui.components.filter.toggleCondition
 import com.example.ui.components.filter.withSearchQuery
+import com.example.ui.screens.AccountActiveStatusFilter
+import com.example.ui.screens.AccountSortFilter
 import com.example.ui.screens.AccountStatusFilter
+import com.example.ui.screens.AccountViewHierarchyFilter
 import com.example.ui.screens.AssignedItemSectionFilter
 import com.example.ui.screens.AssignedItemSortOption
 import com.example.ui.screens.AssignedItemStatusFilter
@@ -33,6 +38,7 @@ import com.example.ui.screens.WishlistSort
 import com.example.data.model.RequirementCalculationBasis
 import com.example.data.model.SavingsGoal
 import com.example.data.model.SavingsGoalWithDetails
+import com.example.data.model.TransactionStatus
 import com.example.data.model.WishlistItem
 import com.example.data.model.WishlistItemWithCategory
 import com.example.data.model.WishlistPriority
@@ -846,5 +852,241 @@ class SimpleScreensFilterSpecTest {
             assertTrue(FilterStore.VALID_RM_SORTS.contains(sortVal))
         }
         assertEquals(FilterStore.DEFAULT_RM_SORT, FilterStore.mapRmSort(null))
+
+        // 10. Accounts Type Filter
+        for (type in listOf(null, com.example.data.model.AccountType.ASSET, com.example.data.model.AccountType.LIABILITY)) {
+            store.clearFilterState(AccountsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.accountsTypeFilter = type
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+            val typeVal = (state[AccountsFilterSpec.FIELD_TYPE] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_ACCOUNTS_TYPES.contains(typeVal))
+            assertEquals(type, AccountsFilterSpec.getType(state))
+        }
+        assertEquals(FilterStore.DEFAULT_ACCOUNTS_TYPE, FilterStore.mapAccountsType(null))
+
+        // 11. Accounts Hierarchy Filter
+        for (h in AccountViewHierarchyFilter.values()) {
+            store.clearFilterState(AccountsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.accountsHierarchyFilter = h
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+            val hVal = (state[AccountsFilterSpec.FIELD_HIERARCHY] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_ACCOUNTS_HIERARCHIES.contains(hVal))
+            assertEquals(h, AccountsFilterSpec.getHierarchy(state))
+        }
+        assertEquals(FilterStore.DEFAULT_ACCOUNTS_HIERARCHY, FilterStore.mapAccountsHierarchy(null))
+
+        // 12. Accounts Status Filter
+        for (st in AccountActiveStatusFilter.values()) {
+            store.clearFilterState(AccountsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.accountsStatusFilter = st
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+            val stVal = (state[AccountsFilterSpec.FIELD_STATUS] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_ACCOUNTS_STATUSES.contains(stVal))
+            assertEquals(st, AccountsFilterSpec.getStatus(state))
+        }
+        assertEquals(FilterStore.DEFAULT_ACCOUNTS_STATUS, FilterStore.mapAccountsStatus(null))
+
+        // 13. Accounts Sort Filter
+        for (sort in AccountSortFilter.values()) {
+            store.clearFilterState(AccountsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.accountsSortFilter = sort
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+            val sortVal = (state[AccountsFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId
+            assertTrue(FilterStore.VALID_ACCOUNTS_SORTS.contains(sortVal))
+            assertEquals(sort, AccountsFilterSpec.getSort(state))
+        }
+        assertEquals(FilterStore.DEFAULT_ACCOUNTS_SORT, FilterStore.mapAccountsSort(null))
+
+        // 14. Accounts Exclude Zero Balance
+        store.clearFilterState(AccountsFilterSpec.SPEC_KEY)
+        store.resetMigrationFlagsForTesting()
+        tabFilterPrefs.accountsExcludeZeroBalance = true
+        store.migrateFromTabFilterPreferences(tabFilterPrefs)
+        var accState = store.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+        assertTrue(AccountsFilterSpec.getExcludeZeroBalance(accState))
+
+        store.clearFilterState(AccountsFilterSpec.SPEC_KEY)
+        store.resetMigrationFlagsForTesting()
+        tabFilterPrefs.accountsExcludeZeroBalance = false
+        store.migrateFromTabFilterPreferences(tabFilterPrefs)
+        accState = store.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+        assertFalse(AccountsFilterSpec.getExcludeZeroBalance(accState))
+
+        // 15. Items Tab Mode
+        for (mode in listOf("EXPENSE", "ALL", "INCOME", "invalid")) {
+            store.clearFilterState(ItemsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.itemsTabMode = mode
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(ItemsFilterSpec.SPEC_KEY)
+            val modeVal = (state[ItemsFilterSpec.FIELD_TYPE_MODE] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_ITEMS_TAB_MODES.contains(modeVal))
+        }
+        assertEquals(FilterStore.DEFAULT_ITEMS_TAB_MODE, FilterStore.mapItemsTabMode(null))
+
+        // 16. Items Date Preset
+        for (preset in AggregatedDatePreset.values()) {
+            store.clearFilterState(ItemsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.itemsDatePreset = preset
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(ItemsFilterSpec.SPEC_KEY)
+            val pVal = (state[ItemsFilterSpec.FIELD_DATE] as FilterValue.Date).presetId
+            assertTrue(FilterStore.VALID_ITEMS_DATE_PRESETS.contains(pVal))
+        }
+        assertEquals(FilterStore.DEFAULT_ITEMS_DATE_PRESET, FilterStore.mapItemsDatePreset(null))
+
+        // 17. Items Sort Order
+        for (sort in AggregatedSortOrder.values()) {
+            store.clearFilterState(ItemsFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.itemsSortOrder = sort
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(ItemsFilterSpec.SPEC_KEY)
+            val sVal = (state[ItemsFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId
+            assertTrue(FilterStore.VALID_ITEMS_SORT_ORDERS.contains(sVal))
+            assertEquals(sort, ItemsFilterSpec.getSortOrder(state))
+        }
+        assertEquals(FilterStore.DEFAULT_ITEMS_SORT_ORDER, FilterStore.mapItemsSortOrder(null))
+    }
+
+    @Test
+    fun testAccountsFilterSpecFiltersAndToggles() {
+        val spec = AccountsFilterSpec.createSpec()
+        assertEquals(AccountsFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+
+        // 1. Search Query
+        state = state.withSearchQuery("Savings Bank", AccountsFilterSpec.FIELD_SEARCH)
+        assertEquals("Savings Bank", AccountsFilterSpec.getSearchQuery(state))
+
+        // 2. Type Filter
+        state = AccountsFilterSpec.withType(state, com.example.data.model.AccountType.ASSET)
+        assertEquals(com.example.data.model.AccountType.ASSET, AccountsFilterSpec.getType(state))
+
+        state = AccountsFilterSpec.withType(state, com.example.data.model.AccountType.LIABILITY)
+        assertEquals(com.example.data.model.AccountType.LIABILITY, AccountsFilterSpec.getType(state))
+
+        state = AccountsFilterSpec.withType(state, null)
+        assertNull(AccountsFilterSpec.getType(state))
+
+        // 3. Hierarchy Filter
+        state = AccountsFilterSpec.withHierarchy(state, AccountViewHierarchyFilter.ONLY_GROUPS)
+        assertEquals(AccountViewHierarchyFilter.ONLY_GROUPS, AccountsFilterSpec.getHierarchy(state))
+
+        state = AccountsFilterSpec.withHierarchy(state, AccountViewHierarchyFilter.EXCLUDED)
+        assertEquals(AccountViewHierarchyFilter.EXCLUDED, AccountsFilterSpec.getHierarchy(state))
+
+        // 4. Status Filter
+        state = AccountsFilterSpec.withStatus(state, AccountActiveStatusFilter.ACTIVE_ONLY)
+        assertEquals(AccountActiveStatusFilter.ACTIVE_ONLY, AccountsFilterSpec.getStatus(state))
+
+        state = AccountsFilterSpec.withStatus(state, AccountActiveStatusFilter.INACTIVE_ONLY)
+        assertEquals(AccountActiveStatusFilter.INACTIVE_ONLY, AccountsFilterSpec.getStatus(state))
+
+        // 5. Exclude Zero Balance
+        state = AccountsFilterSpec.withExcludeZero(state, true)
+        assertTrue(AccountsFilterSpec.getExcludeZeroBalance(state))
+
+        state = AccountsFilterSpec.withExcludeZero(state, false)
+        assertFalse(AccountsFilterSpec.getExcludeZeroBalance(state))
+
+        // 6. Sort Filter
+        state = AccountsFilterSpec.withSort(state, AccountSortFilter.AMOUNT_HIGH_TO_LOW)
+        assertEquals(AccountSortFilter.AMOUNT_HIGH_TO_LOW, AccountsFilterSpec.getSort(state))
+
+        val chips = spec.activeChips(state, LanguageMode.ENGLISH)
+        assertTrue(chips.isNotEmpty())
+    }
+
+    @Test
+    fun testItemsFilterSpecFiltersAndToggles() {
+        val categories = listOf(
+            Category(id = 1L, nameEn = "Food", nameBn = "খাবার", type = CategoryType.EXPENSE)
+        )
+        val accounts = listOf(
+            Account(id = 10L, nameEn = "Cash", nameBn = "নগদ", type = com.example.data.model.AccountType.ASSET)
+        )
+        val spec = ItemsFilterSpec.createSpec(categories = categories, accounts = accounts)
+        assertEquals(ItemsFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+
+        // 1. Search Query
+        state = ItemsFilterSpec.withSearchQuery(state, "Grocery")
+        assertEquals("Grocery", ItemsFilterSpec.getSearchQuery(state))
+
+        // 2. Type Mode
+        state = ItemsFilterSpec.withTypeMode(state, ItemsFilterSpec.MODE_EXPENSE)
+        assertEquals(ItemsFilterSpec.MODE_EXPENSE, ItemsFilterSpec.getTypeModeId(state))
+
+        state = ItemsFilterSpec.withTypeMode(state, ItemsFilterSpec.MODE_INCOME)
+        assertEquals(ItemsFilterSpec.MODE_INCOME, ItemsFilterSpec.getTypeModeId(state))
+
+        // 3. Date bounds resolution
+        val bounds = ItemsFilterSpec.resolveDateBounds(spec, state)
+        assertTrue(bounds.second >= bounds.first)
+
+        // 4. Accounts and Categories selection
+        state = state + (ItemsFilterSpec.FIELD_ACCOUNTS to FilterValue.Select(setOf("10")))
+        assertEquals(setOf(10L), ItemsFilterSpec.getSelectedAccountIds(state))
+
+        state = state + (ItemsFilterSpec.FIELD_CATEGORIES to FilterValue.Select(setOf("1")))
+        assertEquals(setOf(1L), ItemsFilterSpec.getSelectedCategoryIds(state))
+
+        // 5. Status and Amount Range
+        state = state + (ItemsFilterSpec.FIELD_STATUSES to FilterValue.Select(setOf("CLEARED")))
+        assertEquals(setOf(TransactionStatus.CLEARED), ItemsFilterSpec.getSelectedStatuses(state))
+
+        state = state + (ItemsFilterSpec.FIELD_AMOUNT_RANGE to FilterValue.Range(min = 100.0, max = 5000.0))
+        assertEquals(100.0, ItemsFilterSpec.getMinAmount(state)!!, 0.001)
+        assertEquals(5000.0, ItemsFilterSpec.getMaxAmount(state)!!, 0.001)
+
+        // 6. Exclude Zero and Sort Order
+        state = state + (ItemsFilterSpec.FIELD_EXCLUDE_ZERO to FilterValue.ToggleGroup(setOf(ItemsFilterSpec.EXCLUDE_ZERO_ID)))
+        assertTrue(ItemsFilterSpec.getExcludeZero(state))
+
+        state = ItemsFilterSpec.withSortOrder(state, AggregatedSortOrder.COUNT_DESC)
+        assertEquals(AggregatedSortOrder.COUNT_DESC, ItemsFilterSpec.getSortOrder(state))
+
+        val chips = spec.activeChips(state, LanguageMode.ENGLISH)
+        assertTrue(chips.isNotEmpty())
+    }
+
+    @Test
+    fun testSearchNeverPersistedInFilterStore() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FilterStore.getInstance(context)
+
+        // Accounts Search Never Persisted
+        var accState: FilterState = mapOf(
+            AccountsFilterSpec.FIELD_SEARCH to FilterValue.Search("secret account query"),
+            AccountsFilterSpec.FIELD_SORT to FilterValue.Sort(AccountsFilterSpec.SORT_AMOUNT_DESC)
+        )
+        store.saveFilterState(AccountsFilterSpec.SPEC_KEY, accState)
+        val loadedAcc = store.loadFilterState(AccountsFilterSpec.SPEC_KEY)
+        assertEquals("", AccountsFilterSpec.getSearchQuery(loadedAcc))
+        assertEquals(AccountSortFilter.AMOUNT_HIGH_TO_LOW, AccountsFilterSpec.getSort(loadedAcc))
+
+        // Items Search Never Persisted
+        var itemsState: FilterState = mapOf(
+            ItemsFilterSpec.FIELD_SEARCH to FilterValue.Search("secret item query"),
+            ItemsFilterSpec.FIELD_SORT to FilterValue.Sort(ItemsFilterSpec.SORT_COUNT_DESC)
+        )
+        store.saveFilterState(ItemsFilterSpec.SPEC_KEY, itemsState)
+        val loadedItems = store.loadFilterState(ItemsFilterSpec.SPEC_KEY)
+        assertEquals("", ItemsFilterSpec.getSearchQuery(loadedItems))
+        assertEquals(AggregatedSortOrder.COUNT_DESC, ItemsFilterSpec.getSortOrder(loadedItems))
     }
 }

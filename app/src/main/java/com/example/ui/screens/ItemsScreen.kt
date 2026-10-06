@@ -85,20 +85,25 @@ import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalHeaderScrollState
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeChips
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.ItemsFilterSpec
 import com.example.ui.dialogs.AggregatedDatePreset
-import com.example.ui.dialogs.AggregatedFilterDialog
-import com.example.ui.dialogs.AggregatedFilterState
 import com.example.ui.dialogs.AggregatedSortOrder
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.ItemCacheHelper
 import com.example.util.LanguageHelper
 import androidx.compose.runtime.LaunchedEffect
 import com.example.util.TabExportHelper
-import com.example.util.TabFilterPreferences
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -139,29 +144,23 @@ fun ItemsScreen(
     onAddTransactionClick: ((TransactionType) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
-
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.itemsSearchQuery) }
-    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.itemsTabMode) }
+    val filterStore = remember { FilterStore.getInstance(context) }
     var filterState by remember {
-        mutableStateOf(
-            AggregatedFilterState(
-                datePreset = tabFilterPrefs.itemsDatePreset,
-                sortOrder = tabFilterPrefs.itemsSortOrder
-            )
-        )
+        mutableStateOf<FilterState>(filterStore.loadFilterState(ItemsFilterSpec.SPEC_KEY))
     }
-
-    LaunchedEffect(searchQuery, activeTabMode, filterState) {
-        tabFilterPrefs.itemsSearchQuery = searchQuery
-        tabFilterPrefs.itemsTabMode = activeTabMode
-        tabFilterPrefs.itemsDatePreset = filterState.datePreset
-        tabFilterPrefs.itemsSortOrder = filterState.sortOrder
-    }
-
+    var searchQuery by remember { mutableStateOf("") }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var selectedDrilldownItem by remember { mutableStateOf<AggregatedItem?>(null) }
+
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(ItemsFilterSpec.SPEC_KEY, newState)
+    }
+
+    val itemsSpec = remember(categories, accounts) {
+        ItemsFilterSpec.createSpec(categories = categories, accounts = accounts)
+    }
 
     if (showTimelineScreen) {
         ItemsTimelineScreen(
@@ -173,17 +172,27 @@ fun ItemsScreen(
         return
     }
 
-    // Compute Date Bounds
-    val (startEpochMs, endEpochMs) = remember(filterState.datePreset, filterState.customStartDateMs, filterState.customEndDateMs) {
-        filterState.calculateDateRange()
+    // Compute Date Bounds from FilterState
+    val (startEpochMs, endEpochMs) = remember(filterState, itemsSpec) {
+        ItemsFilterSpec.resolveDateBounds(itemsSpec, filterState)
     }
 
+    val activeTabMode = remember(filterState) { ItemsFilterSpec.getTypeModeId(filterState) }
     val currentTargetType = when (activeTabMode) {
-        "EXPENSE" -> TransactionType.EXPENSE
-        "INCOME" -> TransactionType.INCOME
+        ItemsFilterSpec.MODE_EXPENSE -> TransactionType.EXPENSE
+        ItemsFilterSpec.MODE_INCOME -> TransactionType.INCOME
         else -> null
     }
-    val effectiveType = filterState.transactionType ?: currentTargetType
+    val specificFlowType = remember(filterState) { ItemsFilterSpec.getTransactionType(filterState) }
+    val effectiveType = specificFlowType ?: currentTargetType
+
+    val selectedAccountIds = remember(filterState) { ItemsFilterSpec.getSelectedAccountIds(filterState) }
+    val selectedCategoryIds = remember(filterState) { ItemsFilterSpec.getSelectedCategoryIds(filterState) }
+    val selectedStatuses = remember(filterState) { ItemsFilterSpec.getSelectedStatuses(filterState) }
+    val minAmount = remember(filterState) { ItemsFilterSpec.getMinAmount(filterState) }
+    val maxAmount = remember(filterState) { ItemsFilterSpec.getMaxAmount(filterState) }
+    val excludeZero = remember(filterState) { ItemsFilterSpec.getExcludeZero(filterState) }
+    val sortOrder = remember(filterState) { ItemsFilterSpec.getSortOrder(filterState) }
 
     // Filter transactions and group by item/payee
     val aggregatedItems = remember(
@@ -192,19 +201,26 @@ fun ItemsScreen(
         effectiveType,
         startEpochMs,
         endEpochMs,
-        filterState
+        selectedAccountIds,
+        selectedCategoryIds,
+        selectedStatuses,
+        minAmount,
+        maxAmount,
+        excludeZero,
+        sortOrder,
+        languageMode
     ) {
         val filteredTxs = transactions.filter { item ->
             val tx = item.transaction
             val matchesDate = tx.dateEpochMs in startEpochMs..endEpochMs
             val matchesType = effectiveType == null || tx.type == effectiveType
-            val matchesAccount = filterState.selectedAccountIds.isEmpty() ||
-                    (tx.debitAccountId != null && tx.debitAccountId in filterState.selectedAccountIds) ||
-                    (tx.creditAccountId != null && tx.creditAccountId in filterState.selectedAccountIds)
-            val matchesCategory = filterState.selectedCategoryIds.isEmpty() ||
-                    (tx.categoryId != null && tx.categoryId in filterState.selectedCategoryIds) ||
-                    (tx.subCategoryId != null && tx.subCategoryId in filterState.selectedCategoryIds)
-            val matchesStatus = filterState.selectedStatuses.isEmpty() || tx.status in filterState.selectedStatuses
+            val matchesAccount = selectedAccountIds.isEmpty() ||
+                    (tx.debitAccountId != null && tx.debitAccountId in selectedAccountIds) ||
+                    (tx.creditAccountId != null && tx.creditAccountId in selectedAccountIds)
+            val matchesCategory = selectedCategoryIds.isEmpty() ||
+                    (tx.categoryId != null && tx.categoryId in selectedCategoryIds) ||
+                    (tx.subCategoryId != null && tx.subCategoryId in selectedCategoryIds)
+            val matchesStatus = selectedStatuses.isEmpty() || tx.status in selectedStatuses
 
             matchesDate && matchesType && matchesAccount && matchesCategory && matchesStatus
         }
@@ -289,14 +305,14 @@ fun ItemsScreen(
             val matchesSearch = searchQuery.isBlank() ||
                     item.name.contains(searchQuery, ignoreCase = true) ||
                     (item.groupName != null && item.groupName.contains(searchQuery, ignoreCase = true))
-            val matchesMin = filterState.minAmount == null || totalAmt >= filterState.minAmount!!
-            val matchesMax = filterState.maxAmount == null || totalAmt <= filterState.maxAmount!!
-            val matchesZero = !filterState.excludeZeroAmounts || totalAmt > 0
+            val matchesMin = minAmount == null || totalAmt >= minAmount
+            val matchesMax = maxAmount == null || totalAmt <= maxAmount
+            val matchesZero = !excludeZero || totalAmt > 0
 
             matchesSearch && matchesMin && matchesMax && matchesZero
         }
 
-        val sortedList = when (filterState.sortOrder) {
+        val sortedList = when (sortOrder) {
             AggregatedSortOrder.DEFAULT,
             AggregatedSortOrder.AMOUNT_DESC -> list.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
             AggregatedSortOrder.AMOUNT_ASC -> list.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else if (effectiveType == TransactionType.INCOME) it.totalIncome else (it.totalExpense + it.totalIncome) }
@@ -331,14 +347,15 @@ fun ItemsScreen(
     }
     val totalFlowOverall = remember(aggregatedItems, activeTabMode, totalExpenseOverall, totalIncomeOverall) {
         when (activeTabMode) {
-            "EXPENSE" -> totalExpenseOverall
-            "INCOME" -> totalIncomeOverall
+            ItemsFilterSpec.MODE_EXPENSE -> totalExpenseOverall
+            ItemsFilterSpec.MODE_INCOME -> totalIncomeOverall
             else -> totalExpenseOverall + totalIncomeOverall
         }
     }
 
-    val activeFilterSummary = remember(filterState, searchQuery, languageMode) {
-        val summary = filterState.buildFilterSummary(languageMode)
+    val activeFilterSummary = remember(filterState, searchQuery, languageMode, itemsSpec) {
+        val chips = itemsSpec.activeChips(filterState, languageMode)
+        val summary = chips.joinToString(" • ") { it.label }
         if (searchQuery.isNotBlank()) {
             if (summary.isNotBlank()) "$summary • \"${searchQuery.trim()}\"" else "\"${searchQuery.trim()}\""
         } else {
@@ -357,8 +374,8 @@ fun ItemsScreen(
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "আইটেম খুঁজুন..." else "Search items...",
                 showSearchButton = true,
                 showFilterButton = true,
-                isFilterActive = filterState.isFilterActive,
-                activeFilterCount = filterState.activeFilterCount,
+                isFilterActive = itemsSpec.isActive(filterState),
+                activeFilterCount = itemsSpec.activeFilterCount(filterState),
                 onFilterClick = { showFilterDialog = true },
                 showTimelineButton = true,
                 onTimelineClick = { showTimelineScreen = true },
@@ -495,6 +512,16 @@ fun ItemsScreen(
                 }
             }
 
+            // Unified Active Filter Bar
+            UnifiedActiveFilterBar(
+                spec = itemsSpec,
+                state = filterState,
+                onFilterChange = { updateFilterState(it) },
+                languageMode = languageMode,
+                onOpenFilterDialog = { showFilterDialog = true },
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            )
+
             // Items List
             if (aggregatedItems.isEmpty()) {
                 Box(
@@ -599,7 +626,7 @@ fun ItemsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { activeTabMode = "EXPENSE" }
+                                .clickable { updateFilterState(ItemsFilterSpec.withTypeMode(filterState, ItemsFilterSpec.MODE_EXPENSE)) }
                                 .testTag("items_mode_expense")
                         ) {
                             Row(
@@ -632,7 +659,7 @@ fun ItemsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { activeTabMode = "ALL" }
+                                .clickable { updateFilterState(ItemsFilterSpec.withTypeMode(filterState, ItemsFilterSpec.MODE_ALL)) }
                                 .testTag("items_mode_all")
                         ) {
                             Row(
@@ -665,7 +692,7 @@ fun ItemsScreen(
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { activeTabMode = "INCOME" }
+                                .clickable { updateFilterState(ItemsFilterSpec.withTypeMode(filterState, ItemsFilterSpec.MODE_INCOME)) }
                                 .testTag("items_mode_income")
                         ) {
                             Row(
@@ -835,18 +862,44 @@ fun ItemsScreen(
         )
     }
 
-    // Filter & Sort Dialog
+    // Unified Filter & Sort Dialog
     if (showFilterDialog) {
-        AggregatedFilterDialog(
-            title = if (languageMode == LanguageMode.BANGLA) "আইটেম ফিল্টার ও সাজানো" else "Filter & Sort Items",
-            currentState = filterState,
-            categories = categories,
-            accounts = accounts,
+        UnifiedFilterDialog(
+            spec = itemsSpec,
+            initialState = filterState,
             languageMode = languageMode,
             onDismiss = { showFilterDialog = false },
             onApply = { newFilter ->
-                filterState = newFilter
+                updateFilterState(newFilter)
                 showFilterDialog = false
+            },
+            countProvider = { state ->
+                val (sMs, eMs) = ItemsFilterSpec.resolveDateBounds(itemsSpec, state)
+                val tMode = ItemsFilterSpec.getTypeModeId(state)
+                val targetT = when (tMode) {
+                    ItemsFilterSpec.MODE_EXPENSE -> TransactionType.EXPENSE
+                    ItemsFilterSpec.MODE_INCOME -> TransactionType.INCOME
+                    else -> null
+                }
+                val specT = ItemsFilterSpec.getTransactionType(state)
+                val effT = specT ?: targetT
+                val accIds = ItemsFilterSpec.getSelectedAccountIds(state)
+                val catIds = ItemsFilterSpec.getSelectedCategoryIds(state)
+                val st = ItemsFilterSpec.getSelectedStatuses(state)
+
+                transactions.count { item ->
+                    val tx = item.transaction
+                    val matchesDate = tx.dateEpochMs in sMs..eMs
+                    val matchesType = effT == null || tx.type == effT
+                    val matchesAccount = accIds.isEmpty() ||
+                            (tx.debitAccountId != null && tx.debitAccountId in accIds) ||
+                            (tx.creditAccountId != null && tx.creditAccountId in accIds)
+                    val matchesCategory = catIds.isEmpty() ||
+                            (tx.categoryId != null && tx.categoryId in catIds) ||
+                            (tx.subCategoryId != null && tx.subCategoryId in catIds)
+                    val matchesStatus = st.isEmpty() || tx.status in st
+                    matchesDate && matchesType && matchesAccount && matchesCategory && matchesStatus
+                }
             }
         )
     }
