@@ -95,18 +95,20 @@ import com.example.data.repository.FinancialOverview
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.BudgetDateRangePreset
-import com.example.ui.components.NetEarningsFilterDialog
-import com.example.ui.components.NetEarningsFilterState
-import com.example.ui.components.NetEarningsFlowScope
-import com.example.ui.components.NetEarningsSortOrder
-import com.example.ui.components.ActiveNetEarningsFilterBar
-import com.example.ui.components.calculateNetEarningsFilterRanges
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalHeaderScrollState
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.NetEarningsFilterSpec
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.ItemCacheHelper
 import com.example.util.LanguageHelper
@@ -179,28 +181,42 @@ fun ReportsScreen(
     onAccountClick: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    val filterStore = remember { FilterStore.getInstance(context) }
+    var filterState by remember { mutableStateOf(filterStore.loadFilterState(NetEarningsFilterSpec.SPEC_KEY)) }
+
+
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(NetEarningsFilterSpec.SPEC_KEY, newState)
+    }
 
     // Default to THIS MONTH
     val currentCal = remember { Calendar.getInstance() }
     var selectedYear by remember { mutableIntStateOf(currentCal.get(Calendar.YEAR)) }
     var selectedMonth by remember { mutableIntStateOf(currentCal.get(Calendar.MONTH) + 1) } // 1-12
 
-    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.reportsTabMode) } // "EXPENSE" or "INCOME"
-    var hierarchyView by remember { mutableStateOf(tabFilterPrefs.reportsHierarchyView) }
-    var sortOption by remember { mutableStateOf(tabFilterPrefs.reportsSortOption) }
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.reportsSearchQuery) }
+    val flowScope = remember(filterState) { NetEarningsFilterSpec.getFlowScope(filterState) }
+    val activeTabMode = when (flowScope) {
+        NetEarningsFilterSpec.SCOPE_INCOME_ONLY -> "INCOME"
+        NetEarningsFilterSpec.SCOPE_EXPENSE_ONLY -> "EXPENSE"
+        else -> "ALL"
+    }
+    val hierarchyMode = remember(filterState) { NetEarningsFilterSpec.getHierarchyView(filterState) }
+    val hierarchyView = when (hierarchyMode) {
+        NetEarningsFilterSpec.HIERARCHY_ONLY_GROUPS -> NetEarningsHierarchyView.ONLY_GROUPS
+        NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS -> NetEarningsHierarchyView.ONLY_ITEMS
+        else -> NetEarningsHierarchyView.GROUPED
+    }
+    val sortId = remember(filterState) { NetEarningsFilterSpec.getSortOrder(filterState) }
+    val sortOption = when (sortId) {
+        NetEarningsFilterSpec.SORT_AMOUNT_ASC -> NetEarningsSort.AMOUNT_LOW_TO_HIGH
+        NetEarningsFilterSpec.SORT_PERCENTAGE_DESC -> NetEarningsSort.PERCENTAGE_HIGH_TO_LOW
+        NetEarningsFilterSpec.SORT_NAME_ASC -> NetEarningsSort.NAME_A_TO_Z
+        else -> NetEarningsSort.AMOUNT_HIGH_TO_LOW
+    }
+    var searchQuery by remember { mutableStateOf("") }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
-    var filterState by remember { mutableStateOf(NetEarningsFilterState(datePreset = tabFilterPrefs.reportsDatePreset)) }
-
-    LaunchedEffect(activeTabMode, hierarchyView, sortOption, searchQuery, filterState) {
-        tabFilterPrefs.reportsTabMode = activeTabMode
-        tabFilterPrefs.reportsHierarchyView = hierarchyView
-        tabFilterPrefs.reportsSortOption = sortOption
-        tabFilterPrefs.reportsSearchQuery = searchQuery
-        tabFilterPrefs.reportsDatePreset = filterState.datePreset
-    }
 
     var selectedCategoryItemForDetail by remember { mutableStateOf<CategoryEarningsTrackingItem?>(null) }
     var showNetSummaryDialog by remember { mutableStateOf(false) }
@@ -210,18 +226,7 @@ fun ReportsScreen(
     // Expanded groups map (default expanded)
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
 
-    // TIMELINE NAVIGATION
-    if (showTimelineScreen) {
-        val allTx = remember(transactions) { transactions.map { it.transaction } }
-        CategoryTimelineScreen(
-            categories = categories,
-            transactions = allTx,
-            languageMode = languageMode,
-            isNetEarningsTimeline = true,
-            onBack = { showTimelineScreen = false }
-        )
-        return
-    }
+
 
     // Extract labels from transactions for filter dialog
     val allLabels = remember(transactions) {
@@ -233,63 +238,89 @@ fun ReportsScreen(
         }.distinct().sorted()
     }
 
+    val actualAccounts = remember(allAccounts, accountsWithBalances) {
+        if (allAccounts.isNotEmpty()) allAccounts else accountsWithBalances.map { it.account }
+    }
+
+    val netEarningsSpec = remember(actualAccounts, categories, allLabels) {
+        NetEarningsFilterSpec.createSpec(
+            accounts = actualAccounts,
+            categories = categories,
+            labels = allLabels
+        )
+    }
+
     // Determine current start and end milliseconds for selected month / filter
     val budgetRangeResult = remember(selectedYear, selectedMonth, filterState, languageMode) {
-        calculateNetEarningsFilterRanges(selectedYear, selectedMonth, filterState, languageMode)
+        NetEarningsFilterSpec.calculateRanges(selectedYear, selectedMonth, filterState, languageMode)
     }
     val monthStartMs = budgetRangeResult.primaryRange.first
     val monthEndMs = budgetRangeResult.primaryRange.second
     val monthLabel = budgetRangeResult.primaryLabel
 
+    val selectedCatIds = remember(filterState) { NetEarningsFilterSpec.getSelectedCategoryIds(filterState) }
+    val selectedAccIds = remember(filterState) { NetEarningsFilterSpec.getSelectedAccountIds(filterState) }
+    val selectedLabels = remember(filterState) { NetEarningsFilterSpec.getSelectedLabels(filterState) }
+    val selectedStatuses = remember(filterState) { NetEarningsFilterSpec.getSelectedStatuses(filterState) }
+    val includeTransfers = remember(filterState) { NetEarningsFilterSpec.getIncludeTransfers(filterState) }
+    val excludeZeroAmounts = remember(filterState) { NetEarningsFilterSpec.getExcludeZero(filterState) }
+    val hideEmptyGroups = remember(filterState) { NetEarningsFilterSpec.getHideEmptyGroups(filterState) }
+    val minAmount = remember(filterState) { NetEarningsFilterSpec.getMinAmount(filterState) }
+    val maxAmount = remember(filterState) { NetEarningsFilterSpec.getMaxAmount(filterState) }
+
     // Transactions for this month only with active filters
-    val monthTransactions = remember(transactions, monthStartMs, monthEndMs, filterState) {
+    val monthTransactions = remember(
+        transactions, monthStartMs, monthEndMs, flowScope,
+        includeTransfers, selectedCatIds, selectedAccIds, selectedLabels,
+        selectedStatuses, excludeZeroAmounts, minAmount, maxAmount
+    ) {
         transactions.filter { details ->
             val tx = details.transaction
             val inDate = tx.dateEpochMs in monthStartMs..monthEndMs
             if (!inDate) return@filter false
 
             // Flow scope filter (e.g. INCOME_ONLY, EXPENSE_ONLY)
-            when (filterState.flowScope) {
-                NetEarningsFlowScope.INCOME_ONLY -> if (tx.type != TransactionType.INCOME) return@filter false
-                NetEarningsFlowScope.EXPENSE_ONLY -> if (tx.type != TransactionType.EXPENSE) return@filter false
+            when (flowScope) {
+                NetEarningsFilterSpec.SCOPE_INCOME_ONLY -> if (tx.type != TransactionType.INCOME) return@filter false
+                NetEarningsFilterSpec.SCOPE_EXPENSE_ONLY -> if (tx.type != TransactionType.EXPENSE) return@filter false
                 else -> {}
             }
 
             // Transfer filter
-            if (!filterState.includeTransfers && tx.type == TransactionType.TRANSFER) {
+            if (!includeTransfers && tx.type == TransactionType.TRANSFER) {
                 return@filter false
             }
 
             // Category filter
-            if (filterState.selectedCategoryIds.isNotEmpty()) {
+            if (selectedCatIds.isNotEmpty()) {
                 val catId = tx.categoryId ?: details.category?.id ?: details.subCategory?.id
-                if (catId == null || catId !in filterState.selectedCategoryIds) return@filter false
+                if (catId == null || catId !in selectedCatIds) return@filter false
             }
 
             // Account filter
-            if (filterState.selectedAccountIds.isNotEmpty()) {
+            if (selectedAccIds.isNotEmpty()) {
                 val accId = details.debitAccount?.id ?: details.creditAccount?.id ?: tx.debitAccountId ?: tx.creditAccountId
-                if (accId == null || accId !in filterState.selectedAccountIds) return@filter false
+                if (accId == null || accId !in selectedAccIds) return@filter false
             }
 
             // Labels filter
-            if (filterState.selectedLabels.isNotEmpty()) {
+            if (selectedLabels.isNotEmpty()) {
                 val note = tx.note
-                val hasMatchingLabel = filterState.selectedLabels.any { note.contains(it, ignoreCase = true) }
+                val hasMatchingLabel = selectedLabels.any { note.contains(it, ignoreCase = true) }
                 if (!hasMatchingLabel) return@filter false
             }
 
             // Status filter
-            if (filterState.selectedStatusSet.isNotEmpty()) {
-                if (tx.status !in filterState.selectedStatusSet) return@filter false
+            if (selectedStatuses.isNotEmpty()) {
+                if (tx.status !in selectedStatuses) return@filter false
             }
 
             // Exclude zero amounts
-            if (filterState.excludeZeroAmounts && tx.amount <= 0.0) return@filter false
+            if (excludeZeroAmounts && tx.amount <= 0.0) return@filter false
 
             // Min and Max amounts
-            filterState.minAmount?.let { if (tx.amount < it) return@filter false }
-            filterState.maxAmount?.let { if (tx.amount > it) return@filter false }
+            minAmount?.let { if (tx.amount < it) return@filter false }
+            maxAmount?.let { if (tx.amount > it) return@filter false }
 
             true
         }
@@ -320,8 +351,8 @@ fun ReportsScreen(
         totalMonthIncome,
         searchQuery,
         sortOption,
-        filterState.excludeZeroAmounts,
-        filterState.hideEmptyGroups,
+        excludeZeroAmounts,
+        hideEmptyGroups,
         languageMode
     ) {
         fun computeGroupsFor(
@@ -372,7 +403,7 @@ fun ReportsScreen(
                     )
                 } else items
 
-                val filteredItems = if (filterState.excludeZeroAmounts) {
+                val filteredItems = if (excludeZeroAmounts) {
                     allItems.filter { it.actualAmount > 0.0 }
                 } else {
                     allItems
@@ -381,7 +412,7 @@ fun ReportsScreen(
                 val groupTotal = filteredItems.sumOf { it.actualAmount }
                 val groupShare = if (totalFlowAmount > 0) (groupTotal / totalFlowAmount) * 100.0 else 0.0
 
-                if (filterState.excludeZeroAmounts && groupTotal <= 0.0 && filteredItems.isEmpty()) {
+                if (excludeZeroAmounts && groupTotal <= 0.0 && filteredItems.isEmpty()) {
                     null
                 } else {
                     CategoryGroupEarningsTracking(
@@ -421,12 +452,12 @@ fun ReportsScreen(
                         percentageShare = orphanShare
                     )
                 )
-                val filteredOrphanItems = if (filterState.excludeZeroAmounts) {
+                val filteredOrphanItems = if (excludeZeroAmounts) {
                     orphanItems.filter { it.actualAmount > 0.0 }
                 } else {
                     orphanItems
                 }
-                if (!filterState.excludeZeroAmounts || orphanAmt > 0.0) {
+                if (!excludeZeroAmounts || orphanAmt > 0.0) {
                     groups + CategoryGroupEarningsTracking(
                         parentCategory = orphanCat,
                         groupNameEn = "Uncategorized",
@@ -494,7 +525,8 @@ fun ReportsScreen(
             searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি খুঁজুন..." else "Search categories...",
             showSearchButton = true,
             showFilterButton = true,
-            isFilterActive = filterState.isFilterActive,
+            isFilterActive = netEarningsSpec.isActive(filterState),
+            activeFilterCount = netEarningsSpec.activeFilterCount(filterState),
             onFilterClick = { showFilterDialog = true },
             showTimelineButton = true,
             onTimelineClick = { showTimelineScreen = true },
@@ -558,13 +590,13 @@ fun ReportsScreen(
         )
 
         // Active Filter Bar (shown when filters are active)
-        if (filterState.isFilterActive) {
-            ActiveNetEarningsFilterBar(
-                filterState = filterState,
-                onFilterChange = { filterState = it },
-                onOpenFilterDialog = { showFilterDialog = true },
+        if (netEarningsSpec.isActive(filterState)) {
+            UnifiedActiveFilterBar(
+                spec = netEarningsSpec,
+                state = filterState,
+                onFilterChange = { updateFilterState(it) },
                 languageMode = languageMode,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                onOpenFilterDialog = { showFilterDialog = true }
             )
         }
 
@@ -962,7 +994,14 @@ fun ReportsScreen(
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                         border = BorderStroke(0.5.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                         modifier = Modifier
-                            .clickable { hierarchyView = mode }
+                            .clickable {
+                                val hId = when (mode) {
+                                    NetEarningsHierarchyView.ONLY_GROUPS -> NetEarningsFilterSpec.HIERARCHY_ONLY_GROUPS
+                                    NetEarningsHierarchyView.ONLY_ITEMS -> NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS
+                                    else -> NetEarningsFilterSpec.HIERARCHY_GROUPED
+                                }
+                                updateFilterState(NetEarningsFilterSpec.withHierarchyView(filterState, hId))
+                            }
                             .padding(vertical = 2.dp)
                     ) {
                         Text(
@@ -982,12 +1021,13 @@ fun ReportsScreen(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                 border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                 modifier = Modifier.clickable {
-                    sortOption = when (sortOption) {
-                        NetEarningsSort.AMOUNT_HIGH_TO_LOW -> NetEarningsSort.PERCENTAGE_HIGH_TO_LOW
-                        NetEarningsSort.PERCENTAGE_HIGH_TO_LOW -> NetEarningsSort.AMOUNT_LOW_TO_HIGH
-                        NetEarningsSort.AMOUNT_LOW_TO_HIGH -> NetEarningsSort.NAME_A_TO_Z
-                        NetEarningsSort.NAME_A_TO_Z -> NetEarningsSort.AMOUNT_HIGH_TO_LOW
+                    val nextSortId = when (sortId) {
+                        NetEarningsFilterSpec.SORT_AMOUNT_DESC -> NetEarningsFilterSpec.SORT_PERCENTAGE_DESC
+                        NetEarningsFilterSpec.SORT_PERCENTAGE_DESC -> NetEarningsFilterSpec.SORT_AMOUNT_ASC
+                        NetEarningsFilterSpec.SORT_AMOUNT_ASC -> NetEarningsFilterSpec.SORT_NAME_ASC
+                        else -> NetEarningsFilterSpec.SORT_AMOUNT_DESC
                     }
+                    updateFilterState(NetEarningsFilterSpec.withSortOrder(filterState, nextSortId))
                 }
             ) {
                 Row(
@@ -1207,7 +1247,7 @@ fun ReportsScreen(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .clip(RoundedCornerShape(20.dp))
-                                    .clickable { activeTabMode = "EXPENSE" }
+                                    .clickable { updateFilterState(NetEarningsFilterSpec.withFlowScope(filterState, NetEarningsFilterSpec.SCOPE_EXPENSE_ONLY)) }
                                     .testTag("net_earnings_mode_expense")
                             ) {
                                 Row(
@@ -1240,7 +1280,7 @@ fun ReportsScreen(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .clip(RoundedCornerShape(20.dp))
-                                    .clickable { activeTabMode = "ALL" }
+                                    .clickable { updateFilterState(NetEarningsFilterSpec.withFlowScope(filterState, NetEarningsFilterSpec.SCOPE_ALL)) }
                                     .testTag("net_earnings_mode_all")
                             ) {
                                 Row(
@@ -1273,7 +1313,7 @@ fun ReportsScreen(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .clip(RoundedCornerShape(20.dp))
-                                    .clickable { activeTabMode = "INCOME" }
+                                    .clickable { updateFilterState(NetEarningsFilterSpec.withFlowScope(filterState, NetEarningsFilterSpec.SCOPE_INCOME_ONLY)) }
                                     .testTag("net_earnings_mode_income")
                             ) {
                                 Row(
@@ -1383,19 +1423,17 @@ fun ReportsScreen(
         )
     }
 
-    // NetEarningsFilterDialog for advanced filtering tailored specifically for Net Earnings
+    // UnifiedFilterDialog for advanced filtering tailored specifically for Net Earnings
     if (showFilterDialog) {
-        NetEarningsFilterDialog(
-            currentFilter = filterState,
-            categories = categories,
-            accounts = allAccounts,
-            allLabels = allLabels,
+        UnifiedFilterDialog(
+            spec = netEarningsSpec,
+            initialState = filterState,
             languageMode = languageMode,
-            onDismiss = { showFilterDialog = false },
             onApply = { newFilter ->
-                filterState = newFilter
+                updateFilterState(newFilter)
                 showFilterDialog = false
-            }
+            },
+            onDismiss = { showFilterDialog = false }
         )
     }
 }

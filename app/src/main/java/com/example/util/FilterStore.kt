@@ -28,6 +28,7 @@ class FilterStore private constructor(context: Context) {
         const val KEY_MIGRATED_ITEMS = "migrated_items_v1"
         const val KEY_MIGRATED_BALANCE_SHEET = "migrated_balance_sheet_v1"
         const val KEY_MIGRATED_CASH_FLOW = "migrated_cash_flow_v1"
+        const val KEY_MIGRATED_NET_EARNINGS = "migrated_net_earnings_v1"
 
         val VALID_LABELS_DATE_PRESETS = setOf(
             "this_month", "last_month", "this_week", "today", "yesterday",
@@ -523,6 +524,130 @@ class FilterStore private constructor(context: Context) {
             }
         }
 
+        // Net Earnings Mappings
+        val VALID_NET_EARNINGS_DATE_PRESETS = setOf(
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_THIS_MONTH,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_MONTH,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_3_MONTHS,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_6_MONTHS,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_12_MONTHS,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_YEAR_TO_DATE,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_SAME_MONTH_LAST_YEAR,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_ALL_TIME,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_CUSTOM
+        )
+        const val DEFAULT_NET_EARNINGS_DATE_PRESET = com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_THIS_MONTH
+
+        fun mapNetEarningsDatePreset(preset: com.example.ui.components.BudgetDateRangePreset?): String {
+            return when (preset) {
+                com.example.ui.components.BudgetDateRangePreset.THIS_MONTH -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_THIS_MONTH
+                com.example.ui.components.BudgetDateRangePreset.LAST_MONTH -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_MONTH
+                com.example.ui.components.BudgetDateRangePreset.LAST_3_MONTHS -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_3_MONTHS
+                com.example.ui.components.BudgetDateRangePreset.LAST_6_MONTHS -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_6_MONTHS
+                com.example.ui.components.BudgetDateRangePreset.LAST_12_MONTHS -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_LAST_12_MONTHS
+                com.example.ui.components.BudgetDateRangePreset.YEAR_TO_DATE -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_YEAR_TO_DATE
+                com.example.ui.components.BudgetDateRangePreset.SAME_MONTH_LAST_YEAR -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_SAME_MONTH_LAST_YEAR
+                com.example.ui.components.BudgetDateRangePreset.ALL_TIME -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_ALL_TIME
+                com.example.ui.components.BudgetDateRangePreset.CUSTOM -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.PRESET_CUSTOM
+                null -> DEFAULT_NET_EARNINGS_DATE_PRESET
+            }
+        }
+
+        val VALID_NET_EARNINGS_FLOW_SCOPES = setOf(
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_ALL,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_SURPLUS_ONLY,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_DEFICIT_ONLY,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_INCOME_ONLY,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_EXPENSE_ONLY
+        )
+        const val DEFAULT_NET_EARNINGS_FLOW_SCOPE = com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_ALL
+
+        fun mapNetEarningsFlowScope(scope: com.example.ui.components.NetEarningsFlowScope?): String {
+            return when (scope) {
+                com.example.ui.components.NetEarningsFlowScope.ALL -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_ALL
+                com.example.ui.components.NetEarningsFlowScope.SURPLUS_ONLY -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_SURPLUS_ONLY
+                com.example.ui.components.NetEarningsFlowScope.DEFICIT_ONLY -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_DEFICIT_ONLY
+                com.example.ui.components.NetEarningsFlowScope.INCOME_ONLY -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_INCOME_ONLY
+                com.example.ui.components.NetEarningsFlowScope.EXPENSE_ONLY -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_EXPENSE_ONLY
+                null -> DEFAULT_NET_EARNINGS_FLOW_SCOPE
+            }
+        }
+
+        val VALID_NET_EARNINGS_COMPARISON_PRESETS = setOf(
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_NONE,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_SAME_DATE_PREV_MONTH,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_LAST_MONTH,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_SAME_MONTH_LAST_YEAR,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_LAST_3_MONTHS_AVG,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_LAST_YEAR,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_CUSTOM
+        )
+        const val DEFAULT_NET_EARNINGS_COMPARISON_PRESET = com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_NONE
+
+        fun mapNetEarningsComparisonPreset(preset: com.example.ui.components.BudgetComparisonPreset?): String {
+            return when (preset) {
+                com.example.ui.components.BudgetComparisonPreset.SAME_DATE_PREV_MONTH -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_SAME_DATE_PREV_MONTH
+                com.example.ui.components.BudgetComparisonPreset.LAST_MONTH -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_LAST_MONTH
+                com.example.ui.components.BudgetComparisonPreset.SAME_DATE_PREV_YEAR,
+                com.example.ui.components.BudgetComparisonPreset.SAME_MONTH_LAST_YEAR -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_SAME_MONTH_LAST_YEAR
+                com.example.ui.components.BudgetComparisonPreset.LAST_3_MONTHS_AVG -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_LAST_3_MONTHS_AVG
+                com.example.ui.components.BudgetComparisonPreset.LAST_YEAR -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_LAST_YEAR
+                com.example.ui.components.BudgetComparisonPreset.CUSTOM -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_CUSTOM
+                null -> DEFAULT_NET_EARNINGS_COMPARISON_PRESET
+            }
+        }
+
+        val VALID_NET_EARNINGS_HIERARCHIES = setOf(
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.HIERARCHY_GROUPED,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.HIERARCHY_ONLY_GROUPS,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS
+        )
+        const val DEFAULT_NET_EARNINGS_HIERARCHY = com.example.ui.components.filter.specs.NetEarningsFilterSpec.HIERARCHY_GROUPED
+
+        fun mapNetEarningsHierarchy(hierarchy: com.example.ui.screens.NetEarningsHierarchyView?): String {
+            return when (hierarchy) {
+                com.example.ui.screens.NetEarningsHierarchyView.GROUPED -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.HIERARCHY_GROUPED
+                com.example.ui.screens.NetEarningsHierarchyView.ONLY_GROUPS -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.HIERARCHY_ONLY_GROUPS
+                com.example.ui.screens.NetEarningsHierarchyView.ONLY_ITEMS -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS
+                null -> DEFAULT_NET_EARNINGS_HIERARCHY
+            }
+        }
+
+        val VALID_NET_EARNINGS_SORTS = setOf(
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NET_DESC,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NET_ASC,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_AMOUNT_DESC,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_AMOUNT_ASC,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_PERCENTAGE_DESC,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NAME_ASC,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_TXN_COUNT_DESC,
+            com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_DEFAULT
+        )
+        const val DEFAULT_NET_EARNINGS_SORT = com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NET_DESC
+
+        fun mapNetEarningsSort(sort: com.example.ui.screens.NetEarningsSort?): String {
+            return when (sort) {
+                com.example.ui.screens.NetEarningsSort.AMOUNT_HIGH_TO_LOW -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_AMOUNT_DESC
+                com.example.ui.screens.NetEarningsSort.AMOUNT_LOW_TO_HIGH -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_AMOUNT_ASC
+                com.example.ui.screens.NetEarningsSort.PERCENTAGE_HIGH_TO_LOW -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_PERCENTAGE_DESC
+                com.example.ui.screens.NetEarningsSort.NAME_A_TO_Z -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NAME_ASC
+                null -> DEFAULT_NET_EARNINGS_SORT
+            }
+        }
+
+        fun mapNetEarningsModelSort(sort: com.example.ui.components.NetEarningsSortOrder?): String {
+            return when (sort) {
+                com.example.ui.components.NetEarningsSortOrder.NET_DESC -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NET_DESC
+                com.example.ui.components.NetEarningsSortOrder.NET_ASC -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NET_ASC
+                com.example.ui.components.NetEarningsSortOrder.AMOUNT_DESC -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_AMOUNT_DESC
+                com.example.ui.components.NetEarningsSortOrder.AMOUNT_ASC -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_AMOUNT_ASC
+                com.example.ui.components.NetEarningsSortOrder.NAME_ASC -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_NAME_ASC
+                com.example.ui.components.NetEarningsSortOrder.TXN_COUNT_DESC -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_TXN_COUNT_DESC
+                com.example.ui.components.NetEarningsSortOrder.DEFAULT -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SORT_DEFAULT
+                null -> DEFAULT_NET_EARNINGS_SORT
+            }
+        }
+
         @Volatile
         private var instance: FilterStore? = null
 
@@ -732,6 +857,7 @@ class FilterStore private constructor(context: Context) {
             .remove(KEY_MIGRATED_ITEMS)
             .remove(KEY_MIGRATED_BALANCE_SHEET)
             .remove(KEY_MIGRATED_CASH_FLOW)
+            .remove(KEY_MIGRATED_NET_EARNINGS)
             .remove("migrated_tab_filter_preferences_v1")
             .commit()
     }
@@ -993,6 +1119,44 @@ class FilterStore private constructor(context: Context) {
             }
         } catch (e: Exception) {
             System.err.println("Cash Flow migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 11. Migrate NetEarnings (ReportsScreen / Dashboard / Timeline) with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_NET_EARNINGS, false)) {
+                val neKey = "filter_${com.example.ui.components.filter.specs.NetEarningsFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(neKey)) {
+                    val neState = mutableMapOf<String, FilterValue>()
+                    val presetId = mapNetEarningsDatePreset(tabFilterPrefs.reportsDatePreset)
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_DATE] = FilterValue.Date(presetId = presetId)
+                    val hierarchyId = mapNetEarningsHierarchy(tabFilterPrefs.reportsHierarchyView)
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(hierarchyId))
+                    val sortId = mapNetEarningsSort(tabFilterPrefs.reportsSortOption)
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_SORT] = FilterValue.Sort(sortId)
+                    val flowScope = when (tabFilterPrefs.reportsTabMode.uppercase()) {
+                        "INCOME" -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_INCOME_ONLY
+                        "EXPENSE" -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_EXPENSE_ONLY
+                        else -> com.example.ui.components.filter.specs.NetEarningsFilterSpec.SCOPE_ALL
+                    }
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_FLOW_SCOPE] = FilterValue.ToggleGroup(setOf(flowScope))
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_COMPARISON] = FilterValue.ToggleGroup(
+                        setOf(com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_NONE)
+                    )
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(
+                        setOf(
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO,
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS,
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_CURRENCY,
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_SYMBOL
+                        )
+                    )
+                    saveFilterState(com.example.ui.components.filter.specs.NetEarningsFilterSpec.SPEC_KEY, neState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_NET_EARNINGS, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Net Earnings migration failed: $e")
             e.printStackTrace()
         }
     }

@@ -123,6 +123,15 @@ data class NetEarningsFilterState(
 fun calculateNetEarningsFilterRanges(
     year: Int,
     month: Int,
+    filterState: com.example.ui.components.filter.FilterState,
+    languageMode: LanguageMode
+): BudgetRangeResult {
+    return com.example.ui.components.filter.specs.NetEarningsFilterSpec.calculateRanges(year, month, filterState, languageMode)
+}
+
+fun calculateNetEarningsFilterRanges(
+    year: Int,
+    month: Int,
     filterState: NetEarningsFilterState,
     languageMode: LanguageMode
 ): BudgetRangeResult {
