@@ -154,7 +154,7 @@ fun <T> UnifiedFilterDialog(
                             is FilterValue.ToggleGroup -> v.activeIds.isNotEmpty()
                             is FilterValue.Sort -> v.sortId != null && v.sortId != (field as? FilterField.SortField<*>)?.defaultSortId
                             is FilterValue.Search -> v.query.isNotBlank()
-                            is FilterValue.BooleanVal -> v.value
+                            is FilterValue.BooleanVal -> v.value != (field as? FilterField.BooleanField<*>)?.defaultValue
                             is FilterValue.Custom -> v.rawJson.isNotBlank()
                             null -> false
                         }
@@ -234,6 +234,16 @@ fun <T> UnifiedFilterDialog(
                                     currentValue = draftState[field.id] as? FilterValue.Search,
                                     onUpdate = { draftState = if (it.query.isBlank()) draftState - field.id else draftState + (field.id to it) },
                                     languageMode = languageMode
+                                )
+                            }
+
+                            is FilterField.BooleanField<T> -> {
+                                RenderBooleanField(
+                                    field = field,
+                                    currentValue = draftState[field.id] as? FilterValue.BooleanVal,
+                                    onUpdate = { draftState = draftState + (field.id to it) },
+                                    languageMode = languageMode,
+                                    accentColor = spec.accentColor
                                 )
                             }
 
@@ -629,6 +639,65 @@ private fun <T> RenderSearchField(
             .fillMaxWidth()
             .testTag("filter_search_field_${field.id}")
     )
+}
+
+@Composable
+private fun <T> RenderBooleanField(
+    field: FilterField.BooleanField<T>,
+    currentValue: FilterValue.BooleanVal?,
+    onUpdate: (FilterValue.BooleanVal) -> Unit,
+    languageMode: LanguageMode,
+    accentColor: Color
+) {
+    val isChecked = currentValue?.value ?: field.defaultValue
+    val isBangla = languageMode == LanguageMode.BANGLA
+    val subtitle = if (isBangla) field.subtitleBn else field.subtitleEn
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (isChecked != field.defaultValue) accentColor.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(
+            1.dp,
+            if (isChecked != field.defaultValue) accentColor.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onUpdate(FilterValue.BooleanVal(!isChecked)) }
+            .testTag("filter_boolean_${field.id}")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isBangla) field.titleBn else field.titleEn,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Switch(
+                checked = isChecked,
+                onCheckedChange = { onUpdate(FilterValue.BooleanVal(it)) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = accentColor
+                )
+            )
+        }
+    }
 }
 
 /**

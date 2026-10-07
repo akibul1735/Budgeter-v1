@@ -37,6 +37,14 @@ import com.example.ui.screens.WishlistFilterTab
 import com.example.ui.screens.WishlistSort
 import com.example.data.model.RequirementCalculationBasis
 import com.example.data.model.SavingsGoal
+import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
+import com.example.ui.components.filter.specs.CashFlowFilterSpec
+import com.example.ui.screens.BalanceSheetFilterState
+import com.example.ui.screens.CashFlowTabSection
+import com.example.util.BalanceSheetComparisonPreset
+import com.example.util.BalanceSheetSortOrder
+import com.example.util.CashFlowPeriodPreset
+import com.example.data.model.TransactionType
 import com.example.data.model.SavingsGoalWithDetails
 import com.example.data.model.TransactionStatus
 import com.example.data.model.WishlistItem
@@ -956,6 +964,88 @@ class SimpleScreensFilterSpecTest {
             assertEquals(sort, ItemsFilterSpec.getSortOrder(state))
         }
         assertEquals(FilterStore.DEFAULT_ITEMS_SORT_ORDER, FilterStore.mapItemsSortOrder(null))
+
+        // 18. Balance Sheet Comparison Preset
+        for (preset in BalanceSheetComparisonPreset.values()) {
+            store.clearFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.balanceSheetFilterState = BalanceSheetFilterState(preset = preset)
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+            val pVal = (state[BalanceSheetFilterSpec.FIELD_DATE] as FilterValue.Date).presetId
+            assertTrue(FilterStore.VALID_BS_PRESETS.contains(pVal))
+            assertEquals(preset, BalanceSheetFilterSpec.getDatePreset(state))
+        }
+        assertEquals(FilterStore.DEFAULT_BS_PRESET, FilterStore.mapBsPreset(null))
+
+        // 19. Balance Sheet Sort Order
+        for (sort in BalanceSheetSortOrder.values()) {
+            store.clearFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.balanceSheetFilterState = BalanceSheetFilterState(sortOrder = sort)
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+            val sVal = (state[BalanceSheetFilterSpec.FIELD_SORT] as FilterValue.Sort).sortId
+            assertTrue(FilterStore.VALID_BS_SORTS.contains(sVal))
+            assertEquals(sort, BalanceSheetFilterSpec.getSortOrder(state))
+        }
+        assertEquals(FilterStore.DEFAULT_BS_SORT, FilterStore.mapBsSort(null))
+
+        // 20. Balance Sheet Tab
+        for (tab in listOf("ALL", "ASSETS", "LIABILITIES", "invalid")) {
+            store.clearFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.balanceSheetActiveTab = tab
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+            val tVal = (state[BalanceSheetFilterSpec.FIELD_ACTIVE_TAB] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_BS_TABS.contains(tVal))
+        }
+        assertEquals(FilterStore.DEFAULT_BS_TAB, FilterStore.mapBsTab(null))
+
+        // 21. Balance Sheet Boolean Flags
+        store.clearFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+        store.resetMigrationFlagsForTesting()
+        tabFilterPrefs.balanceSheetFilterState = BalanceSheetFilterState(
+            excludeZeroAmounts = false,
+            filterNonZeroGroups = true,
+            showHiddenAccounts = true,
+            showOnlyCurrentBalance = true,
+            showOnlyAccountsWithoutGroups = true
+        )
+        store.migrateFromTabFilterPreferences(tabFilterPrefs)
+        val bsState = store.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+        assertFalse(BalanceSheetFilterSpec.getExcludeZero(bsState))
+        assertTrue(BalanceSheetFilterSpec.getFilterNonZeroGroups(bsState))
+        assertTrue(BalanceSheetFilterSpec.getShowHidden(bsState))
+        assertTrue(BalanceSheetFilterSpec.getShowOnlyCurrent(bsState))
+        assertTrue(BalanceSheetFilterSpec.getShowWithoutGroups(bsState))
+
+        // 22. Cash Flow Period Preset
+        for (preset in CashFlowPeriodPreset.values()) {
+            store.clearFilterState(CashFlowFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.cashFlowPreset = preset
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(CashFlowFilterSpec.SPEC_KEY)
+            val pVal = (state[CashFlowFilterSpec.FIELD_DATE] as FilterValue.Date).presetId
+            assertTrue(FilterStore.VALID_CASH_FLOW_PRESETS.contains(pVal))
+            assertEquals(preset, CashFlowFilterSpec.getPeriodPreset(state))
+        }
+        assertEquals(FilterStore.DEFAULT_CASH_FLOW_PRESET, FilterStore.mapCashFlowPreset(null))
+
+        // 23. Cash Flow Tab Section
+        for (sec in CashFlowTabSection.values()) {
+            store.clearFilterState(CashFlowFilterSpec.SPEC_KEY)
+            store.resetMigrationFlagsForTesting()
+            tabFilterPrefs.cashFlowSection = sec
+            store.migrateFromTabFilterPreferences(tabFilterPrefs)
+            val state = store.loadFilterState(CashFlowFilterSpec.SPEC_KEY)
+            val sVal = (state[CashFlowFilterSpec.FIELD_SECTION] as FilterValue.ToggleGroup).activeIds.first()
+            assertTrue(FilterStore.VALID_CASH_FLOW_SECTIONS.contains(sVal))
+            assertEquals(sec, CashFlowFilterSpec.getSection(state))
+        }
+        assertEquals(FilterStore.DEFAULT_CASH_FLOW_SECTION, FilterStore.mapCashFlowSection(null))
     }
 
     @Test
@@ -1065,6 +1155,202 @@ class SimpleScreensFilterSpecTest {
     }
 
     @Test
+    fun testBalanceSheetFilterSpecFiltersAndToggles() {
+        val sampleAccounts = listOf(
+            Account(id = 101L, nameEn = "City Bank", nameBn = "সিটি ব্যাংক", type = com.example.data.model.AccountType.ASSET, initialBalance = 50000.0),
+            Account(id = 102L, nameEn = "Credit Card", nameBn = "ক্রেডিট কার্ড", type = com.example.data.model.AccountType.LIABILITY, initialBalance = -10000.0)
+        )
+        val spec = BalanceSheetFilterSpec.createSpec(sampleAccounts)
+        assertEquals(BalanceSheetFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+
+        // 1. Search Query
+        state = state.withSearchQuery("City Bank", BalanceSheetFilterSpec.FIELD_SEARCH)
+        assertEquals("City Bank", BalanceSheetFilterSpec.getSearchQuery(state))
+
+        // 2. Section / Active Tab
+        state = BalanceSheetFilterSpec.withActiveTab(state, BalanceSheetFilterSpec.TAB_ASSETS)
+        assertEquals(BalanceSheetFilterSpec.TAB_ASSETS, BalanceSheetFilterSpec.getActiveTab(state))
+
+        state = BalanceSheetFilterSpec.withActiveTab(state, BalanceSheetFilterSpec.TAB_LIABILITIES)
+        assertEquals(BalanceSheetFilterSpec.TAB_LIABILITIES, BalanceSheetFilterSpec.getActiveTab(state))
+
+        state = BalanceSheetFilterSpec.withActiveTab(state, BalanceSheetFilterSpec.TAB_ALL)
+        assertEquals(BalanceSheetFilterSpec.TAB_ALL, BalanceSheetFilterSpec.getActiveTab(state))
+
+        // 3. Date Presets and Custom Dates
+        state = BalanceSheetFilterSpec.withPreset(state, BalanceSheetComparisonPreset.END_OF_LAST_MONTH)
+        assertEquals(BalanceSheetComparisonPreset.END_OF_LAST_MONTH, BalanceSheetFilterSpec.getDatePreset(state))
+
+        val dates = BalanceSheetFilterSpec.resolveComparisonDates(spec, state)
+        assertTrue(dates.first > 0L)
+        assertTrue(dates.second > 0L)
+
+        state = BalanceSheetFilterSpec.withCustomDates(state, 1700000000000L, 1705000000000L)
+        assertEquals(BalanceSheetComparisonPreset.CUSTOM, BalanceSheetFilterSpec.getDatePreset(state))
+        val customDates = BalanceSheetFilterSpec.resolveComparisonDates(spec, state)
+        assertEquals(1700000000000L, customDates.first)
+        assertEquals(1705000000000L, customDates.second)
+
+        // 4. Accounts selection
+        state = BalanceSheetFilterSpec.withAccountIds(state, setOf(101L))
+        assertEquals(setOf(101L), BalanceSheetFilterSpec.getSelectedAccountIds(state))
+
+        // 5. Statuses selection
+        state = state + (BalanceSheetFilterSpec.FIELD_STATUSES to FilterValue.Select(setOf("CLEARED", "RECONCILED")))
+        assertEquals(setOf(TransactionStatus.CLEARED, TransactionStatus.RECONCILED), BalanceSheetFilterSpec.getSelectedStatuses(state))
+
+        // 6. Sort Order
+        state = BalanceSheetFilterSpec.withSortOrder(state, BalanceSheetSortOrder.AMOUNT_ASC)
+        assertEquals(BalanceSheetSortOrder.AMOUNT_ASC, BalanceSheetFilterSpec.getSortOrder(state))
+
+        state = BalanceSheetFilterSpec.withSortOrder(state, BalanceSheetSortOrder.NAME_ASC)
+        assertEquals(BalanceSheetSortOrder.NAME_ASC, BalanceSheetFilterSpec.getSortOrder(state))
+
+        // 7. Boolean flags
+        state = BalanceSheetFilterSpec.withExcludeZero(state, false)
+        assertFalse(BalanceSheetFilterSpec.getExcludeZero(state))
+
+        state = state + (BalanceSheetFilterSpec.FIELD_FILTER_NON_ZERO_GROUPS to FilterValue.BooleanVal(true))
+        assertTrue(BalanceSheetFilterSpec.getFilterNonZeroGroups(state))
+
+        state = state + (BalanceSheetFilterSpec.FIELD_SHOW_HIDDEN to FilterValue.BooleanVal(true))
+        assertTrue(BalanceSheetFilterSpec.getShowHidden(state))
+
+        state = state + (BalanceSheetFilterSpec.FIELD_ONLY_CURRENT to FilterValue.BooleanVal(true))
+        assertTrue(BalanceSheetFilterSpec.getShowOnlyCurrent(state))
+
+        state = state + (BalanceSheetFilterSpec.FIELD_WITHOUT_GROUPS to FilterValue.BooleanVal(true))
+        assertTrue(BalanceSheetFilterSpec.getShowWithoutGroups(state))
+
+        val chips = spec.activeChips(state, LanguageMode.ENGLISH)
+        assertTrue(chips.isNotEmpty())
+        val chipsBn = spec.activeChips(state, LanguageMode.BANGLA)
+        assertTrue(chipsBn.isNotEmpty())
+    }
+
+    @Test
+    fun testCashFlowFilterSpecFiltersAndToggles() {
+        val sampleAccounts = listOf(
+            Account(id = 201L, nameEn = "Cash Wallet", nameBn = "নগদ ওয়ালেট", type = com.example.data.model.AccountType.ASSET, initialBalance = 10000.0)
+        )
+        val spec = CashFlowFilterSpec.createSpec(sampleAccounts)
+        assertEquals(CashFlowFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+
+        // 1. Search Query
+        state = CashFlowFilterSpec.withSearchQuery(state, "Salary")
+        assertEquals("Salary", CashFlowFilterSpec.getSearchQuery(state))
+
+        // 2. Period Preset
+        state = CashFlowFilterSpec.withPeriodPreset(state, CashFlowPeriodPreset.LAST_MONTH)
+        assertEquals(CashFlowPeriodPreset.LAST_MONTH, CashFlowFilterSpec.getPeriodPreset(state))
+
+        val range = CashFlowFilterSpec.resolveDateRange(spec, state)
+        assertTrue(range.first > 0L)
+        assertTrue(range.second > range.first)
+
+        state = CashFlowFilterSpec.withCustomDates(state, 1710000000000L, 1715000000000L)
+        assertEquals(CashFlowPeriodPreset.CUSTOM, CashFlowFilterSpec.getPeriodPreset(state))
+        val customRange = CashFlowFilterSpec.resolveDateRange(spec, state)
+        assertEquals(1710000000000L, customRange.first)
+        assertEquals(1715000000000L, customRange.second)
+
+        // 3. Tab Section
+        state = CashFlowFilterSpec.withSection(state, CashFlowTabSection.STATEMENT)
+        assertEquals(CashFlowTabSection.STATEMENT, CashFlowFilterSpec.getSection(state))
+
+        state = CashFlowFilterSpec.withSection(state, CashFlowTabSection.ACCOUNTS)
+        assertEquals(CashFlowTabSection.ACCOUNTS, CashFlowFilterSpec.getSection(state))
+
+        state = CashFlowFilterSpec.withSection(state, CashFlowTabSection.TRANSACTIONS)
+        assertEquals(CashFlowTabSection.TRANSACTIONS, CashFlowFilterSpec.getSection(state))
+
+        state = CashFlowFilterSpec.withSection(state, CashFlowTabSection.OVERVIEW)
+        assertEquals(CashFlowTabSection.OVERVIEW, CashFlowFilterSpec.getSection(state))
+
+        // 4. Accounts selection
+        state = CashFlowFilterSpec.withAccountIds(state, setOf(201L))
+        assertEquals(setOf(201L), CashFlowFilterSpec.getSelectedAccountIds(state))
+
+        // 5. Transaction Type
+        state = CashFlowFilterSpec.withTxType(state, TransactionType.INCOME)
+        assertEquals(TransactionType.INCOME, CashFlowFilterSpec.getTxType(state))
+
+        state = CashFlowFilterSpec.withTxType(state, TransactionType.EXPENSE)
+        assertEquals(TransactionType.EXPENSE, CashFlowFilterSpec.getTxType(state))
+
+        state = CashFlowFilterSpec.withTxType(state, TransactionType.TRANSFER)
+        assertEquals(TransactionType.TRANSFER, CashFlowFilterSpec.getTxType(state))
+
+        state = CashFlowFilterSpec.withTxType(state, null)
+        assertNull(CashFlowFilterSpec.getTxType(state))
+
+        val chips = spec.activeChips(state, LanguageMode.ENGLISH)
+        assertTrue(chips.isNotEmpty())
+    }
+
+    @Test
+    fun testBalanceSheetAndCashFlowFilterStoreRoundtrip() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FilterStore.getInstance(context)
+
+        // Balance Sheet Save & Load
+        val bsState: FilterState = mapOf(
+            BalanceSheetFilterSpec.FIELD_DATE to FilterValue.Date(
+                presetId = BalanceSheetFilterSpec.PRESET_LAST_30_DAYS,
+                startMs = 1000L,
+                endMs = 2000L
+            ),
+            BalanceSheetFilterSpec.FIELD_ACCOUNTS to FilterValue.Select(setOf("101", "102")),
+            BalanceSheetFilterSpec.FIELD_STATUSES to FilterValue.Select(setOf("CLEARED")),
+            BalanceSheetFilterSpec.FIELD_SORT to FilterValue.Sort(BalanceSheetFilterSpec.SORT_AMOUNT_ASC),
+            BalanceSheetFilterSpec.FIELD_EXCLUDE_ZERO to FilterValue.BooleanVal(false),
+            BalanceSheetFilterSpec.FIELD_FILTER_NON_ZERO_GROUPS to FilterValue.BooleanVal(true),
+            BalanceSheetFilterSpec.FIELD_SHOW_HIDDEN to FilterValue.BooleanVal(true),
+            BalanceSheetFilterSpec.FIELD_ONLY_CURRENT to FilterValue.BooleanVal(true),
+            BalanceSheetFilterSpec.FIELD_WITHOUT_GROUPS to FilterValue.BooleanVal(true),
+            BalanceSheetFilterSpec.FIELD_ACTIVE_TAB to FilterValue.ToggleGroup(setOf(BalanceSheetFilterSpec.TAB_LIABILITIES))
+        )
+        store.saveFilterState(BalanceSheetFilterSpec.SPEC_KEY, bsState)
+        val loadedBs = store.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+
+        assertEquals(BalanceSheetComparisonPreset.LAST_30_DAYS, BalanceSheetFilterSpec.getDatePreset(loadedBs))
+        assertEquals(setOf(101L, 102L), BalanceSheetFilterSpec.getSelectedAccountIds(loadedBs))
+        assertEquals(setOf(TransactionStatus.CLEARED), BalanceSheetFilterSpec.getSelectedStatuses(loadedBs))
+        assertEquals(BalanceSheetSortOrder.AMOUNT_ASC, BalanceSheetFilterSpec.getSortOrder(loadedBs))
+        assertFalse(BalanceSheetFilterSpec.getExcludeZero(loadedBs))
+        assertTrue(BalanceSheetFilterSpec.getFilterNonZeroGroups(loadedBs))
+        assertTrue(BalanceSheetFilterSpec.getShowHidden(loadedBs))
+        assertTrue(BalanceSheetFilterSpec.getShowOnlyCurrent(loadedBs))
+        assertTrue(BalanceSheetFilterSpec.getShowWithoutGroups(loadedBs))
+        assertEquals(BalanceSheetFilterSpec.TAB_LIABILITIES, BalanceSheetFilterSpec.getActiveTab(loadedBs))
+
+        // Cash Flow Save & Load
+        val cfState: FilterState = mapOf(
+            CashFlowFilterSpec.FIELD_DATE to FilterValue.Date(
+                presetId = CashFlowFilterSpec.PRESET_LAST_MONTH,
+                startMs = 5000L,
+                endMs = 6000L
+            ),
+            CashFlowFilterSpec.FIELD_SECTION to FilterValue.ToggleGroup(setOf(CashFlowFilterSpec.SEC_TRANSACTIONS)),
+            CashFlowFilterSpec.FIELD_ACCOUNTS to FilterValue.Select(setOf("201")),
+            CashFlowFilterSpec.FIELD_TX_TYPE to FilterValue.ToggleGroup(setOf(CashFlowFilterSpec.TYPE_INCOME))
+        )
+        store.saveFilterState(CashFlowFilterSpec.SPEC_KEY, cfState)
+        val loadedCf = store.loadFilterState(CashFlowFilterSpec.SPEC_KEY)
+
+        assertEquals(CashFlowPeriodPreset.LAST_MONTH, CashFlowFilterSpec.getPeriodPreset(loadedCf))
+        assertEquals(CashFlowTabSection.TRANSACTIONS, CashFlowFilterSpec.getSection(loadedCf))
+        assertEquals(setOf(201L), CashFlowFilterSpec.getSelectedAccountIds(loadedCf))
+        assertEquals(TransactionType.INCOME, CashFlowFilterSpec.getTxType(loadedCf))
+    }
+
+    @Test
     fun testSearchNeverPersistedInFilterStore() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val store = FilterStore.getInstance(context)
@@ -1088,5 +1374,25 @@ class SimpleScreensFilterSpecTest {
         val loadedItems = store.loadFilterState(ItemsFilterSpec.SPEC_KEY)
         assertEquals("", ItemsFilterSpec.getSearchQuery(loadedItems))
         assertEquals(AggregatedSortOrder.COUNT_DESC, ItemsFilterSpec.getSortOrder(loadedItems))
+
+        // Balance Sheet Search Never Persisted
+        var bsState: FilterState = mapOf(
+            BalanceSheetFilterSpec.FIELD_SEARCH to FilterValue.Search("secret balance query"),
+            BalanceSheetFilterSpec.FIELD_SORT to FilterValue.Sort(BalanceSheetFilterSpec.SORT_NAME_ASC)
+        )
+        store.saveFilterState(BalanceSheetFilterSpec.SPEC_KEY, bsState)
+        val loadedBs = store.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+        assertEquals("", BalanceSheetFilterSpec.getSearchQuery(loadedBs))
+        assertEquals(BalanceSheetSortOrder.NAME_ASC, BalanceSheetFilterSpec.getSortOrder(loadedBs))
+
+        // Cash Flow Search Never Persisted
+        var cfState: FilterState = mapOf(
+            CashFlowFilterSpec.FIELD_SEARCH to FilterValue.Search("secret cash flow query"),
+            CashFlowFilterSpec.FIELD_SECTION to FilterValue.ToggleGroup(setOf(CashFlowFilterSpec.SEC_STATEMENT))
+        )
+        store.saveFilterState(CashFlowFilterSpec.SPEC_KEY, cfState)
+        val loadedCf = store.loadFilterState(CashFlowFilterSpec.SPEC_KEY)
+        assertEquals("", CashFlowFilterSpec.getSearchQuery(loadedCf))
+        assertEquals(CashFlowTabSection.STATEMENT, CashFlowFilterSpec.getSection(loadedCf))
     }
 }

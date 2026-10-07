@@ -78,7 +78,8 @@ data class SortOptionItem<T>(
     val id: String,
     val titleEn: String,
     val titleBn: String,
-    val comparator: Comparator<T>? = null
+    val comparator: Comparator<T>? = null,
+    val icon: ImageVector? = null
 )
 
 /**
@@ -183,6 +184,20 @@ sealed interface FilterField<T> {
         val hintEn: String = "Search...",
         val hintBn: String = "অনুসন্ধান করুন...",
         val predicate: ((T, String) -> Boolean)? = null
+    ) : FilterField<T>
+
+    /**
+     * Single boolean switch toggle field (e.g., Exclude Zero Amounts, Include Inactive Accounts).
+     */
+    data class BooleanField<T>(
+        override val id: String,
+        override val titleEn: String,
+        override val titleBn: String,
+        override val subtitleEn: String? = null,
+        override val subtitleBn: String? = null,
+        override val icon: ImageVector? = null,
+        val defaultValue: Boolean = false,
+        val predicate: ((T, Boolean) -> Boolean)? = null
     ) : FilterField<T>
 
     /**

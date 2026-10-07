@@ -71,6 +71,12 @@ object FilterEngine {
                     }
                 }
 
+                is FilterField.BooleanField<T> -> {
+                    if (value is FilterValue.BooleanVal && field.predicate != null) {
+                        result = result.filter { item -> field.predicate.invoke(item, value.value) }
+                    }
+                }
+
                 is FilterField.SearchField<T> -> {
                     val q = (value as? FilterValue.Search)?.query?.trim() ?: ""
                     if (q.isNotEmpty() && field.predicate != null) {
@@ -176,6 +182,12 @@ object FilterEngine {
                     }
                 }
 
+                is FilterField.BooleanField<T> -> {
+                    if (value is FilterValue.BooleanVal && value.value != field.defaultValue) {
+                        count++
+                    }
+                }
+
                 is FilterField.SearchField<T> -> {
                     val q = (value as? FilterValue.Search)?.query?.trim() ?: ""
                     if (q.isNotEmpty()) count++
@@ -266,6 +278,11 @@ object FilterEngine {
         } else if (chipId.startsWith("sort_")) {
             val fieldId = chipId.removePrefix("sort_")
             return state - fieldId
+        } else if (chipId.startsWith("bool_")) {
+            val fieldId = chipId.removePrefix("bool_")
+            val field = spec.fields.firstOrNull { it.id == fieldId } as? FilterField.BooleanField<*>
+            val defVal = field?.defaultValue ?: false
+            return state + (fieldId to FilterValue.BooleanVal(defVal))
         } else if (chipId.startsWith("custom_")) {
             val fieldId = chipId.removePrefix("custom_")
             return state - fieldId
@@ -428,6 +445,20 @@ object FilterEngine {
                         chips.add(
                             UnifiedFilterChipItem(
                                 id = "custom_${field.id}",
+                                fieldId = field.id,
+                                label = if (isBangla) field.titleBn else field.titleEn,
+                                icon = field.icon,
+                                color = spec.accentColor
+                            )
+                        )
+                    }
+                }
+
+                is FilterField.BooleanField<T> -> {
+                    if (value is FilterValue.BooleanVal && value.value != field.defaultValue) {
+                        chips.add(
+                            UnifiedFilterChipItem(
+                                id = "bool_${field.id}",
                                 fieldId = field.id,
                                 label = if (isBangla) field.titleBn else field.titleEn,
                                 icon = field.icon,

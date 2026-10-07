@@ -83,6 +83,12 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.CashFlowFilterSpec
 import com.example.ui.screens.dashboard.AccountMultiSelectFilterDialog
 import com.example.util.CashFlowAccountItem
 import com.example.util.CashFlowCategoryItem
@@ -92,6 +98,7 @@ import com.example.util.CashFlowPeriodBar
 import com.example.util.CashFlowPeriodPreset
 import com.example.util.CashFlowSummary
 import com.example.util.DateUtils
+import com.example.util.FilterStore
 import com.example.util.IconHelper
 import androidx.compose.runtime.LaunchedEffect
 import com.example.util.LanguageHelper
@@ -125,26 +132,28 @@ fun CashFlowScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    val filterStore = remember { FilterStore.getInstance(context) }
+    var filterState by remember { mutableStateOf(filterStore.loadFilterState(CashFlowFilterSpec.SPEC_KEY)) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showFilterDialog by remember { mutableStateOf(false) }
 
-    var selectedPreset by remember { mutableStateOf(tabFilterPrefs.cashFlowPreset) }
-    var customStartMs by remember { mutableStateOf(0L) }
-    var customEndMs by remember { mutableStateOf(0L) }
-    var selectedSection by remember { mutableStateOf(tabFilterPrefs.cashFlowSection) }
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.cashFlowSearchQuery) }
-    var selectedTxFilter by remember { mutableStateOf<TransactionType?>(null) }
-    var selectedAccountIds by remember { mutableStateOf<Set<Long>?>(null) }
-    var showAccountFilterDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(selectedPreset, selectedSection, searchQuery) {
-        tabFilterPrefs.cashFlowPreset = selectedPreset
-        tabFilterPrefs.cashFlowSection = selectedSection
-        tabFilterPrefs.cashFlowSearchQuery = searchQuery
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(CashFlowFilterSpec.SPEC_KEY, newState)
     }
 
+    val cashFlowSpec = remember(allAccounts) { CashFlowFilterSpec.createSpec(allAccounts) }
+
+    val selectedPreset = remember(filterState) { CashFlowFilterSpec.getPeriodPreset(filterState) }
+    var customStartMs by remember { mutableStateOf(0L) }
+    var customEndMs by remember { mutableStateOf(0L) }
+    val selectedSection = remember(filterState) { CashFlowFilterSpec.getSection(filterState) }
+    val selectedTxFilter = remember(filterState) { CashFlowFilterSpec.getTxType(filterState) }
+    val selectedAccountIds = remember(filterState) { CashFlowFilterSpec.getSelectedAccountIds(filterState) }
+
     // Date range resolution
-    val dateRange = remember(selectedPreset, customStartMs, customEndMs) {
-        CashFlowHelper.getDateRangeForPreset(selectedPreset, customStartMs, customEndMs)
+    val dateRange = remember(cashFlowSpec, filterState, customStartMs, customEndMs) {
+        CashFlowFilterSpec.resolveDateRange(cashFlowSpec, filterState, customStartMs, customEndMs)
     }
 
     // Cash flow calculation
@@ -193,7 +202,11 @@ fun CashFlowScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন..." else "Search cash transactions...",
-                showSearchButton = true
+                showSearchButton = true,
+                showFilterButton = true,
+                isFilterActive = cashFlowSpec.isActive(filterState),
+                activeFilterCount = cashFlowSpec.activeFilterCount(filterState),
+                onFilterClick = { showFilterDialog = true }
             )
         },
         floatingActionButton = {
@@ -247,7 +260,7 @@ fun CashFlowScreen(
                                                         val end = cal.timeInMillis
                                                         customStartMs = start
                                                         customEndMs = end
-                                                        selectedPreset = CashFlowPeriodPreset.CUSTOM
+                                                        updateFilterState(CashFlowFilterSpec.withCustomDates(filterState, start, end))
                                                     },
                                                     y, m, d
                                                 ).show()
@@ -257,7 +270,7 @@ fun CashFlowScreen(
                                             cal.get(Calendar.DAY_OF_MONTH)
                                         ).show()
                                     } else {
-                                        selectedPreset = preset
+                                        updateFilterState(CashFlowFilterSpec.withPeriodPreset(filterState, preset))
                                     }
                                 }
                         ) {
@@ -286,6 +299,17 @@ fun CashFlowScreen(
                 }
             }
 
+            // Active Filter Bar
+            item {
+                UnifiedActiveFilterBar(
+                    spec = cashFlowSpec,
+                    state = filterState,
+                    onFilterChange = { updateFilterState(it) },
+                    languageMode = languageMode,
+                    onOpenFilterDialog = { showFilterDialog = true }
+                )
+            }
+
             // Account Filter Selection Bar
             item {
                 Surface(
@@ -300,7 +324,7 @@ fun CashFlowScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .clickable { showAccountFilterDialog = true }
+                        .clickable { showFilterDialog = true }
                 ) {
                     Row(
                         modifier = Modifier
@@ -396,7 +420,7 @@ fun CashFlowScreen(
                                 shadowElevation = if (isSelected) 2.dp else 0.dp,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clickable { selectedSection = section }
+                                    .clickable { updateFilterState(CashFlowFilterSpec.withSection(filterState, section)) }
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 8.dp),
@@ -490,22 +514,22 @@ fun CashFlowScreen(
                             FilterChip(
                                 label = if (languageMode == LanguageMode.BANGLA) "সকল (${summary.transactions.size})" else "All (${summary.transactions.size})",
                                 isSelected = selectedTxFilter == null,
-                                onClick = { selectedTxFilter = null }
+                                onClick = { updateFilterState(CashFlowFilterSpec.withTxType(filterState, null)) }
                             )
                             FilterChip(
                                 label = if (languageMode == LanguageMode.BANGLA) "আয় / আগমন" else "Incomes",
                                 isSelected = selectedTxFilter == TransactionType.INCOME,
-                                onClick = { selectedTxFilter = TransactionType.INCOME }
+                                onClick = { updateFilterState(CashFlowFilterSpec.withTxType(filterState, TransactionType.INCOME)) }
                             )
                             FilterChip(
                                 label = if (languageMode == LanguageMode.BANGLA) "ব্যয় / নির্গমন" else "Expenses",
                                 isSelected = selectedTxFilter == TransactionType.EXPENSE,
-                                onClick = { selectedTxFilter = TransactionType.EXPENSE }
+                                onClick = { updateFilterState(CashFlowFilterSpec.withTxType(filterState, TransactionType.EXPENSE)) }
                             )
                             FilterChip(
                                 label = if (languageMode == LanguageMode.BANGLA) "স্থানান্তর / ঋণ" else "Transfers",
                                 isSelected = selectedTxFilter == TransactionType.TRANSFER,
-                                onClick = { selectedTxFilter = TransactionType.TRANSFER }
+                                onClick = { updateFilterState(CashFlowFilterSpec.withTxType(filterState, TransactionType.TRANSFER)) }
                             )
                         }
                     }
@@ -534,15 +558,29 @@ fun CashFlowScreen(
             }
         }
 
-        if (showAccountFilterDialog) {
-            AccountMultiSelectFilterDialog(
-                allAccounts = allAccounts,
-                selectedAccountIds = selectedAccountIds,
+        if (showFilterDialog) {
+            UnifiedFilterDialog(
+                spec = cashFlowSpec,
+                initialState = filterState,
                 languageMode = languageMode,
-                onDismiss = { showAccountFilterDialog = false },
-                onApply = { newSelected ->
-                    selectedAccountIds = newSelected
-                    showAccountFilterDialog = false
+                onDismiss = { showFilterDialog = false },
+                onApply = { newFilter ->
+                    updateFilterState(newFilter)
+                    showFilterDialog = false
+                },
+                countProvider = { state ->
+                    val (sMs, eMs) = CashFlowFilterSpec.resolveDateRange(cashFlowSpec, state, customStartMs, customEndMs)
+                    val accIds = CashFlowFilterSpec.getSelectedAccountIds(state)
+                    val txT = CashFlowFilterSpec.getTxType(state)
+                    transactionsWithDetails.count { tw ->
+                        val tx = tw.transaction
+                        val inDate = tx.dateEpochMs in sMs..eMs
+                        val matchesType = txT == null || tx.type == txT
+                        val matchesAcc = accIds == null ||
+                                (tx.debitAccountId != null && tx.debitAccountId in accIds) ||
+                                (tx.creditAccountId != null && tx.creditAccountId in accIds)
+                        inDate && matchesType && matchesAcc
+                    }
                 }
             )
         }

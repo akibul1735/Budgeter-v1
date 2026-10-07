@@ -117,6 +117,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.UnifiedActiveFilterBar
+import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
+import com.example.util.FilterStore
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
@@ -329,10 +336,15 @@ fun BalanceSheetScreen(
     onResetAccountCalculation: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+    val filterStore = remember { FilterStore.getInstance(context) }
+    var filterState by remember { mutableStateOf(filterStore.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)) }
+    val updateFilterState: (FilterState) -> Unit = { newState ->
+        filterState = newState
+        filterStore.saveFilterState(BalanceSheetFilterSpec.SPEC_KEY, newState)
+    }
 
-    // Active Filter State
-    var filterState by remember { mutableStateOf(tabFilterPrefs.balanceSheetFilterState) }
+    val balanceSheetSpec = remember(accounts) { BalanceSheetFilterSpec.createSpec(accounts) }
+
     var showTimelineScreen by remember { mutableStateOf(false) }
 
     if (showTimelineScreen) {
@@ -346,13 +358,28 @@ fun BalanceSheetScreen(
     }
 
     var baseDateMs by remember {
-        val defaultBase = tabFilterPrefs.balanceSheetBaseDateMs ?: BalanceSheetHelper.getPresetDateRanges(filterState.preset).first
+        val defaultBase = BalanceSheetHelper.getPresetDateRanges(BalanceSheetFilterSpec.getDatePreset(filterState)).first
         mutableStateOf(defaultBase)
     }
     var compareDateMs by remember {
-        val defaultCompare = tabFilterPrefs.balanceSheetCompareDateMs ?: BalanceSheetHelper.getPresetDateRanges(filterState.preset).second
+        val defaultCompare = BalanceSheetHelper.getPresetDateRanges(BalanceSheetFilterSpec.getDatePreset(filterState)).second
         mutableStateOf(defaultCompare)
     }
+
+    val (resolvedBaseMs, resolvedCompareMs) = remember(balanceSheetSpec, filterState, baseDateMs, compareDateMs) {
+        BalanceSheetFilterSpec.resolveComparisonDates(balanceSheetSpec, filterState, baseDateMs, compareDateMs)
+    }
+
+    val selectedPreset = remember(filterState) { BalanceSheetFilterSpec.getDatePreset(filterState) }
+    val selectedAccountIds = remember(filterState) { BalanceSheetFilterSpec.getSelectedAccountIds(filterState) }
+    val selectedStatusSet = remember(filterState) { BalanceSheetFilterSpec.getSelectedStatuses(filterState) }
+    val sortOrder = remember(filterState) { BalanceSheetFilterSpec.getSortOrder(filterState) }
+    val excludeZeroAmounts = remember(filterState) { BalanceSheetFilterSpec.getExcludeZero(filterState) }
+    val filterNonZeroGroups = remember(filterState) { BalanceSheetFilterSpec.getFilterNonZeroGroups(filterState) }
+    val showHiddenAccounts = remember(filterState) { BalanceSheetFilterSpec.getShowHidden(filterState) }
+    val showOnlyCurrentBalance = remember(filterState) { BalanceSheetFilterSpec.getShowOnlyCurrent(filterState) }
+    val showOnlyAccountsWithoutGroups = remember(filterState) { BalanceSheetFilterSpec.getShowWithoutGroups(filterState) }
+    val activeTabMode = remember(filterState) { BalanceSheetFilterSpec.getActiveTab(filterState) }
 
     // Modal Filter Dialog & Calculation Mode
     var showFilterDialog by remember { mutableStateOf(false) }
@@ -361,17 +388,8 @@ fun BalanceSheetScreen(
     var isCalcMode by remember { mutableStateOf(false) }
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
     var isDualDateFlow by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf(tabFilterPrefs.balanceSheetSearchQuery) }
-    var activeTabMode by remember { mutableStateOf(tabFilterPrefs.balanceSheetActiveTab) } // "ASSETS" or "LIABILITIES"
+    var searchQuery by remember { mutableStateOf("") }
     var isSpeedDialExpanded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(filterState, searchQuery, activeTabMode, baseDateMs, compareDateMs) {
-        tabFilterPrefs.balanceSheetFilterState = filterState
-        tabFilterPrefs.balanceSheetSearchQuery = searchQuery
-        tabFilterPrefs.balanceSheetActiveTab = activeTabMode
-        tabFilterPrefs.balanceSheetBaseDateMs = baseDateMs
-        tabFilterPrefs.balanceSheetCompareDateMs = compareDateMs
-    }
 
     // Counts for Excluded and Inactive accounts
     val excludedAccountsCount = remember(accounts, accountCalcConfig) {
@@ -392,29 +410,36 @@ fun BalanceSheetScreen(
     val balanceSheetData = remember(
         accounts,
         transactions,
-        baseDateMs,
-        compareDateMs,
-        filterState,
+        resolvedBaseMs,
+        resolvedCompareMs,
+        selectedPreset,
+        selectedAccountIds,
+        selectedStatusSet,
+        showHiddenAccounts,
+        excludeZeroAmounts,
+        filterNonZeroGroups,
+        sortOrder,
         searchQuery,
         accountCalcConfig,
+        showOnlyAccountsWithoutGroups,
         languageMode
     ) {
         BalanceSheetHelper.calculateBalanceSheet(
             accounts = accounts,
             transactions = transactions,
-            baseDateEpochMs = baseDateMs,
-            compareDateEpochMs = compareDateMs,
-            preset = filterState.preset,
-            selectedAccountIds = filterState.selectedAccountIds,
-            selectedStatusSet = filterState.selectedStatusSet,
-            activeOnly = !filterState.showHiddenAccounts,
-            showHiddenAccounts = filterState.showHiddenAccounts,
-            excludeZeroAmounts = filterState.excludeZeroAmounts,
-            filterNonZeroGroups = filterState.filterNonZeroGroups,
-            sortOrder = filterState.sortOrder,
+            baseDateEpochMs = resolvedBaseMs,
+            compareDateEpochMs = resolvedCompareMs,
+            preset = selectedPreset,
+            selectedAccountIds = selectedAccountIds,
+            selectedStatusSet = selectedStatusSet,
+            activeOnly = !showHiddenAccounts,
+            showHiddenAccounts = showHiddenAccounts,
+            excludeZeroAmounts = excludeZeroAmounts,
+            filterNonZeroGroups = filterNonZeroGroups,
+            sortOrder = sortOrder,
             searchQuery = searchQuery,
             accountCalcConfig = accountCalcConfig,
-            showOnlyAccountsWithoutGroups = filterState.showOnlyAccountsWithoutGroups,
+            showOnlyAccountsWithoutGroups = showOnlyAccountsWithoutGroups,
             languageMode = languageMode
         )
     }
@@ -432,7 +457,8 @@ fun BalanceSheetScreen(
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts...",
                 showSearchButton = true,
                 showFilterButton = true,
-                isFilterActive = filterState.isFilterActive,
+                isFilterActive = balanceSheetSpec.isActive(filterState),
+                activeFilterCount = balanceSheetSpec.activeFilterCount(filterState),
                 onFilterClick = { showFilterDialog = true },
                 showTimelineButton = true,
                 onTimelineClick = { showTimelineScreen = true },
@@ -441,7 +467,7 @@ fun BalanceSheetScreen(
                     ExportMenuButton(
                         languageMode = languageMode,
                         onExport = { format ->
-                            val isComparison = !filterState.showOnlyCurrentBalance && balanceSheetData.baseDateLabel.isNotBlank()
+                            val isComparison = !showOnlyCurrentBalance && balanceSheetData.baseDateLabel.isNotBlank()
                             val asOfDateLabel = if (isComparison) {
                                 "${balanceSheetData.compareDateLabel} vs ${balanceSheetData.baseDateLabel}"
                             } else {
@@ -477,20 +503,20 @@ fun BalanceSheetScreen(
                     .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)
             ) {
                 ComparisonDatesCard(
-                    preset = filterState.preset,
+                    preset = selectedPreset,
                     baseDateLabel = balanceSheetData.baseDateLabel,
                     compareDateLabel = balanceSheetData.compareDateLabel,
-                    showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                    showOnlyCurrentBalance = showOnlyCurrentBalance,
                     languageMode = languageMode,
                     isCalcMode = isCalcMode,
-                    sortOrder = filterState.sortOrder,
+                    sortOrder = sortOrder,
                     onToggleSortOrder = {
-                        val nextSort = if (filterState.sortOrder == BalanceSheetSortOrder.NAME_ASC || filterState.sortOrder == BalanceSheetSortOrder.DEFAULT) {
+                        val nextSort = if (sortOrder == BalanceSheetSortOrder.NAME_ASC || sortOrder == BalanceSheetSortOrder.DEFAULT) {
                             BalanceSheetSortOrder.AMOUNT_DESC
                         } else {
                             BalanceSheetSortOrder.NAME_ASC
                         }
-                        filterState = filterState.copy(sortOrder = nextSort)
+                        updateFilterState(BalanceSheetFilterSpec.withSortOrder(filterState, nextSort))
                     },
                     onToggleCalcMode = { isCalcMode = !isCalcMode },
                     onOpenFilter = { showFilterDialog = true },
@@ -509,6 +535,21 @@ fun BalanceSheetScreen(
                 )
             }
 
+            // Active Filter Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
+            ) {
+                UnifiedActiveFilterBar(
+                    spec = balanceSheetSpec,
+                    state = filterState,
+                    onFilterChange = { updateFilterState(it) },
+                    languageMode = languageMode,
+                    onOpenFilterDialog = { showFilterDialog = true }
+                )
+            }
+
             // Top Collapsible Summary Card (Smoothly transitions between full NetWorthSummaryCard and MiniNetWorthSummaryCard)
             AnimatedContent(
                 targetState = collapsibleCardState.isCollapsed,
@@ -522,17 +563,17 @@ fun BalanceSheetScreen(
                     Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
                         NetWorthSummaryCard(
                             data = balanceSheetData,
-                            displayCurrency = filterState.displayCurrency,
-                            displayCurrencySymbol = filterState.displayCurrencySymbol,
-                            showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                            displayCurrency = true,
+                            displayCurrencySymbol = true,
+                            showOnlyCurrentBalance = showOnlyCurrentBalance,
                             languageMode = languageMode
                         )
                     }
                 } else {
                     MiniNetWorthSummaryCard(
                         data = balanceSheetData,
-                        displayCurrency = filterState.displayCurrency,
-                        displayCurrencySymbol = filterState.displayCurrencySymbol,
+                        displayCurrency = true,
+                        displayCurrencySymbol = true,
                         languageMode = languageMode
                     )
                 }
@@ -546,16 +587,16 @@ fun BalanceSheetScreen(
                     .nestedScroll(collapsibleCardState.createNestedScrollConnection(listState)),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 88.dp)
             ) {
-                // Sections based on activeTabMode ("ALL", "ASSETS", or "LIABILITIES")
-                if (activeTabMode == "ALL" || activeTabMode == "ASSETS") {
+                // Sections based on activeTabMode ("all", "assets", or "liabilities")
+                if (activeTabMode == BalanceSheetFilterSpec.TAB_ALL || activeTabMode == BalanceSheetFilterSpec.TAB_ASSETS) {
                     item(key = "section_header_assets") {
                         SectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "সম্পদ (ASSETS)" else "ASSETS",
                             baseAmount = balanceSheetData.totalAssetsBase,
                             currentAmount = balanceSheetData.totalAssetsCurrent,
-                            displayCurrency = filterState.displayCurrency,
-                            displayCurrencySymbol = filterState.displayCurrencySymbol,
-                            showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                            displayCurrency = true,
+                            displayCurrencySymbol = true,
+                            showOnlyCurrentBalance = showOnlyCurrentBalance,
                             headerColor = MaterialTheme.colorScheme.primary,
                             languageMode = languageMode
                         )
@@ -575,9 +616,9 @@ fun BalanceSheetScreen(
                                 isExpanded = isExpanded,
                                 isCalcMode = isCalcMode,
                                 accountCalcConfig = accountCalcConfig,
-                                displayCurrency = filterState.displayCurrency,
-                                displayCurrencySymbol = filterState.displayCurrencySymbol,
-                                showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                                displayCurrency = true,
+                                displayCurrencySymbol = true,
+                                showOnlyCurrentBalance = showOnlyCurrentBalance,
                                 languageMode = languageMode,
                                 onToggleExpand = {
                                     expandedMap[group.parentAccount.id] = !isExpanded
@@ -595,21 +636,21 @@ fun BalanceSheetScreen(
                     }
                 }
 
-                if (activeTabMode == "ALL") {
+                if (activeTabMode == BalanceSheetFilterSpec.TAB_ALL) {
                     item(key = "assets_liabilities_spacer") {
                         Spacer(modifier = Modifier.height(14.dp))
                     }
                 }
 
-                if (activeTabMode == "ALL" || activeTabMode == "LIABILITIES") {
+                if (activeTabMode == BalanceSheetFilterSpec.TAB_ALL || activeTabMode == BalanceSheetFilterSpec.TAB_LIABILITIES) {
                     item(key = "section_header_liabilities") {
                         SectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "দায় (LIABILITIES)" else "LIABILITIES",
                             baseAmount = balanceSheetData.totalLiabilitiesBase,
                             currentAmount = balanceSheetData.totalLiabilitiesCurrent,
-                            displayCurrency = filterState.displayCurrency,
-                            displayCurrencySymbol = filterState.displayCurrencySymbol,
-                            showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                            displayCurrency = true,
+                            displayCurrencySymbol = true,
+                            showOnlyCurrentBalance = showOnlyCurrentBalance,
                             headerColor = SolidExpense,
                             languageMode = languageMode
                         )
@@ -629,9 +670,9 @@ fun BalanceSheetScreen(
                                 isExpanded = isExpanded,
                                 isCalcMode = isCalcMode,
                                 accountCalcConfig = accountCalcConfig,
-                                displayCurrency = filterState.displayCurrency,
-                                displayCurrencySymbol = filterState.displayCurrencySymbol,
-                                showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                                displayCurrency = true,
+                                displayCurrencySymbol = true,
+                                showOnlyCurrentBalance = showOnlyCurrentBalance,
                                 languageMode = languageMode,
                                 onToggleExpand = {
                                     expandedMap[group.parentAccount.id] = !isExpanded
@@ -906,14 +947,15 @@ fun BalanceSheetScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // 1. Assets Button
-                        val isAssets = activeTabMode == "ASSETS"
+                        val isAssets = activeTabMode == BalanceSheetFilterSpec.TAB_ASSETS
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = if (isAssets) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .clickable { activeTabMode = "ASSETS" }
+                                .clickable { updateFilterState(BalanceSheetFilterSpec.withActiveTab(filterState, BalanceSheetFilterSpec.TAB_ASSETS)) }
+                                .testTag("balance_sheet_tab_assets")
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxSize(),
@@ -938,14 +980,15 @@ fun BalanceSheetScreen(
                         }
 
                         // 2. All Button (Middle - Default)
-                        val isAll = activeTabMode == "ALL"
+                        val isAll = activeTabMode == BalanceSheetFilterSpec.TAB_ALL
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = if (isAll) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .clickable { activeTabMode = "ALL" }
+                                .clickable { updateFilterState(BalanceSheetFilterSpec.withActiveTab(filterState, BalanceSheetFilterSpec.TAB_ALL)) }
+                                .testTag("balance_sheet_tab_all")
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxSize(),
@@ -970,14 +1013,15 @@ fun BalanceSheetScreen(
                         }
 
                         // 3. Liabilities Button
-                        val isLiabilities = activeTabMode == "LIABILITIES"
+                        val isLiabilities = activeTabMode == BalanceSheetFilterSpec.TAB_LIABILITIES
                         Surface(
                             shape = RoundedCornerShape(20.dp),
                             color = if (isLiabilities) SolidExpense.copy(alpha = 0.16f) else Color.Transparent,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .clickable { activeTabMode = "LIABILITIES" }
+                                .clickable { updateFilterState(BalanceSheetFilterSpec.withActiveTab(filterState, BalanceSheetFilterSpec.TAB_LIABILITIES)) }
+                                .testTag("balance_sheet_tab_liabilities")
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxSize(),
@@ -1063,43 +1107,21 @@ fun BalanceSheetScreen(
         )
     }
 
-    // Material Style Filter Dialog
+    // Unified Filter Dialog
     if (showFilterDialog) {
-        MaterialBalanceSheetFilterDialog(
-            currentState = filterState,
-            accounts = accounts,
+        UnifiedFilterDialog(
+            spec = balanceSheetSpec,
+            initialState = filterState,
             languageMode = languageMode,
-            baseDateMs = baseDateMs,
-            compareDateMs = compareDateMs,
-            onApply = { newState ->
-                filterState = newState
-                if (newState.preset == BalanceSheetComparisonPreset.CUSTOM &&
-                    newState.customBaseDateMs != null && newState.customCompareDateMs != null) {
-                    baseDateMs = newState.customBaseDateMs
-                    compareDateMs = newState.customCompareDateMs
-                } else {
-                    val (b, c) = BalanceSheetHelper.getPresetDateRanges(newState.preset)
-                    baseDateMs = b
-                    compareDateMs = c
-                }
+            onDismiss = { showFilterDialog = false },
+            onApply = { newFilter ->
+                updateFilterState(newFilter)
                 showFilterDialog = false
             },
-            onSelectCustomDates = {
-                showFilterDialog = false
-                isDualDateFlow = true
-                showBaseDatePicker = true
-            },
-            onSelectBaseDate = {
-                showFilterDialog = false
-                isDualDateFlow = false
-                showBaseDatePicker = true
-            },
-            onSelectCompareDate = {
-                showFilterDialog = false
-                isDualDateFlow = false
-                showCompareDatePicker = true
-            },
-            onDismiss = { showFilterDialog = false }
+            countProvider = { state ->
+                val accIds = BalanceSheetFilterSpec.getSelectedAccountIds(state)
+                if (accIds.isEmpty()) accounts.size else accIds.size
+            }
         )
     }
 
@@ -1116,11 +1138,7 @@ fun BalanceSheetScreen(
                         if (isDualDateFlow) {
                             showCompareDatePicker = true
                         } else {
-                            filterState = filterState.copy(
-                                preset = BalanceSheetComparisonPreset.CUSTOM,
-                                customBaseDateMs = it,
-                                customCompareDateMs = compareDateMs
-                            )
+                            updateFilterState(BalanceSheetFilterSpec.withCustomDates(filterState, it, compareDateMs))
                         }
                     }
                 }) {
@@ -1160,11 +1178,7 @@ fun BalanceSheetScreen(
                     dateState.selectedDateMillis?.let {
                         compareDateMs = it
                         showCompareDatePicker = false
-                        filterState = filterState.copy(
-                            preset = BalanceSheetComparisonPreset.CUSTOM,
-                            customBaseDateMs = baseDateMs,
-                            customCompareDateMs = it
-                        )
+                        updateFilterState(BalanceSheetFilterSpec.withCustomDates(filterState, baseDateMs, it))
                     }
                 }) {
                     Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ" else "Apply")

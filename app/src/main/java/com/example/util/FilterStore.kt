@@ -26,6 +26,8 @@ class FilterStore private constructor(context: Context) {
         const val KEY_MIGRATED_RM_MANAGER = "migrated_rm_manager_v1"
         const val KEY_MIGRATED_ACCOUNTS = "migrated_accounts_v1"
         const val KEY_MIGRATED_ITEMS = "migrated_items_v1"
+        const val KEY_MIGRATED_BALANCE_SHEET = "migrated_balance_sheet_v1"
+        const val KEY_MIGRATED_CASH_FLOW = "migrated_cash_flow_v1"
 
         val VALID_LABELS_DATE_PRESETS = setOf(
             "this_month", "last_month", "this_week", "today", "yesterday",
@@ -421,6 +423,106 @@ class FilterStore private constructor(context: Context) {
             }
         }
 
+        // Balance Sheet Mappings
+        val VALID_BS_PRESETS = setOf(
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_THIS_MONTH,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_END_OF_LAST_MONTH,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_BEGINNING_OF_MONTH,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_LAST_12_MONTHS,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_PREVIOUS_MONTH,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_BEGINNING_OF_YEAR,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_LAST_30_DAYS,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_TODAY,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_CUSTOM
+        )
+        const val DEFAULT_BS_PRESET = com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_THIS_MONTH
+
+        fun mapBsPreset(preset: com.example.util.BalanceSheetComparisonPreset?): String {
+            return when (preset) {
+                com.example.util.BalanceSheetComparisonPreset.THIS_MONTH -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_THIS_MONTH
+                com.example.util.BalanceSheetComparisonPreset.END_OF_LAST_MONTH -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_END_OF_LAST_MONTH
+                com.example.util.BalanceSheetComparisonPreset.BEGINNING_OF_MONTH -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_BEGINNING_OF_MONTH
+                com.example.util.BalanceSheetComparisonPreset.LAST_12_MONTHS -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_LAST_12_MONTHS
+                com.example.util.BalanceSheetComparisonPreset.PREVIOUS_MONTH -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_PREVIOUS_MONTH
+                com.example.util.BalanceSheetComparisonPreset.BEGINNING_OF_YEAR -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_BEGINNING_OF_YEAR
+                com.example.util.BalanceSheetComparisonPreset.LAST_30_DAYS -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_LAST_30_DAYS
+                com.example.util.BalanceSheetComparisonPreset.TODAY -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_TODAY
+                com.example.util.BalanceSheetComparisonPreset.CUSTOM -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.PRESET_CUSTOM
+                null -> DEFAULT_BS_PRESET
+            }
+        }
+
+        val VALID_BS_SORTS = setOf(
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_DESC,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_ASC,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_NAME_ASC,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_DEFAULT
+        )
+        const val DEFAULT_BS_SORT = com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_DESC
+
+        fun mapBsSort(sort: com.example.util.BalanceSheetSortOrder?): String {
+            return when (sort) {
+                com.example.util.BalanceSheetSortOrder.AMOUNT_DESC -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_DESC
+                com.example.util.BalanceSheetSortOrder.AMOUNT_ASC -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_ASC
+                com.example.util.BalanceSheetSortOrder.NAME_ASC -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_NAME_ASC
+                com.example.util.BalanceSheetSortOrder.DEFAULT -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_DEFAULT
+                null -> DEFAULT_BS_SORT
+            }
+        }
+
+        val VALID_BS_TABS = setOf(
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.TAB_ALL,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.TAB_ASSETS,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.TAB_LIABILITIES
+        )
+        const val DEFAULT_BS_TAB = com.example.ui.components.filter.specs.BalanceSheetFilterSpec.TAB_ALL
+
+        fun mapBsTab(tab: String?): String {
+            val lower = tab?.lowercase() ?: return DEFAULT_BS_TAB
+            return if (lower in VALID_BS_TABS) lower else DEFAULT_BS_TAB
+        }
+
+        // Cash Flow Mappings
+        val VALID_CASH_FLOW_PRESETS = setOf(
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_THIS_MONTH,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_LAST_MONTH,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_LAST_3_MONTHS,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_THIS_YEAR,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_ALL_TIME,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_CUSTOM
+        )
+        const val DEFAULT_CASH_FLOW_PRESET = com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_THIS_MONTH
+
+        fun mapCashFlowPreset(preset: com.example.util.CashFlowPeriodPreset?): String {
+            return when (preset) {
+                com.example.util.CashFlowPeriodPreset.THIS_MONTH -> com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_THIS_MONTH
+                com.example.util.CashFlowPeriodPreset.LAST_MONTH -> com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_LAST_MONTH
+                com.example.util.CashFlowPeriodPreset.LAST_3_MONTHS -> com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_LAST_3_MONTHS
+                com.example.util.CashFlowPeriodPreset.THIS_YEAR -> com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_THIS_YEAR
+                com.example.util.CashFlowPeriodPreset.ALL_TIME -> com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_ALL_TIME
+                com.example.util.CashFlowPeriodPreset.CUSTOM -> com.example.ui.components.filter.specs.CashFlowFilterSpec.PRESET_CUSTOM
+                null -> DEFAULT_CASH_FLOW_PRESET
+            }
+        }
+
+        val VALID_CASH_FLOW_SECTIONS = setOf(
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_OVERVIEW,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_STATEMENT,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_ACCOUNTS,
+            com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_TRANSACTIONS
+        )
+        const val DEFAULT_CASH_FLOW_SECTION = com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_OVERVIEW
+
+        fun mapCashFlowSection(section: com.example.ui.screens.CashFlowTabSection?): String {
+            return when (section) {
+                com.example.ui.screens.CashFlowTabSection.OVERVIEW -> com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_OVERVIEW
+                com.example.ui.screens.CashFlowTabSection.STATEMENT -> com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_STATEMENT
+                com.example.ui.screens.CashFlowTabSection.ACCOUNTS -> com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_ACCOUNTS
+                com.example.ui.screens.CashFlowTabSection.TRANSACTIONS -> com.example.ui.components.filter.specs.CashFlowFilterSpec.SEC_TRANSACTIONS
+                null -> DEFAULT_CASH_FLOW_SECTION
+            }
+        }
+
         @Volatile
         private var instance: FilterStore? = null
 
@@ -628,6 +730,8 @@ class FilterStore private constructor(context: Context) {
             .remove(KEY_MIGRATED_RM_MANAGER)
             .remove(KEY_MIGRATED_ACCOUNTS)
             .remove(KEY_MIGRATED_ITEMS)
+            .remove(KEY_MIGRATED_BALANCE_SHEET)
+            .remove(KEY_MIGRATED_CASH_FLOW)
             .remove("migrated_tab_filter_preferences_v1")
             .commit()
     }
@@ -819,6 +923,76 @@ class FilterStore private constructor(context: Context) {
             }
         } catch (e: Exception) {
             System.err.println("Items migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 9. Migrate BalanceSheetScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_BALANCE_SHEET, false)) {
+                val bsKey = "filter_${com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(bsKey)) {
+                    val bsState = mutableMapOf<String, FilterValue>()
+                    val oldBs = tabFilterPrefs.balanceSheetFilterState
+                    val presetId = mapBsPreset(oldBs.preset)
+                    val baseDate = tabFilterPrefs.balanceSheetBaseDateMs ?: oldBs.customBaseDateMs
+                    val compareDate = tabFilterPrefs.balanceSheetCompareDateMs ?: oldBs.customCompareDateMs
+                    bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_DATE] = FilterValue.Date(
+                        presetId = presetId,
+                        startMs = baseDate,
+                        endMs = compareDate
+                    )
+                    if (oldBs.selectedAccountIds.isNotEmpty()) {
+                        bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_ACCOUNTS] = FilterValue.Select(
+                            oldBs.selectedAccountIds.map { it.toString() }.toSet()
+                        )
+                    }
+                    if (oldBs.selectedStatusSet.isNotEmpty()) {
+                        bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_STATUSES] = FilterValue.Select(
+                            oldBs.selectedStatusSet.map { it.name }.toSet()
+                        )
+                    }
+                    val sortId = mapBsSort(oldBs.sortOrder)
+                    bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_SORT] = FilterValue.Sort(sortId)
+                    bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_EXCLUDE_ZERO] = FilterValue.BooleanVal(oldBs.excludeZeroAmounts)
+                    if (oldBs.filterNonZeroGroups) {
+                        bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_FILTER_NON_ZERO_GROUPS] = FilterValue.BooleanVal(true)
+                    }
+                    if (oldBs.showHiddenAccounts) {
+                        bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_SHOW_HIDDEN] = FilterValue.BooleanVal(true)
+                    }
+                    if (oldBs.showOnlyCurrentBalance) {
+                        bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_ONLY_CURRENT] = FilterValue.BooleanVal(true)
+                    }
+                    if (oldBs.showOnlyAccountsWithoutGroups) {
+                        bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_WITHOUT_GROUPS] = FilterValue.BooleanVal(true)
+                    }
+                    val tabId = mapBsTab(tabFilterPrefs.balanceSheetActiveTab)
+                    bsState[com.example.ui.components.filter.specs.BalanceSheetFilterSpec.FIELD_ACTIVE_TAB] = FilterValue.ToggleGroup(setOf(tabId))
+                    saveFilterState(com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SPEC_KEY, bsState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_BALANCE_SHEET, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Balance Sheet migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 10. Migrate CashFlowScreen saved preferences with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_CASH_FLOW, false)) {
+                val cfKey = "filter_${com.example.ui.components.filter.specs.CashFlowFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(cfKey)) {
+                    val cfState = mutableMapOf<String, FilterValue>()
+                    val presetId = mapCashFlowPreset(tabFilterPrefs.cashFlowPreset)
+                    cfState[com.example.ui.components.filter.specs.CashFlowFilterSpec.FIELD_DATE] = FilterValue.Date(presetId = presetId)
+                    val sectionId = mapCashFlowSection(tabFilterPrefs.cashFlowSection)
+                    cfState[com.example.ui.components.filter.specs.CashFlowFilterSpec.FIELD_SECTION] = FilterValue.ToggleGroup(setOf(sectionId))
+                    saveFilterState(com.example.ui.components.filter.specs.CashFlowFilterSpec.SPEC_KEY, cfState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_CASH_FLOW, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Cash Flow migration failed: $e")
             e.printStackTrace()
         }
     }
