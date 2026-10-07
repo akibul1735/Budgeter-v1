@@ -12,7 +12,7 @@ import org.json.JSONObject
  * FilterStore: Persistent JSON storage for FilterState per spec.key using SharedPreferences.
  * Includes automatic one-time migration hook from TabFilterPreferences.
  */
-class FilterStore private constructor(context: Context) {
+class FilterStore private constructor(private val context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -1143,14 +1143,39 @@ class FilterStore private constructor(context: Context) {
                     neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_COMPARISON] = FilterValue.ToggleGroup(
                         setOf(com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_NONE)
                     )
-                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(
-                        setOf(
-                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO,
-                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS,
-                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_CURRENCY,
-                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_SYMBOL
+                    // Read any saved old toggle values from TabFilterPreferences / preferences; if none were saved, use the spec's own defaults
+                    val activeToggles = mutableSetOf<String>()
+                    val rawPrefs = context.getSharedPreferences("budgeter_tab_filter_sort_prefs", Context.MODE_PRIVATE)
+                    val hasCustomToggles = rawPrefs.contains("reports_exclude_zero") ||
+                            rawPrefs.contains("reports_hide_empty_groups") ||
+                            rawPrefs.contains("reports_display_currency") ||
+                            rawPrefs.contains("reports_display_symbol")
+
+                    if (hasCustomToggles) {
+                        if (rawPrefs.getBoolean("reports_exclude_zero", true)) {
+                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO)
+                        }
+                        if (rawPrefs.getBoolean("reports_hide_empty_groups", true)) {
+                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS)
+                        }
+                        if (rawPrefs.getBoolean("reports_display_currency", true)) {
+                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_CURRENCY)
+                        }
+                        if (rawPrefs.getBoolean("reports_display_symbol", true)) {
+                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_SYMBOL)
+                        }
+                    } else {
+                        // Use spec's own defaults
+                        activeToggles.addAll(
+                            setOf(
+                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO,
+                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS,
+                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_CURRENCY,
+                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_SYMBOL
+                            )
                         )
-                    )
+                    }
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(activeToggles)
                     saveFilterState(com.example.ui.components.filter.specs.NetEarningsFilterSpec.SPEC_KEY, neState)
                 }
                 prefs.edit().putBoolean(KEY_MIGRATED_NET_EARNINGS, true).commit()

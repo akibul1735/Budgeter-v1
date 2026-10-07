@@ -68,6 +68,15 @@ import org.robolectric.annotation.Config
 import com.example.ui.components.filter.FilterField
 import com.example.ui.dialogs.AggregatedDatePreset
 import com.example.ui.dialogs.AggregatedSortOrder
+import com.example.ui.components.filter.specs.NetEarningsFilterSpec
+import com.example.ui.components.BudgetDateRangePreset
+import com.example.ui.components.BudgetComparisonPreset
+import com.example.ui.components.NetEarningsFlowScope
+import com.example.ui.components.NetEarningsSortOrder
+import com.example.ui.screens.NetEarningsHierarchyView
+import com.example.ui.screens.NetEarningsSort
+import com.example.data.model.TransactionWithDetails
+import com.example.data.model.Transaction
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -75,6 +84,9 @@ class SimpleScreensFilterSpecTest {
 
     @Before
     fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("unified_filter_store", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("budgeter_tab_filter_sort_prefs", Context.MODE_PRIVATE).edit().clear().commit()
         FilterStore.resetInstanceForTesting()
         TabFilterPreferences.resetInstanceForTesting()
     }
@@ -1394,5 +1406,292 @@ class SimpleScreensFilterSpecTest {
         val loadedCf = store.loadFilterState(CashFlowFilterSpec.SPEC_KEY)
         assertEquals("", CashFlowFilterSpec.getSearchQuery(loadedCf))
         assertEquals(CashFlowTabSection.STATEMENT, CashFlowFilterSpec.getSection(loadedCf))
+
+        // Net Earnings Search Never Persisted
+        var neState: FilterState = mapOf(
+            NetEarningsFilterSpec.FIELD_SEARCH to FilterValue.Search("secret net earnings query"),
+            NetEarningsFilterSpec.FIELD_SORT to FilterValue.Sort(NetEarningsFilterSpec.SORT_AMOUNT_ASC)
+        )
+        store.saveFilterState(NetEarningsFilterSpec.SPEC_KEY, neState)
+        val loadedNe = store.loadFilterState(NetEarningsFilterSpec.SPEC_KEY)
+        assertEquals("", NetEarningsFilterSpec.getSearchQuery(loadedNe))
+        assertEquals(NetEarningsFilterSpec.SORT_AMOUNT_ASC, NetEarningsFilterSpec.getSortOrder(loadedNe))
+    }
+
+    @Test
+    fun testNetEarningsFilterSpecFiltersTogglesSort() {
+        val cat1 = Category(id = 1L, nameEn = "Salary", nameBn = "বেতন", type = CategoryType.INCOME)
+        val cat2 = Category(id = 2L, nameEn = "Food", nameBn = "খাবার", type = CategoryType.EXPENSE)
+        val acc1 = Account(id = 10L, nameEn = "Bank", nameBn = "ব্যাংক", type = com.example.data.model.AccountType.ASSET)
+        val acc2 = Account(id = 20L, nameEn = "Cash", nameBn = "নগদ", type = com.example.data.model.AccountType.ASSET)
+        val labels = listOf("#bonus", "#tax")
+
+        val spec = NetEarningsFilterSpec.createSpec(
+            accounts = listOf(acc1, acc2),
+            categories = listOf(cat1, cat2),
+            labels = labels
+        )
+        assertEquals(NetEarningsFilterSpec.SPEC_KEY, spec.key)
+
+        var state: FilterState = emptyMap()
+        assertFalse(spec.isActive(state))
+        assertEquals(0, spec.activeFilterCount(state))
+
+        // 1. Search Query
+        state = state.withSearchQuery("Bonus", NetEarningsFilterSpec.FIELD_SEARCH)
+        assertTrue(spec.isActive(state))
+        assertEquals("Bonus", NetEarningsFilterSpec.getSearchQuery(state))
+        assertEquals(1, spec.activeFilterCount(state))
+
+        // Reset search
+        state = state.withSearchQuery("", NetEarningsFilterSpec.FIELD_SEARCH)
+        assertFalse(spec.isActive(state))
+
+        // 2. Date Preset
+        state = state + (NetEarningsFilterSpec.FIELD_DATE to FilterValue.Date(NetEarningsFilterSpec.PRESET_LAST_MONTH))
+        assertTrue(spec.isActive(state))
+        assertEquals(NetEarningsFilterSpec.PRESET_LAST_MONTH, NetEarningsFilterSpec.getDatePreset(state))
+
+        // 3. Comparison Preset
+        state = state + (NetEarningsFilterSpec.FIELD_COMPARISON to FilterValue.ToggleGroup(setOf(NetEarningsFilterSpec.COMP_LAST_MONTH)))
+        assertTrue(NetEarningsFilterSpec.isComparisonEnabled(state))
+        assertEquals(NetEarningsFilterSpec.COMP_LAST_MONTH, NetEarningsFilterSpec.getComparisonPreset(state))
+
+        // 4. Flow Scope
+        state = state + (NetEarningsFilterSpec.FIELD_FLOW_SCOPE to FilterValue.ToggleGroup(setOf(NetEarningsFilterSpec.SCOPE_INCOME_ONLY)))
+        assertEquals(NetEarningsFilterSpec.SCOPE_INCOME_ONLY, NetEarningsFilterSpec.getFlowScope(state))
+
+        // 5. Hierarchy View
+        state = state + (NetEarningsFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(NetEarningsFilterSpec.HIERARCHY_ONLY_GROUPS)))
+        assertEquals(NetEarningsFilterSpec.HIERARCHY_ONLY_GROUPS, NetEarningsFilterSpec.getHierarchyView(state))
+
+        // 6. Categories & Accounts Selection
+        state = state + (NetEarningsFilterSpec.FIELD_CATEGORIES to FilterValue.Select(setOf("1", "2")))
+        assertEquals(setOf(1L, 2L), NetEarningsFilterSpec.getSelectedCategoryIds(state))
+
+        state = state + (NetEarningsFilterSpec.FIELD_ACCOUNTS to FilterValue.Select(setOf("10", "20")))
+        assertEquals(setOf(10L, 20L), NetEarningsFilterSpec.getSelectedAccountIds(state))
+
+        // 7. Labels & Statuses
+        state = state + (NetEarningsFilterSpec.FIELD_LABELS to FilterValue.Select(setOf("#bonus")))
+        assertEquals(setOf("#bonus"), NetEarningsFilterSpec.getSelectedLabels(state))
+
+        state = state + (NetEarningsFilterSpec.FIELD_STATUSES to FilterValue.Select(setOf("CLEARED", "RECONCILED")))
+        assertEquals(setOf(TransactionStatus.CLEARED, TransactionStatus.RECONCILED), NetEarningsFilterSpec.getSelectedStatuses(state))
+
+        // 8. Amount Range
+        state = state + (NetEarningsFilterSpec.FIELD_AMOUNT_RANGE to FilterValue.Range(min = 100.0, max = 5000.0))
+        assertEquals(100.0, NetEarningsFilterSpec.getMinAmount(state))
+        assertEquals(5000.0, NetEarningsFilterSpec.getMaxAmount(state))
+
+        // 9. Sort Order
+        state = state + (NetEarningsFilterSpec.FIELD_SORT to FilterValue.Sort(NetEarningsFilterSpec.SORT_NAME_ASC))
+        assertEquals(NetEarningsFilterSpec.SORT_NAME_ASC, NetEarningsFilterSpec.getSortOrder(state))
+
+        // 10. Toggles
+        state = state + (NetEarningsFilterSpec.FIELD_TOGGLES to FilterValue.ToggleGroup(
+            setOf(
+                NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO,
+                NetEarningsFilterSpec.TOGGLE_INCLUDE_TRANSFERS,
+                NetEarningsFilterSpec.TOGGLE_WITHOUT_GROUPS
+            )
+        ))
+        assertTrue(NetEarningsFilterSpec.getExcludeZero(state))
+        assertFalse(NetEarningsFilterSpec.getHideEmptyGroups(state))
+        assertTrue(NetEarningsFilterSpec.getIncludeTransfers(state))
+        assertTrue(NetEarningsFilterSpec.getShowWithoutGroups(state))
+        assertFalse(NetEarningsFilterSpec.getDisplayCurrency(state))
+        assertFalse(NetEarningsFilterSpec.getDisplayCurrencySymbol(state))
+
+        // 11. Test Predicates on Sample Transactions
+        val txFieldCat = spec.fields.filterIsInstance<FilterField.SelectField<TransactionWithDetails>>().find { it.id == NetEarningsFilterSpec.FIELD_CATEGORIES }
+        assertNotNull(txFieldCat)
+
+        val tx1 = TransactionWithDetails(
+            transaction = Transaction(id = 100L, type = TransactionType.INCOME, amount = 250.0, dateEpochMs = System.currentTimeMillis(), categoryId = 1L, debitAccountId = 10L, status = TransactionStatus.CLEARED, note = "Salary #bonus"),
+            category = cat1,
+            debitAccount = acc1
+        )
+        val tx2 = TransactionWithDetails(
+            transaction = Transaction(id = 101L, type = TransactionType.EXPENSE, amount = 50.0, dateEpochMs = System.currentTimeMillis(), categoryId = 99L, debitAccountId = 99L, status = TransactionStatus.VOID, note = "Misc"),
+            category = null,
+            debitAccount = null
+        )
+
+        assertTrue(txFieldCat!!.predicate?.invoke(tx1, setOf("1")) == true)
+        assertFalse(txFieldCat.predicate?.invoke(tx2, setOf("1")) == true)
+
+        val txFieldRange = spec.fields.filterIsInstance<FilterField.RangeField<TransactionWithDetails>>().find { it.id == NetEarningsFilterSpec.FIELD_AMOUNT_RANGE }
+        assertNotNull(txFieldRange)
+        assertTrue(txFieldRange!!.predicate?.invoke(tx1, 100.0, 500.0) == true)
+        assertFalse(txFieldRange.predicate?.invoke(tx2, 100.0, 500.0) == true)
+    }
+
+    @Test
+    fun testNetEarningsFilterSpecCalculateRanges() {
+        val presets = listOf(
+            NetEarningsFilterSpec.PRESET_THIS_MONTH,
+            NetEarningsFilterSpec.PRESET_LAST_MONTH,
+            NetEarningsFilterSpec.PRESET_LAST_3_MONTHS,
+            NetEarningsFilterSpec.PRESET_LAST_6_MONTHS,
+            NetEarningsFilterSpec.PRESET_LAST_12_MONTHS,
+            NetEarningsFilterSpec.PRESET_YEAR_TO_DATE,
+            NetEarningsFilterSpec.PRESET_SAME_MONTH_LAST_YEAR,
+            NetEarningsFilterSpec.PRESET_ALL_TIME,
+            NetEarningsFilterSpec.PRESET_CUSTOM
+        )
+
+        for (preset in presets) {
+            val state: FilterState = mapOf(
+                NetEarningsFilterSpec.FIELD_DATE to FilterValue.Date(
+                    presetId = preset,
+                    startMs = 1700000000000L,
+                    endMs = 1705000000000L
+                ),
+                NetEarningsFilterSpec.FIELD_COMPARISON to FilterValue.ToggleGroup(setOf(NetEarningsFilterSpec.COMP_LAST_MONTH))
+            )
+
+            val resultEn = NetEarningsFilterSpec.calculateRanges(2026, 10, state, LanguageMode.ENGLISH)
+            assertTrue("Primary range valid for $preset", resultEn.primaryRange.first <= resultEn.primaryRange.second)
+            assertTrue("Label not blank for $preset", resultEn.primaryLabel.isNotBlank())
+
+            val resultBn = NetEarningsFilterSpec.calculateRanges(2026, 10, state, LanguageMode.BANGLA)
+            assertTrue("Primary range valid for $preset (BN)", resultBn.primaryRange.first <= resultBn.primaryRange.second)
+            assertTrue("Label not blank for $preset (BN)", resultBn.primaryLabel.isNotBlank())
+
+            assertNotNull(resultEn.compareRange)
+            assertNotNull(resultEn.compareLabel)
+        }
+    }
+
+    @Test
+    fun testNetEarningsFilterStoreSaveLoadRoundTrip() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FilterStore.getInstance(context)
+
+        val fullState: FilterState = mapOf(
+            NetEarningsFilterSpec.FIELD_DATE to FilterValue.Date(
+                presetId = NetEarningsFilterSpec.PRESET_LAST_6_MONTHS,
+                startMs = 1000L,
+                endMs = 2000L
+            ),
+            NetEarningsFilterSpec.FIELD_COMPARISON to FilterValue.ToggleGroup(setOf(NetEarningsFilterSpec.COMP_SAME_MONTH_LAST_YEAR)),
+            NetEarningsFilterSpec.FIELD_FLOW_SCOPE to FilterValue.ToggleGroup(setOf(NetEarningsFilterSpec.SCOPE_SURPLUS_ONLY)),
+            NetEarningsFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS)),
+            NetEarningsFilterSpec.FIELD_CATEGORIES to FilterValue.Select(setOf("5", "6")),
+            NetEarningsFilterSpec.FIELD_ACCOUNTS to FilterValue.Select(setOf("15", "25")),
+            NetEarningsFilterSpec.FIELD_LABELS to FilterValue.Select(setOf("#tax")),
+            NetEarningsFilterSpec.FIELD_STATUSES to FilterValue.Select(setOf("CLEARED")),
+            NetEarningsFilterSpec.FIELD_AMOUNT_RANGE to FilterValue.Range(min = 50.0, max = 1500.0),
+            NetEarningsFilterSpec.FIELD_SORT to FilterValue.Sort(NetEarningsFilterSpec.SORT_PERCENTAGE_DESC),
+            NetEarningsFilterSpec.FIELD_TOGGLES to FilterValue.ToggleGroup(
+                setOf(
+                    NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO,
+                    NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS
+                )
+            ),
+            NetEarningsFilterSpec.FIELD_SEARCH to FilterValue.Search("temp query")
+        )
+
+        store.saveFilterState(NetEarningsFilterSpec.SPEC_KEY, fullState)
+        val loaded = store.loadFilterState(NetEarningsFilterSpec.SPEC_KEY)
+
+        assertEquals(NetEarningsFilterSpec.PRESET_LAST_6_MONTHS, NetEarningsFilterSpec.getDatePreset(loaded))
+        assertEquals(1000L, NetEarningsFilterSpec.getCustomStartDate(loaded))
+        assertEquals(2000L, NetEarningsFilterSpec.getCustomEndDate(loaded))
+        assertEquals(NetEarningsFilterSpec.COMP_SAME_MONTH_LAST_YEAR, NetEarningsFilterSpec.getComparisonPreset(loaded))
+        assertTrue(NetEarningsFilterSpec.isComparisonEnabled(loaded))
+        assertEquals(NetEarningsFilterSpec.SCOPE_SURPLUS_ONLY, NetEarningsFilterSpec.getFlowScope(loaded))
+        assertEquals(NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS, NetEarningsFilterSpec.getHierarchyView(loaded))
+        assertEquals(setOf(5L, 6L), NetEarningsFilterSpec.getSelectedCategoryIds(loaded))
+        assertEquals(setOf(15L, 25L), NetEarningsFilterSpec.getSelectedAccountIds(loaded))
+        assertEquals(setOf("#tax"), NetEarningsFilterSpec.getSelectedLabels(loaded))
+        assertEquals(setOf(TransactionStatus.CLEARED), NetEarningsFilterSpec.getSelectedStatuses(loaded))
+        assertEquals(50.0, NetEarningsFilterSpec.getMinAmount(loaded))
+        assertEquals(1500.0, NetEarningsFilterSpec.getMaxAmount(loaded))
+        assertEquals(NetEarningsFilterSpec.SORT_PERCENTAGE_DESC, NetEarningsFilterSpec.getSortOrder(loaded))
+        assertTrue(NetEarningsFilterSpec.getExcludeZero(loaded))
+        assertTrue(NetEarningsFilterSpec.getHideEmptyGroups(loaded))
+        assertFalse(NetEarningsFilterSpec.getDisplayCurrency(loaded))
+        assertFalse(NetEarningsFilterSpec.getDisplayCurrencySymbol(loaded))
+        // Search query should not be persisted
+        assertEquals("", NetEarningsFilterSpec.getSearchQuery(loaded))
+    }
+
+    @Test
+    fun testNetEarningsFilterStoreMigrationAllEnumsWithFallbacks() {
+        // Date Presets mapping
+        assertEquals(NetEarningsFilterSpec.PRESET_THIS_MONTH, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.THIS_MONTH))
+        assertEquals(NetEarningsFilterSpec.PRESET_LAST_MONTH, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.LAST_MONTH))
+        assertEquals(NetEarningsFilterSpec.PRESET_LAST_3_MONTHS, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.LAST_3_MONTHS))
+        assertEquals(NetEarningsFilterSpec.PRESET_LAST_6_MONTHS, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.LAST_6_MONTHS))
+        assertEquals(NetEarningsFilterSpec.PRESET_LAST_12_MONTHS, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.LAST_12_MONTHS))
+        assertEquals(NetEarningsFilterSpec.PRESET_YEAR_TO_DATE, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.YEAR_TO_DATE))
+        assertEquals(NetEarningsFilterSpec.PRESET_SAME_MONTH_LAST_YEAR, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.SAME_MONTH_LAST_YEAR))
+        assertEquals(NetEarningsFilterSpec.PRESET_ALL_TIME, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.ALL_TIME))
+        assertEquals(NetEarningsFilterSpec.PRESET_CUSTOM, FilterStore.mapNetEarningsDatePreset(BudgetDateRangePreset.CUSTOM))
+        assertEquals(NetEarningsFilterSpec.PRESET_THIS_MONTH, FilterStore.mapNetEarningsDatePreset(null))
+
+        // Hierarchy mapping
+        assertEquals(NetEarningsFilterSpec.HIERARCHY_GROUPED, FilterStore.mapNetEarningsHierarchy(NetEarningsHierarchyView.GROUPED))
+        assertEquals(NetEarningsFilterSpec.HIERARCHY_ONLY_GROUPS, FilterStore.mapNetEarningsHierarchy(NetEarningsHierarchyView.ONLY_GROUPS))
+        assertEquals(NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS, FilterStore.mapNetEarningsHierarchy(NetEarningsHierarchyView.ONLY_ITEMS))
+        assertEquals(NetEarningsFilterSpec.HIERARCHY_GROUPED, FilterStore.mapNetEarningsHierarchy(null))
+
+        // Sort mapping
+        assertEquals(NetEarningsFilterSpec.SORT_AMOUNT_DESC, FilterStore.mapNetEarningsSort(NetEarningsSort.AMOUNT_HIGH_TO_LOW))
+        assertEquals(NetEarningsFilterSpec.SORT_AMOUNT_ASC, FilterStore.mapNetEarningsSort(NetEarningsSort.AMOUNT_LOW_TO_HIGH))
+        assertEquals(NetEarningsFilterSpec.SORT_PERCENTAGE_DESC, FilterStore.mapNetEarningsSort(NetEarningsSort.PERCENTAGE_HIGH_TO_LOW))
+        assertEquals(NetEarningsFilterSpec.SORT_NAME_ASC, FilterStore.mapNetEarningsSort(NetEarningsSort.NAME_A_TO_Z))
+        assertEquals(NetEarningsFilterSpec.SORT_NET_DESC, FilterStore.mapNetEarningsSort(null))
+
+        // Model sort mapping
+        assertEquals(NetEarningsFilterSpec.SORT_NET_DESC, FilterStore.mapNetEarningsModelSort(NetEarningsSortOrder.NET_DESC))
+        assertEquals(NetEarningsFilterSpec.SORT_NET_ASC, FilterStore.mapNetEarningsModelSort(NetEarningsSortOrder.NET_ASC))
+        assertEquals(NetEarningsFilterSpec.SORT_AMOUNT_DESC, FilterStore.mapNetEarningsModelSort(NetEarningsSortOrder.AMOUNT_DESC))
+        assertEquals(NetEarningsFilterSpec.SORT_AMOUNT_ASC, FilterStore.mapNetEarningsModelSort(NetEarningsSortOrder.AMOUNT_ASC))
+        assertEquals(NetEarningsFilterSpec.SORT_NAME_ASC, FilterStore.mapNetEarningsModelSort(NetEarningsSortOrder.NAME_ASC))
+        assertEquals(NetEarningsFilterSpec.SORT_TXN_COUNT_DESC, FilterStore.mapNetEarningsModelSort(NetEarningsSortOrder.TXN_COUNT_DESC))
+        assertEquals(NetEarningsFilterSpec.SORT_DEFAULT, FilterStore.mapNetEarningsModelSort(NetEarningsSortOrder.DEFAULT))
+        assertEquals(NetEarningsFilterSpec.SORT_NET_DESC, FilterStore.mapNetEarningsModelSort(null))
+
+        // Flow scope mapping
+        assertEquals(NetEarningsFilterSpec.SCOPE_ALL, FilterStore.mapNetEarningsFlowScope(NetEarningsFlowScope.ALL))
+        assertEquals(NetEarningsFilterSpec.SCOPE_SURPLUS_ONLY, FilterStore.mapNetEarningsFlowScope(NetEarningsFlowScope.SURPLUS_ONLY))
+        assertEquals(NetEarningsFilterSpec.SCOPE_DEFICIT_ONLY, FilterStore.mapNetEarningsFlowScope(NetEarningsFlowScope.DEFICIT_ONLY))
+        assertEquals(NetEarningsFilterSpec.SCOPE_INCOME_ONLY, FilterStore.mapNetEarningsFlowScope(NetEarningsFlowScope.INCOME_ONLY))
+        assertEquals(NetEarningsFilterSpec.SCOPE_EXPENSE_ONLY, FilterStore.mapNetEarningsFlowScope(NetEarningsFlowScope.EXPENSE_ONLY))
+        assertEquals(NetEarningsFilterSpec.SCOPE_ALL, FilterStore.mapNetEarningsFlowScope(null))
+
+        // Comparison preset mapping
+        assertEquals(NetEarningsFilterSpec.COMP_SAME_DATE_PREV_MONTH, FilterStore.mapNetEarningsComparisonPreset(BudgetComparisonPreset.SAME_DATE_PREV_MONTH))
+        assertEquals(NetEarningsFilterSpec.COMP_LAST_MONTH, FilterStore.mapNetEarningsComparisonPreset(BudgetComparisonPreset.LAST_MONTH))
+        assertEquals(NetEarningsFilterSpec.COMP_SAME_MONTH_LAST_YEAR, FilterStore.mapNetEarningsComparisonPreset(BudgetComparisonPreset.SAME_MONTH_LAST_YEAR))
+        assertEquals(NetEarningsFilterSpec.COMP_LAST_3_MONTHS_AVG, FilterStore.mapNetEarningsComparisonPreset(BudgetComparisonPreset.LAST_3_MONTHS_AVG))
+        assertEquals(NetEarningsFilterSpec.COMP_LAST_YEAR, FilterStore.mapNetEarningsComparisonPreset(BudgetComparisonPreset.LAST_YEAR))
+        assertEquals(NetEarningsFilterSpec.COMP_CUSTOM, FilterStore.mapNetEarningsComparisonPreset(BudgetComparisonPreset.CUSTOM))
+        assertEquals(NetEarningsFilterSpec.COMP_NONE, FilterStore.mapNetEarningsComparisonPreset(null))
+
+        // Test migration execution with custom TabFilterPreferences
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val tabPrefs = TabFilterPreferences.getInstance(context)
+        tabPrefs.reportsDatePreset = BudgetDateRangePreset.LAST_3_MONTHS
+        tabPrefs.reportsHierarchyView = NetEarningsHierarchyView.ONLY_ITEMS
+        tabPrefs.reportsSortOption = NetEarningsSort.NAME_A_TO_Z
+        tabPrefs.reportsTabMode = "INCOME"
+
+        val store = FilterStore.getInstance(context)
+        store.migrateFromTabFilterPreferences(tabPrefs)
+
+        val migratedState = store.loadFilterState(NetEarningsFilterSpec.SPEC_KEY)
+        assertEquals(NetEarningsFilterSpec.PRESET_LAST_3_MONTHS, NetEarningsFilterSpec.getDatePreset(migratedState))
+        assertEquals(NetEarningsFilterSpec.HIERARCHY_ONLY_ITEMS, NetEarningsFilterSpec.getHierarchyView(migratedState))
+        assertEquals(NetEarningsFilterSpec.SORT_NAME_ASC, NetEarningsFilterSpec.getSortOrder(migratedState))
+        assertEquals(NetEarningsFilterSpec.SCOPE_INCOME_ONLY, NetEarningsFilterSpec.getFlowScope(migratedState))
+        // Verify default toggles were applied since no custom toggle prefs were present
+        assertTrue(NetEarningsFilterSpec.getExcludeZero(migratedState))
+        assertTrue(NetEarningsFilterSpec.getHideEmptyGroups(migratedState))
+        assertTrue(NetEarningsFilterSpec.getDisplayCurrency(migratedState))
+        assertTrue(NetEarningsFilterSpec.getDisplayCurrencySymbol(migratedState))
     }
 }
