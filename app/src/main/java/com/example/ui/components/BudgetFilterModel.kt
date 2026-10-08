@@ -153,6 +153,15 @@ data class BudgetFilterState(
 fun calculateBudgetFilterRanges(
     year: Int,
     month: Int,
+    filterState: com.example.ui.components.filter.FilterState,
+    languageMode: LanguageMode
+): BudgetRangeResult {
+    return com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.calculateRanges(year, month, filterState, languageMode)
+}
+
+fun calculateBudgetFilterRanges(
+    year: Int,
+    month: Int,
     filterState: BudgetFilterState,
     languageMode: LanguageMode
 ): BudgetRangeResult {
@@ -347,6 +356,29 @@ data class BudgetRangeResult(
 /**
  * Format budget amounts according to active filter currency display preferences.
  */
+fun formatBudgetAmount(
+    amount: Double,
+    filterState: com.example.ui.components.filter.FilterState,
+    languageMode: LanguageMode,
+    includeDecimals: Boolean = true
+): String {
+    val displayCurr = com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.getDisplayCurrency(filterState)
+    if (!displayCurr) {
+        return LanguageHelper.formatNumber(amount, languageMode, includeDecimals)
+    }
+    val config = LanguageHelper.activeCurrencyConfig
+    val displayMode = if (com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.getDisplayCurrencySymbol(filterState)) {
+        config.displayMode
+    } else {
+        com.example.util.CurrencyDisplayMode.CODE_ONLY
+    }
+    return LanguageHelper.formatCurrency(
+        amount = amount,
+        mode = languageMode,
+        overrideDisplayMode = displayMode
+    )
+}
+
 fun formatBudgetAmount(
     amount: Double,
     filterState: BudgetFilterState,

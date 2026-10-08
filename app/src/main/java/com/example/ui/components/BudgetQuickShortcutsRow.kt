@@ -1,19 +1,15 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -54,6 +50,9 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.specs.BudgetTrackingFilterSpec
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -65,8 +64,8 @@ import com.example.ui.theme.SolidPrimary
  */
 @Composable
 fun BudgetQuickShortcutsRow(
-    filterState: BudgetFilterState,
-    onFilterChange: (BudgetFilterState) -> Unit,
+    filterState: FilterState,
+    onFilterChange: (FilterState) -> Unit,
     allGroupsExpanded: Boolean,
     onToggleExpandAll: (Boolean) -> Unit,
     languageMode: LanguageMode,
@@ -75,6 +74,12 @@ fun BudgetQuickShortcutsRow(
     val isBn = languageMode == LanguageMode.BANGLA
     var showViewMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
+
+    val hierarchy = BudgetTrackingFilterSpec.getHierarchyView(filterState)
+    val sortId = BudgetTrackingFilterSpec.getSortOrder(filterState)
+    val activeToggles = BudgetTrackingFilterSpec.getActiveToggles(filterState)
+    val isOnlyRemaining = activeToggles.contains(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+    val isOnlyOverBudget = activeToggles.contains(BudgetTrackingFilterSpec.TOGGLE_ONLY_OVER_BUDGET)
 
     val consumeHorizontalScroll = remember {
         object : NestedScrollConnection {
@@ -98,10 +103,10 @@ fun BudgetQuickShortcutsRow(
         // ---------------------------------------------------------------------
         // 1. Hierarchy View Selector (All / Only Groups / Only Categories)
         // ---------------------------------------------------------------------
-        val isViewCustom = filterState.showOnlyCategoriesWithoutGroups || filterState.showOnlyGroups
-        val (viewIcon, viewLabel) = when {
-            filterState.showOnlyCategoriesWithoutGroups -> Icons.Default.FormatListBulleted to (if (isBn) "শুধু ক্যাটাগরি" else "Only Cats")
-            filterState.showOnlyGroups -> Icons.Default.Folder to (if (isBn) "শুধু গ্রুপ" else "Only Groups")
+        val isViewCustom = hierarchy != BudgetTrackingFilterSpec.HIERARCHY_GROUPED
+        val (viewIcon, viewLabel) = when (hierarchy) {
+            BudgetTrackingFilterSpec.HIERARCHY_WITHOUT_GROUPS -> Icons.Default.FormatListBulleted to (if (isBn) "শুধু ক্যাটাগরি" else "Only Cats")
+            BudgetTrackingFilterSpec.HIERARCHY_ONLY_GROUPS -> Icons.Default.Folder to (if (isBn) "শুধু গ্রুপ" else "Only Groups")
             else -> Icons.Default.AccountTree to (if (isBn) "দৃশ্য: সকল" else "View: All")
         }
 
@@ -141,12 +146,9 @@ fun BudgetQuickShortcutsRow(
                     },
                     onClick = {
                         showViewMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                showOnlyCategoriesWithoutGroups = false,
-                                showOnlyGroups = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(BudgetTrackingFilterSpec.HIERARCHY_GROUPED))
+                        onFilterChange(updated)
                     }
                 )
 
@@ -155,7 +157,7 @@ fun BudgetQuickShortcutsRow(
                         Icon(
                             Icons.Default.Folder,
                             contentDescription = null,
-                            tint = if (filterState.showOnlyGroups) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (hierarchy == BudgetTrackingFilterSpec.HIERARCHY_ONLY_GROUPS) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     },
@@ -163,22 +165,19 @@ fun BudgetQuickShortcutsRow(
                         Text(
                             text = if (isBn) "শুধু গ্রুপ (সংক্ষিপ্ত)" else "Only Groups (Collapsed)",
                             fontSize = 12.sp,
-                            fontWeight = if (filterState.showOnlyGroups) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (hierarchy == BudgetTrackingFilterSpec.HIERARCHY_ONLY_GROUPS) FontWeight.Bold else FontWeight.Normal
                         )
                     },
                     trailingIcon = {
-                        if (filterState.showOnlyGroups) {
+                        if (hierarchy == BudgetTrackingFilterSpec.HIERARCHY_ONLY_GROUPS) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
                         }
                     },
                     onClick = {
                         showViewMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                showOnlyGroups = true,
-                                showOnlyCategoriesWithoutGroups = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(BudgetTrackingFilterSpec.HIERARCHY_ONLY_GROUPS))
+                        onFilterChange(updated)
                     }
                 )
 
@@ -187,7 +186,7 @@ fun BudgetQuickShortcutsRow(
                         Icon(
                             Icons.Default.FormatListBulleted,
                             contentDescription = null,
-                            tint = if (filterState.showOnlyCategoriesWithoutGroups) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (hierarchy == BudgetTrackingFilterSpec.HIERARCHY_WITHOUT_GROUPS) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                     },
@@ -195,22 +194,19 @@ fun BudgetQuickShortcutsRow(
                         Text(
                             text = if (isBn) "শুধু ক্যাটাগরি (গ্রুপ ছাড়া)" else "Only Categories (Flat List)",
                             fontSize = 12.sp,
-                            fontWeight = if (filterState.showOnlyCategoriesWithoutGroups) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (hierarchy == BudgetTrackingFilterSpec.HIERARCHY_WITHOUT_GROUPS) FontWeight.Bold else FontWeight.Normal
                         )
                     },
                     trailingIcon = {
-                        if (filterState.showOnlyCategoriesWithoutGroups) {
+                        if (hierarchy == BudgetTrackingFilterSpec.HIERARCHY_WITHOUT_GROUPS) {
                             Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
                         }
                     },
                     onClick = {
                         showViewMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                showOnlyCategoriesWithoutGroups = true,
-                                showOnlyGroups = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(BudgetTrackingFilterSpec.HIERARCHY_WITHOUT_GROUPS))
+                        onFilterChange(updated)
                     }
                 )
             }
@@ -219,21 +215,21 @@ fun BudgetQuickShortcutsRow(
         // ---------------------------------------------------------------------
         // 2. Sort Button (Dropdown menu with all options)
         // ---------------------------------------------------------------------
-        val sortLabel = when (filterState.sortOrder) {
-            BudgetSortOrder.SPENT_DESC, BudgetSortOrder.AMOUNT_DESC -> if (isBn) "ব্যয় ↓" else "Spent ↓"
-            BudgetSortOrder.AMOUNT_ASC -> if (isBn) "ব্যয় ↑" else "Spent ↑"
-            BudgetSortOrder.REMAINING_DESC -> if (isBn) "অবশিষ্ট ↓" else "Remaining ↓"
-            BudgetSortOrder.REMAINING_ASC -> if (isBn) "অবশিষ্ট ↑" else "Remaining ↑"
-            BudgetSortOrder.BUDGET_DESC -> if (isBn) "বাজেট ↓" else "Budget ↓"
-            BudgetSortOrder.BUDGET_ASC -> if (isBn) "বাজেট ↑" else "Budget ↑"
-            BudgetSortOrder.UTILIZATION_DESC -> if (isBn) "ব্যবহার % ↓" else "Used % ↓"
-            BudgetSortOrder.NAME_ASC -> "A → Z"
-            BudgetSortOrder.NAME_DESC -> "Z → A"
-            BudgetSortOrder.DEFAULT -> if (isBn) "ডিফল্ট" else "Default"
+        val sortLabel = when (sortId) {
+            BudgetTrackingFilterSpec.SORT_SPENT_DESC, BudgetTrackingFilterSpec.SORT_AMOUNT_DESC -> if (isBn) "ব্যয় ↓" else "Spent ↓"
+            BudgetTrackingFilterSpec.SORT_AMOUNT_ASC -> if (isBn) "ব্যয় ↑" else "Spent ↑"
+            BudgetTrackingFilterSpec.SORT_REMAINING_DESC -> if (isBn) "অবশিষ্ট ↓" else "Remaining ↓"
+            BudgetTrackingFilterSpec.SORT_REMAINING_ASC -> if (isBn) "অবশিষ্ট ↑" else "Remaining ↑"
+            BudgetTrackingFilterSpec.SORT_BUDGET_DESC -> if (isBn) "বাজেট ↓" else "Budget ↓"
+            BudgetTrackingFilterSpec.SORT_BUDGET_ASC -> if (isBn) "বাজেট ↑" else "Budget ↑"
+            BudgetTrackingFilterSpec.SORT_UTILIZATION_DESC -> if (isBn) "ব্যবহার % ↓" else "Used % ↓"
+            BudgetTrackingFilterSpec.SORT_NAME_ASC -> "A → Z"
+            BudgetTrackingFilterSpec.SORT_NAME_DESC -> "Z → A"
+            else -> if (isBn) "ডিফল্ট" else "Default"
         }
-        val isSortCustom = filterState.sortOrder != BudgetSortOrder.DEFAULT &&
-                filterState.sortOrder != BudgetSortOrder.AMOUNT_DESC &&
-                filterState.sortOrder != BudgetSortOrder.SPENT_DESC
+        val isSortCustom = sortId != BudgetTrackingFilterSpec.SORT_DEFAULT &&
+                sortId != BudgetTrackingFilterSpec.SORT_AMOUNT_DESC &&
+                sortId != BudgetTrackingFilterSpec.SORT_SPENT_DESC
 
         Box {
             CompactToolbarPill(
@@ -251,34 +247,32 @@ fun BudgetQuickShortcutsRow(
                 // Actual Spent
                 SortMenuItem(
                     title = if (isBn) "ব্যয়: বেশি থেকে কম" else "Actual Spent: High → Low",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.SPENT_DESC || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_SPENT_DESC || sortId == BudgetTrackingFilterSpec.SORT_AMOUNT_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.SPENT_DESC,
-                                sortByAmount = true,
-                                showOnlyActual = true,
-                                showOnlyRemainingBalance = false,
-                                filterOnlyBudgeted = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_AMOUNT_DESC)
+                        val toggles = activeToggles.toMutableSet()
+                        toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                        updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                        onFilterChange(updated)
                     }
                 )
                 SortMenuItem(
                     title = if (isBn) "ব্যয়: কম থেকে বেশি" else "Actual Spent: Low → High",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.AMOUNT_ASC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_AMOUNT_ASC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.AMOUNT_ASC,
-                                sortByAmount = false,
-                                showOnlyActual = true,
-                                showOnlyRemainingBalance = false,
-                                filterOnlyBudgeted = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_AMOUNT_ASC)
+                        val toggles = activeToggles.toMutableSet()
+                        toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                        updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                        onFilterChange(updated)
                     }
                 )
 
@@ -287,34 +281,32 @@ fun BudgetQuickShortcutsRow(
                 // Remaining
                 SortMenuItem(
                     title = if (isBn) "অবশিষ্ট: বেশি থেকে কম" else "Remaining: Most → Least",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.REMAINING_DESC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_REMAINING_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.REMAINING_DESC,
-                                sortByAmount = false,
-                                showOnlyRemainingBalance = true,
-                                showOnlyActual = false,
-                                filterOnlyBudgeted = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_REMAINING_DESC)
+                        val toggles = activeToggles.toMutableSet()
+                        toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                        updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                        onFilterChange(updated)
                     }
                 )
                 SortMenuItem(
                     title = if (isBn) "অবশিষ্ট: কম থেকে বেশি" else "Remaining: Least → Most",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.REMAINING_ASC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_REMAINING_ASC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.REMAINING_ASC,
-                                sortByAmount = false,
-                                showOnlyRemainingBalance = true,
-                                showOnlyActual = false,
-                                filterOnlyBudgeted = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_REMAINING_ASC)
+                        val toggles = activeToggles.toMutableSet()
+                        toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                        updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                        onFilterChange(updated)
                     }
                 )
 
@@ -323,52 +315,49 @@ fun BudgetQuickShortcutsRow(
                 // Budget Limit
                 SortMenuItem(
                     title = if (isBn) "বাজেট সীমা: বেশি থেকে কম" else "Budget Limit: High → Low",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.BUDGET_DESC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_BUDGET_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.BUDGET_DESC,
-                                sortByAmount = false,
-                                filterOnlyBudgeted = true,
-                                showOnlyRemainingBalance = false,
-                                showOnlyActual = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_BUDGET_DESC)
+                        val toggles = activeToggles.toMutableSet()
+                        toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                        updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                        onFilterChange(updated)
                     }
                 )
                 SortMenuItem(
                     title = if (isBn) "বাজেট সীমা: কম থেকে বেশি" else "Budget Limit: Low → High",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.BUDGET_ASC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_BUDGET_ASC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.BUDGET_ASC,
-                                sortByAmount = false,
-                                filterOnlyBudgeted = true,
-                                showOnlyRemainingBalance = false,
-                                showOnlyActual = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_BUDGET_ASC)
+                        val toggles = activeToggles.toMutableSet()
+                        toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                        updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                        onFilterChange(updated)
                     }
                 )
 
                 // Utilization
                 SortMenuItem(
                     title = if (isBn) "ব্যবহারের হার %: বেশি থেকে কম" else "Utilization %: High → Low",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.UTILIZATION_DESC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_UTILIZATION_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.UTILIZATION_DESC,
-                                sortByAmount = false,
-                                filterOnlyBudgeted = true,
-                                showOnlyRemainingBalance = false,
-                                showOnlyActual = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_UTILIZATION_DESC)
+                        val toggles = activeToggles.toMutableSet()
+                        toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                        toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                        updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                        onFilterChange(updated)
                     }
                 )
 
@@ -377,18 +366,12 @@ fun BudgetQuickShortcutsRow(
                 // Alphabetical
                 SortMenuItem(
                     title = if (isBn) "নাম: A থেকে Z" else "Name: A → Z",
-                    isSelected = filterState.sortOrder == BudgetSortOrder.NAME_ASC,
+                    isSelected = sortId == BudgetTrackingFilterSpec.SORT_NAME_ASC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(
-                            filterState.copy(
-                                sortOrder = BudgetSortOrder.NAME_ASC,
-                                sortByAmount = false,
-                                showOnlyRemainingBalance = false,
-                                showOnlyActual = false,
-                                filterOnlyBudgeted = false
-                            )
-                        )
+                        val updated = filterState.toMutableMap()
+                        updated[BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(BudgetTrackingFilterSpec.SORT_NAME_ASC)
+                        onFilterChange(updated)
                     }
                 )
             }
@@ -397,7 +380,7 @@ fun BudgetQuickShortcutsRow(
         // ---------------------------------------------------------------------
         // 3. Expand / Collapse All (Visible in hierarchical view)
         // ---------------------------------------------------------------------
-        if (!filterState.showOnlyCategoriesWithoutGroups) {
+        if (hierarchy != BudgetTrackingFilterSpec.HIERARCHY_WITHOUT_GROUPS) {
             val expandIcon = if (allGroupsExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore
             val expandLabel = if (allGroupsExpanded) {
                 if (isBn) "সব বন্ধ" else "Collapse"
@@ -421,10 +404,18 @@ fun BudgetQuickShortcutsRow(
             icon = Icons.Default.Savings,
             label = if (isBn) "শুধু অবশিষ্ট" else "Remaining",
             hasDropdown = false,
-            isActive = filterState.showOnlyRemainingBalance,
+            isActive = isOnlyRemaining,
             activeColor = SolidIncome,
             onClick = {
-                onFilterChange(filterState.copy(showOnlyRemainingBalance = !filterState.showOnlyRemainingBalance))
+                val updated = filterState.toMutableMap()
+                val toggles = activeToggles.toMutableSet()
+                if (isOnlyRemaining) {
+                    toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                } else {
+                    toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                }
+                updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                onFilterChange(updated)
             }
         )
 
@@ -435,10 +426,18 @@ fun BudgetQuickShortcutsRow(
             icon = Icons.Default.PriorityHigh,
             label = if (isBn) "অতিরিক্ত" else "Over Budget",
             hasDropdown = false,
-            isActive = filterState.filterOnlyOverBudget,
+            isActive = isOnlyOverBudget,
             activeColor = SolidExpense,
             onClick = {
-                onFilterChange(filterState.copy(filterOnlyOverBudget = !filterState.filterOnlyOverBudget))
+                val updated = filterState.toMutableMap()
+                val toggles = activeToggles.toMutableSet()
+                if (isOnlyOverBudget) {
+                    toggles.remove(BudgetTrackingFilterSpec.TOGGLE_ONLY_OVER_BUDGET)
+                } else {
+                    toggles.add(BudgetTrackingFilterSpec.TOGGLE_ONLY_OVER_BUDGET)
+                }
+                updated[BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+                onFilterChange(updated)
             }
         )
     }

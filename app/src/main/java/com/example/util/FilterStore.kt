@@ -29,6 +29,7 @@ class FilterStore private constructor(private val context: Context) {
         const val KEY_MIGRATED_BALANCE_SHEET = "migrated_balance_sheet_v1"
         const val KEY_MIGRATED_CASH_FLOW = "migrated_cash_flow_v1"
         const val KEY_MIGRATED_NET_EARNINGS = "migrated_net_earnings_v1"
+        const val KEY_MIGRATED_BUDGET_TRACKING = "migrated_budget_tracking_v1"
 
         val VALID_LABELS_DATE_PRESETS = setOf(
             "this_month", "last_month", "this_week", "today", "yesterday",
@@ -648,6 +649,92 @@ class FilterStore private constructor(private val context: Context) {
             }
         }
 
+        // Budget Tracking Mappings
+        val VALID_BUDGET_TRACKING_DATE_PRESETS = setOf(
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_THIS_MONTH,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_MONTH,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_3_MONTHS,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_6_MONTHS,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_12_MONTHS,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_YEAR_TO_DATE,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_SAME_MONTH_LAST_YEAR,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_ALL_TIME,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_CUSTOM
+        )
+        const val DEFAULT_BUDGET_TRACKING_DATE_PRESET = com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_THIS_MONTH
+
+        fun mapBudgetTrackingDatePreset(preset: com.example.ui.components.BudgetDateRangePreset?): String {
+            return when (preset) {
+                com.example.ui.components.BudgetDateRangePreset.THIS_MONTH -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_THIS_MONTH
+                com.example.ui.components.BudgetDateRangePreset.LAST_MONTH -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_MONTH
+                com.example.ui.components.BudgetDateRangePreset.LAST_3_MONTHS -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_3_MONTHS
+                com.example.ui.components.BudgetDateRangePreset.LAST_6_MONTHS -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_6_MONTHS
+                com.example.ui.components.BudgetDateRangePreset.LAST_12_MONTHS -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_LAST_12_MONTHS
+                com.example.ui.components.BudgetDateRangePreset.YEAR_TO_DATE -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_YEAR_TO_DATE
+                com.example.ui.components.BudgetDateRangePreset.SAME_MONTH_LAST_YEAR -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_SAME_MONTH_LAST_YEAR
+                com.example.ui.components.BudgetDateRangePreset.ALL_TIME -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_ALL_TIME
+                com.example.ui.components.BudgetDateRangePreset.CUSTOM -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.PRESET_CUSTOM
+                null -> DEFAULT_BUDGET_TRACKING_DATE_PRESET
+            }
+        }
+
+        val VALID_BUDGET_TRACKING_COMPARISON_PRESETS = setOf(
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_NONE,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_SAME_DATE_PREV_MONTH,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_SAME_DATE_PREV_YEAR,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_LAST_MONTH,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_SAME_MONTH_LAST_YEAR,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_LAST_3_MONTHS_AVG,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_LAST_YEAR,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_CUSTOM
+        )
+        const val DEFAULT_BUDGET_TRACKING_COMPARISON_PRESET = com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_NONE
+
+        fun mapBudgetTrackingComparisonPreset(preset: com.example.ui.components.BudgetComparisonPreset?): String {
+            return when (preset) {
+                com.example.ui.components.BudgetComparisonPreset.SAME_DATE_PREV_MONTH -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_SAME_DATE_PREV_MONTH
+                com.example.ui.components.BudgetComparisonPreset.SAME_DATE_PREV_YEAR -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_SAME_DATE_PREV_YEAR
+                com.example.ui.components.BudgetComparisonPreset.LAST_MONTH -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_LAST_MONTH
+                com.example.ui.components.BudgetComparisonPreset.SAME_MONTH_LAST_YEAR -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_SAME_MONTH_LAST_YEAR
+                com.example.ui.components.BudgetComparisonPreset.LAST_3_MONTHS_AVG -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_LAST_3_MONTHS_AVG
+                com.example.ui.components.BudgetComparisonPreset.LAST_YEAR -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_LAST_YEAR
+                com.example.ui.components.BudgetComparisonPreset.CUSTOM -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_CUSTOM
+                null -> DEFAULT_BUDGET_TRACKING_COMPARISON_PRESET
+            }
+        }
+
+        val VALID_BUDGET_TRACKING_SORTS = setOf(
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_AMOUNT_DESC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_AMOUNT_ASC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_SPENT_DESC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_REMAINING_DESC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_REMAINING_ASC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_BUDGET_DESC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_BUDGET_ASC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_UTILIZATION_DESC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_NAME_ASC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_NAME_DESC,
+            com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_DEFAULT
+        )
+        const val DEFAULT_BUDGET_TRACKING_SORT = com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_AMOUNT_DESC
+
+        fun mapBudgetTrackingSort(sort: com.example.ui.components.BudgetSortOrder?): String {
+            return when (sort) {
+                com.example.ui.components.BudgetSortOrder.AMOUNT_DESC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_AMOUNT_DESC
+                com.example.ui.components.BudgetSortOrder.AMOUNT_ASC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_AMOUNT_ASC
+                com.example.ui.components.BudgetSortOrder.SPENT_DESC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_SPENT_DESC
+                com.example.ui.components.BudgetSortOrder.REMAINING_DESC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_REMAINING_DESC
+                com.example.ui.components.BudgetSortOrder.REMAINING_ASC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_REMAINING_ASC
+                com.example.ui.components.BudgetSortOrder.BUDGET_DESC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_BUDGET_DESC
+                com.example.ui.components.BudgetSortOrder.BUDGET_ASC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_BUDGET_ASC
+                com.example.ui.components.BudgetSortOrder.UTILIZATION_DESC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_UTILIZATION_DESC
+                com.example.ui.components.BudgetSortOrder.NAME_ASC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_NAME_ASC
+                com.example.ui.components.BudgetSortOrder.NAME_DESC -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_NAME_DESC
+                com.example.ui.components.BudgetSortOrder.DEFAULT -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SORT_DEFAULT
+                null -> DEFAULT_BUDGET_TRACKING_SORT
+            }
+        }
+
         @Volatile
         private var instance: FilterStore? = null
 
@@ -858,6 +945,7 @@ class FilterStore private constructor(private val context: Context) {
             .remove(KEY_MIGRATED_BALANCE_SHEET)
             .remove(KEY_MIGRATED_CASH_FLOW)
             .remove(KEY_MIGRATED_NET_EARNINGS)
+            .remove(KEY_MIGRATED_BUDGET_TRACKING)
             .remove("migrated_tab_filter_preferences_v1")
             .commit()
     }
@@ -1143,45 +1231,110 @@ class FilterStore private constructor(private val context: Context) {
                     neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_COMPARISON] = FilterValue.ToggleGroup(
                         setOf(com.example.ui.components.filter.specs.NetEarningsFilterSpec.COMP_NONE)
                     )
-                    // Read any saved old toggle values from TabFilterPreferences / preferences; if none were saved, use the spec's own defaults
-                    val activeToggles = mutableSetOf<String>()
-                    val rawPrefs = context.getSharedPreferences("budgeter_tab_filter_sort_prefs", Context.MODE_PRIVATE)
-                    val hasCustomToggles = rawPrefs.contains("reports_exclude_zero") ||
-                            rawPrefs.contains("reports_hide_empty_groups") ||
-                            rawPrefs.contains("reports_display_currency") ||
-                            rawPrefs.contains("reports_display_symbol")
-
-                    if (hasCustomToggles) {
-                        if (rawPrefs.getBoolean("reports_exclude_zero", true)) {
-                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO)
-                        }
-                        if (rawPrefs.getBoolean("reports_hide_empty_groups", true)) {
-                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS)
-                        }
-                        if (rawPrefs.getBoolean("reports_display_currency", true)) {
-                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_CURRENCY)
-                        }
-                        if (rawPrefs.getBoolean("reports_display_symbol", true)) {
-                            activeToggles.add(com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_SYMBOL)
-                        }
-                    } else {
-                        // Use spec's own defaults
-                        activeToggles.addAll(
-                            setOf(
-                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO,
-                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS,
-                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_CURRENCY,
-                                com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_SYMBOL
-                            )
+                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(
+                        setOf(
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_EXCLUDE_ZERO,
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS,
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_CURRENCY,
+                            com.example.ui.components.filter.specs.NetEarningsFilterSpec.TOGGLE_DISPLAY_SYMBOL
                         )
-                    }
-                    neState[com.example.ui.components.filter.specs.NetEarningsFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(activeToggles)
+                    )
                     saveFilterState(com.example.ui.components.filter.specs.NetEarningsFilterSpec.SPEC_KEY, neState)
                 }
                 prefs.edit().putBoolean(KEY_MIGRATED_NET_EARNINGS, true).commit()
             }
         } catch (e: Exception) {
             System.err.println("Net Earnings migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 12. Migrate Budget Tracking (BudgetTrackingScreen) with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_BUDGET_TRACKING, false)) {
+                val btKey = "filter_${com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(btKey)) {
+                    val btState = mutableMapOf<String, FilterValue>()
+                    val old = tabFilterPrefs.budgetTrackingFilterState
+
+                    val presetId = mapBudgetTrackingDatePreset(old.datePreset)
+                    btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_DATE] = FilterValue.Date(
+                        presetId = presetId,
+                        startMs = old.customStartDateMs,
+                        endMs = old.customEndDateMs
+                    )
+
+                    val compPresetId = if (old.comparisonEnabled) {
+                        mapBudgetTrackingComparisonPreset(old.comparisonPreset)
+                    } else {
+                        com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.COMP_NONE
+                    }
+                    btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_COMPARISON] = FilterValue.ToggleGroup(
+                        setOf(compPresetId)
+                    )
+
+                    val flowScope = when (tabFilterPrefs.budgetTrackingActiveTab.uppercase()) {
+                        "INCOME" -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SCOPE_INCOME_ONLY
+                        "EXPENSE" -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SCOPE_EXPENSE_ONLY
+                        else -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SCOPE_ALL
+                    }
+                    btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_FLOW_SCOPE] = FilterValue.ToggleGroup(setOf(flowScope))
+
+                    val hierarchyId = when {
+                        old.showOnlyGroups -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.HIERARCHY_ONLY_GROUPS
+                        old.showOnlyCategoriesWithoutGroups -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.HIERARCHY_WITHOUT_GROUPS
+                        else -> com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.HIERARCHY_GROUPED
+                    }
+                    btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(hierarchyId))
+
+                    if (old.selectedCategoryIds.isNotEmpty()) {
+                        btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_CATEGORIES] = FilterValue.Select(
+                            old.selectedCategoryIds.map { it.toString() }.toSet()
+                        )
+                    }
+                    if (old.selectedAccountIds.isNotEmpty()) {
+                        btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_ACCOUNTS] = FilterValue.Select(
+                            old.selectedAccountIds.map { it.toString() }.toSet()
+                        )
+                    }
+                    if (old.selectedLabels.isNotEmpty()) {
+                        btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_LABELS] = FilterValue.Select(
+                            old.selectedLabels
+                        )
+                    }
+                    if (old.selectedStatusSet.isNotEmpty()) {
+                        btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_STATUSES] = FilterValue.Select(
+                            old.selectedStatusSet.map { it.name }.toSet()
+                        )
+                    }
+                    if (old.minAmount != null || old.maxAmount != null) {
+                        btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_AMOUNT_RANGE] = FilterValue.Range(
+                            min = old.minAmount,
+                            max = old.maxAmount
+                        )
+                    }
+
+                    val sortId = mapBudgetTrackingSort(old.sortOrder)
+                    btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_SORT] = FilterValue.Sort(sortId)
+
+                    val toggles = mutableSetOf<String>()
+                    if (old.excludeZeroAmounts) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_EXCLUDE_ZERO)
+                    if (old.hideEmptyGroups) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_HIDE_EMPTY_GROUPS)
+                    if (old.filterOnlyBudgeted) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_ONLY_BUDGETED)
+                    if (old.filterOnlyOverBudget) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_ONLY_OVER_BUDGET)
+                    if (old.showOnlyRemainingBalance) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_ONLY_REMAINING)
+                    if (old.showOnlyActual) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_ONLY_ACTUAL)
+                    if (old.filterActive3Months) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_ACTIVE_3_MONTHS)
+                    if (old.showExpenseCategoriesFirst) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_EXPENSE_FIRST)
+                    if (old.displayCurrency) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_DISPLAY_CURRENCY)
+                    if (old.displayCurrencySymbol) toggles.add(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.TOGGLE_DISPLAY_SYMBOL)
+                    btState[com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+
+                    saveFilterState(com.example.ui.components.filter.specs.BudgetTrackingFilterSpec.SPEC_KEY, btState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_BUDGET_TRACKING, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Budget Tracking migration failed: $e")
             e.printStackTrace()
         }
     }
