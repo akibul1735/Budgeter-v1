@@ -125,15 +125,11 @@ import com.example.ui.components.AppTabHeader
 import com.example.ui.components.DatePickerModal
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.PopupCalculatorDialog
-import com.example.ui.components.UnifiedFilterDialogContainer
-import com.example.ui.components.UnifiedFilterFooter
-import com.example.ui.components.UnifiedFilterHeader
-import com.example.ui.components.UnifiedFilterSection
 import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.dialogs.TransactionDetailViewDialog
 import com.example.ui.dialogs.TransactionDisplaySettings
 import com.example.ui.dialogs.TransactionFilterDialog
-import com.example.ui.dialogs.TransactionFilterState
+import com.example.ui.dialogs.TransactionTabFilter
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidExpenseContainer
 import com.example.ui.theme.SolidIncome
@@ -245,6 +241,9 @@ fun LedgerScreen(
     var rowStyle by remember { mutableStateOf(tabFilterPrefs.ledgerRowStyle) }
     var displaySettings by remember { mutableStateOf(tabFilterPrefs.ledgerDisplaySettings) }
 
+    // Dialog state for new Filter Popup
+    var showFilterDialog by remember { mutableStateOf(false) }
+
     // Sync state changes to TabFilterPreferences
     LaunchedEffect(
         searchQuery,
@@ -282,7 +281,6 @@ fun LedgerScreen(
 
     // Dialog Visibilities
     var viewingTransactionItem by remember { mutableStateOf<TransactionWithDetails?>(null) }
-    var showFilterDialog by remember { mutableStateOf(false) }
     var showCustomStartPicker by remember { mutableStateOf(false) }
     var showCustomEndPicker by remember { mutableStateOf(false) }
 
@@ -675,6 +673,27 @@ fun LedgerScreen(
             selectedStatusFilter != null ||
             searchQuery.isNotBlank()
 
+    val activeFilterCount = remember(
+        selectedTypeFilter,
+        selectedDatePreset,
+        minAmountFilter,
+        maxAmountFilter,
+        selectedCategoryIdFilter,
+        selectedAccountIdFilter,
+        selectedLabelFilter,
+        selectedStatusFilter
+    ) {
+        var count = 0
+        if (selectedTypeFilter != null) count++
+        if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) count++
+        if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) count++
+        if (selectedCategoryIdFilter != null) count++
+        if (selectedAccountIdFilter != null) count++
+        if (selectedLabelFilter != null) count++
+        if (selectedStatusFilter != null) count++
+        count
+    }
+
     val activeFilterSummary = remember(
         selectedDatePreset, customStartDateMs, customEndDateMs,
         selectedTypeFilter, selectedCategoryIdFilter, selectedAccountIdFilter,
@@ -932,13 +951,7 @@ fun LedgerScreen(
                 showSearchButton = true,
                 showFilterButton = true,
                 isFilterActive = hasActiveFilters,
-                activeFilterCount = (if (selectedTypeFilter != null) 1 else 0) +
-                        (if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) 1 else 0) +
-                        (if (selectedCategoryIdFilter != null) 1 else 0) +
-                        (if (selectedAccountIdFilter != null) 1 else 0) +
-                        (if (selectedLabelFilter != null) 1 else 0) +
-                        (if (selectedStatusFilter != null) 1 else 0) +
-                        (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
+                activeFilterCount = activeFilterCount,
                 onFilterClick = { showFilterDialog = true },
                 actions = {
                     ExportMenuButton(
@@ -1051,7 +1064,10 @@ fun LedgerScreen(
                                 shape = RoundedCornerShape(10.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                                 border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { showFilterDialog = true }
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -1508,66 +1524,6 @@ fun LedgerScreen(
         )
     }
 
-    // Transaction Filter Popup Dialog
-    if (showFilterDialog) {
-        val currentFilterState = remember(
-            searchQuery,
-            selectedTypeFilter,
-            selectedDatePreset,
-            customStartDateMs,
-            customEndDateMs,
-            minAmountFilter,
-            maxAmountFilter,
-            selectedCategoryIdFilter,
-            selectedAccountIdFilter,
-            selectedLabelFilter,
-            selectedStatusFilter,
-            rowStyle,
-            displaySettings
-        ) {
-            TransactionFilterState(
-                searchQuery = searchQuery,
-                minAmount = if (minAmountFilter > 0) minAmountFilter else null,
-                maxAmount = if (maxAmountFilter < Double.MAX_VALUE) maxAmountFilter else null,
-                datePreset = selectedDatePreset,
-                startDateMs = customStartDateMs,
-                endDateMs = customEndDateMs,
-                transactionType = selectedTypeFilter,
-                categoryId = selectedCategoryIdFilter,
-                accountId = selectedAccountIdFilter,
-                label = selectedLabelFilter,
-                status = selectedStatusFilter,
-                rowStyle = rowStyle,
-                displaySettings = displaySettings
-            )
-        }
-
-        TransactionFilterDialog(
-            initialState = currentFilterState,
-            allCategories = allCategories,
-            allAccounts = allAccounts,
-            allTransactions = transactions,
-            languageMode = languageMode,
-            onApply = { newFilter ->
-                searchQuery = newFilter.searchQuery
-                selectedTypeFilter = newFilter.transactionType
-                selectedDatePreset = newFilter.datePreset
-                customStartDateMs = newFilter.startDateMs
-                customEndDateMs = newFilter.endDateMs
-                minAmountFilter = newFilter.minAmount ?: 0.0
-                maxAmountFilter = newFilter.maxAmount ?: Double.MAX_VALUE
-                selectedCategoryIdFilter = newFilter.categoryId
-                selectedAccountIdFilter = newFilter.accountId
-                selectedLabelFilter = newFilter.label
-                selectedStatusFilter = newFilter.status
-                rowStyle = newFilter.rowStyle
-                displaySettings = newFilter.displaySettings
-                showFilterDialog = false
-            },
-            onDismiss = { showFilterDialog = false }
-        )
-    }
-
     // Custom Date Range Pickers
     if (showCustomStartPicker) {
         val dateState = rememberDatePickerState(initialSelectedDateMillis = customStartDateMs)
@@ -1733,6 +1689,47 @@ fun LedgerScreen(
                 selectedTransactionIds = emptySet()
             },
             onDismiss = { showBatchDeleteConfirmDialog = false }
+        )
+    }
+
+    // Modern Transactions Filter Dialog (Budget Maker reference design)
+    if (showFilterDialog) {
+        val currentTabFilter = TransactionTabFilter(
+            selectedTypes = if (selectedTypeFilter != null) setOf(selectedTypeFilter!!) else emptySet(),
+            datePreset = selectedDatePreset,
+            customStartDateMs = customStartDateMs,
+            customEndDateMs = customEndDateMs,
+            minAmount = if (minAmountFilter > 0.0) minAmountFilter else null,
+            maxAmount = if (maxAmountFilter < Double.MAX_VALUE) maxAmountFilter else null,
+            selectedCategoryIds = if (selectedCategoryIdFilter != null) setOf(selectedCategoryIdFilter!!) else emptySet(),
+            selectedAccountIds = if (selectedAccountIdFilter != null) setOf(selectedAccountIdFilter!!) else emptySet(),
+            selectedStatuses = if (selectedStatusFilter != null) setOf(selectedStatusFilter!!) else emptySet(),
+            labelOrReference = selectedLabelFilter,
+            rowStyle = rowStyle,
+            displaySettings = displaySettings
+        )
+
+        TransactionFilterDialog(
+            currentFilter = currentTabFilter,
+            categories = allCategories,
+            accounts = allAccounts,
+            languageMode = languageMode,
+            onDismiss = { showFilterDialog = false },
+            onApplyFilter = { newFilter ->
+                selectedTypeFilter = newFilter.selectedTypes.firstOrNull()
+                selectedDatePreset = newFilter.datePreset
+                customStartDateMs = newFilter.customStartDateMs
+                customEndDateMs = newFilter.customEndDateMs
+                minAmountFilter = newFilter.minAmount ?: 0.0
+                maxAmountFilter = newFilter.maxAmount ?: Double.MAX_VALUE
+                selectedCategoryIdFilter = newFilter.selectedCategoryIds.firstOrNull()
+                selectedAccountIdFilter = newFilter.selectedAccountIds.firstOrNull()
+                selectedStatusFilter = newFilter.selectedStatuses.firstOrNull()
+                selectedLabelFilter = newFilter.labelOrReference
+                rowStyle = newFilter.rowStyle
+                displaySettings = newFilter.displaySettings
+                showFilterDialog = false
+            }
         )
     }
 }
