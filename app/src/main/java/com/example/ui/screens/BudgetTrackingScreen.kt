@@ -142,6 +142,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.ui.components.BudgetDateRangePreset
 import com.example.ui.components.BudgetComparisonPreset
 import com.example.ui.components.BudgetFilterState
+import com.example.ui.components.BudgetFilterDialog
+import com.example.ui.components.ActiveBudgetFilterBar
 import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.PopupCalculatorDialog
@@ -1476,8 +1478,10 @@ fun BudgetTrackingScreen(
 
             // Compact Quick Shortcuts Toolbar (View: All/Groups/Categories, Sort, Expand/Collapse, Quick Toggles)
             BudgetQuickShortcutsRow(
-                filterState = filterState,
-                onFilterChange = { filterState = it },
+                filterState = BudgetTrackingFilterSpec.fromBudgetFilterState(filterState),
+                onFilterChange = { unifiedState ->
+                    filterState = BudgetTrackingFilterSpec.toBudgetFilterState(unifiedState)
+                },
                 allGroupsExpanded = allGroupsExpanded,
                 onToggleExpandAll = { expanded ->
                     categoryGroups.forEach { group ->
