@@ -225,8 +225,11 @@ object ItemsFilterSpec {
 
         return FilterSpec(
             key = SPEC_KEY,
-            titleEn = "Filter & Sort Items",
-            titleBn = "আইটেম ফিল্টার ও সাজানো",
+            titleEn = "Items Filter",
+            titleBn = "আইটেম ফিল্টার",
+            subtitleEn = "Grouped Payees & Transaction Items",
+            subtitleBn = "গ্রুপবদ্ধ প্রাপক ও লেনদেন সামগ্রী",
+            icon = Icons.Default.FilterList,
             accentColor = Color(0xFFE91E63), // Crimson Pink
             fields = listOf(
                 FilterField.SearchField(
@@ -303,8 +306,8 @@ object ItemsFilterSpec {
                 ),
                 FilterField.ToggleGroupField(
                     id = FIELD_EXCLUDE_ZERO,
-                    titleEn = "Zero Amounts",
-                    titleBn = "শূন্য পরিমাণ",
+                    titleEn = "Display Preferences",
+                    titleBn = "প্রদর্শন পছন্দসমূহ",
                     icon = Icons.Default.Tune,
                     conditions = listOf(
                         FilterCondition(EXCLUDE_ZERO_ID, "Exclude Zero Amounts", "শূন্য পরিমাণ বাদ দিন", icon = Icons.Default.Tune)

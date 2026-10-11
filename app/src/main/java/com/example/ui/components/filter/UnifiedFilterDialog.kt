@@ -140,8 +140,8 @@ fun <T> UnifiedFilterDialog(
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 for (field in spec.fields) {
                     val fieldTitle = if (isBangla) field.titleBn else field.titleEn

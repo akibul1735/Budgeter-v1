@@ -86,8 +86,10 @@ import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.FilterValue
 import com.example.ui.components.filter.UnifiedActiveFilterBar
 import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.dialogs.ItemsFilterDialog
 import com.example.ui.components.filter.activeChips
 import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
@@ -149,6 +151,10 @@ fun ItemsScreen(
         mutableStateOf<FilterState>(filterStore.loadFilterState(ItemsFilterSpec.SPEC_KEY))
     }
     var searchQuery by remember { mutableStateOf("") }
+    val filterSearchQuery = remember(filterState) { ItemsFilterSpec.getSearchQuery(filterState) }
+    val effectiveSearchQuery = remember(searchQuery, filterSearchQuery) {
+        if (searchQuery.isNotBlank()) searchQuery else filterSearchQuery
+    }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var selectedDrilldownItem by remember { mutableStateOf<AggregatedItem?>(null) }
@@ -197,7 +203,7 @@ fun ItemsScreen(
     // Filter transactions and group by item/payee
     val aggregatedItems = remember(
         transactions,
-        searchQuery,
+        effectiveSearchQuery,
         effectiveType,
         startEpochMs,
         endEpochMs,
@@ -302,9 +308,9 @@ fun ItemsScreen(
             )
         }.filter { item ->
             val totalAmt = if (effectiveType == TransactionType.EXPENSE) item.totalExpense else if (effectiveType == TransactionType.INCOME) item.totalIncome else (item.totalExpense + item.totalIncome)
-            val matchesSearch = searchQuery.isBlank() ||
-                    item.name.contains(searchQuery, ignoreCase = true) ||
-                    (item.groupName != null && item.groupName.contains(searchQuery, ignoreCase = true))
+            val matchesSearch = effectiveSearchQuery.isBlank() ||
+                    item.name.contains(effectiveSearchQuery, ignoreCase = true) ||
+                    (item.groupName != null && item.groupName.contains(effectiveSearchQuery, ignoreCase = true))
             val matchesMin = minAmount == null || totalAmt >= minAmount
             val matchesMax = maxAmount == null || totalAmt <= maxAmount
             val matchesZero = !excludeZero || totalAmt > 0
@@ -369,8 +375,17 @@ fun ItemsScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             AppTabHeader(
                 title = LanguageHelper.getString("items_summary", languageMode),
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
+                searchQuery = effectiveSearchQuery,
+                onSearchQueryChange = { newQuery ->
+                    searchQuery = newQuery
+                    val trimmed = newQuery.trim()
+                    val updatedState = if (trimmed.isEmpty()) {
+                        filterState - ItemsFilterSpec.FIELD_SEARCH
+                    } else {
+                        filterState + (ItemsFilterSpec.FIELD_SEARCH to FilterValue.Search(trimmed))
+                    }
+                    updateFilterState(updatedState)
+                },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "আইটেম খুঁজুন..." else "Search items...",
                 showSearchButton = true,
                 showFilterButton = true,
@@ -862,11 +877,12 @@ fun ItemsScreen(
         )
     }
 
-    // Unified Filter & Sort Dialog
+    // Items Filter Dialog (matching Budget tab filter popup layout)
     if (showFilterDialog) {
-        UnifiedFilterDialog(
-            spec = itemsSpec,
+        ItemsFilterDialog(
             initialState = filterState,
+            categories = categories,
+            accounts = accounts,
             languageMode = languageMode,
             onDismiss = { showFilterDialog = false },
             onApply = { newFilter ->

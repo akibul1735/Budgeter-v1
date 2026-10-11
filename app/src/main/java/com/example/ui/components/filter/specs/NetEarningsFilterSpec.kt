@@ -497,8 +497,12 @@ object NetEarningsFilterSpec {
 
         return FilterSpec(
             key = SPEC_KEY,
-            titleEn = "Filter Net Earnings",
+            titleEn = "Net Earnings Filter",
             titleBn = "নিট আয় ফিল্টার",
+            subtitleEn = "Actual Surplus, Deficit & Cash Flows",
+            subtitleBn = "বাস্তব উদ্বৃত্ত, ঘাটতি ও নগদ প্রবাহ",
+            icon = Icons.Default.TrendingUp,
+            accentColor = com.example.ui.theme.SolidPrimary,
             fields = fields
         )
     }

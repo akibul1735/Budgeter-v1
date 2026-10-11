@@ -101,6 +101,7 @@ import com.example.ui.components.filter.FilterState
 import com.example.ui.components.filter.FilterValue
 import com.example.ui.components.filter.UnifiedActiveFilterBar
 import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.dialogs.NetEarningsFilterDialog
 import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.NetEarningsFilterSpec
@@ -214,6 +215,10 @@ fun ReportsScreen(
         else -> NetEarningsSort.AMOUNT_HIGH_TO_LOW
     }
     var searchQuery by remember { mutableStateOf("") }
+    val filterSearchQuery = remember(filterState) { NetEarningsFilterSpec.getSearchQuery(filterState) }
+    val effectiveSearchQuery = remember(searchQuery, filterSearchQuery) {
+        if (searchQuery.isNotBlank()) searchQuery else filterSearchQuery
+    }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
 
@@ -348,7 +353,7 @@ fun ReportsScreen(
         activeTabMode,
         totalMonthExpense,
         totalMonthIncome,
-        searchQuery,
+        effectiveSearchQuery,
         sortOption,
         excludeZeroAmounts,
         hideEmptyGroups,
@@ -470,8 +475,8 @@ fun ReportsScreen(
             } else groups
 
             // Filter by search query if any
-            val filtered = if (searchQuery.isNotBlank()) {
-                val q = searchQuery.trim().lowercase()
+            val filtered = if (effectiveSearchQuery.isNotBlank()) {
+                val q = effectiveSearchQuery.trim().lowercase()
                 allGroupsWithOrphans.mapNotNull { grp ->
                     val groupMatches = grp.groupNameEn.lowercase().contains(q) || grp.groupNameBn.lowercase().contains(q)
                     val matchingItems = grp.items.filter { item ->
@@ -519,8 +524,17 @@ fun ReportsScreen(
         // 1. TOP APP BAR HEADER: Includes Search, Filter, Timeline, Export button at top bar right side as Budget tab
         AppTabHeader(
             title = LanguageHelper.getString("net_earnings", languageMode),
-            searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it },
+            searchQuery = effectiveSearchQuery,
+            onSearchQueryChange = { newQuery ->
+                searchQuery = newQuery
+                val trimmed = newQuery.trim()
+                val updatedState = if (trimmed.isEmpty()) {
+                    filterState - NetEarningsFilterSpec.FIELD_SEARCH
+                } else {
+                    filterState + (NetEarningsFilterSpec.FIELD_SEARCH to FilterValue.Search(trimmed))
+                }
+                updateFilterState(updatedState)
+            },
             searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি খুঁজুন..." else "Search categories...",
             showSearchButton = true,
             showFilterButton = true,
@@ -1422,17 +1436,20 @@ fun ReportsScreen(
         )
     }
 
-    // UnifiedFilterDialog for advanced filtering tailored specifically for Net Earnings
+    // Net Earnings Filter Dialog (matching Budget tab filter popup layout)
     if (showFilterDialog) {
-        UnifiedFilterDialog(
-            spec = netEarningsSpec,
+        NetEarningsFilterDialog(
             initialState = filterState,
+            categories = categories,
+            accounts = actualAccounts,
+            labels = allLabels,
+            transactions = monthTransactions,
             languageMode = languageMode,
+            onDismiss = { showFilterDialog = false },
             onApply = { newFilter ->
                 updateFilterState(newFilter)
                 showFilterDialog = false
-            },
-            onDismiss = { showFilterDialog = false }
+            }
         )
     }
 }

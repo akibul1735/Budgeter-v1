@@ -84,6 +84,7 @@ import com.example.ui.components.filter.FilterState
 import com.example.ui.components.filter.FilterValue
 import com.example.ui.components.filter.UnifiedActiveFilterBar
 import com.example.ui.components.filter.UnifiedFilterDialog
+import com.example.ui.dialogs.LabelsFilterDialog
 import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.LabelsFilterSpec
@@ -1231,11 +1232,12 @@ fun LabelsScreen(
         }
     }
 
-    // Filter & Sort Dialog
+    // Labels Filter Dialog (matching Budget tab filter popup layout)
     if (showFilterDialog) {
-        UnifiedFilterDialog(
-            spec = labelsSpec,
+        LabelsFilterDialog(
             initialState = filterState,
+            categories = categories,
+            accounts = accounts,
             countProvider = { draftState -> computeMatchingCount(draftState) },
             languageMode = languageMode,
             onDismiss = { showFilterDialog = false },

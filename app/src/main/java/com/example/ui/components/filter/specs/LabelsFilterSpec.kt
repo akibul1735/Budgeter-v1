@@ -220,8 +220,11 @@ object LabelsFilterSpec {
 
         return FilterSpec(
             key = SPEC_KEY,
-            titleEn = "Filter & Sort Labels",
-            titleBn = "লেবেল ফিল্টার ও সাজানো",
+            titleEn = "Labels Filter",
+            titleBn = "লেবেল ফিল্টার",
+            subtitleEn = "Tags, Notes & Payee Classifications",
+            subtitleBn = "ট্যাগ, নোট ও প্রাপক বিন্যাস",
+            icon = Icons.Default.Label,
             accentColor = Color(0xFFE91E63),
             fields = listOf(
                 FilterField.SearchField(
@@ -311,8 +314,8 @@ object LabelsFilterSpec {
                 ),
                 FilterField.ToggleGroupField(
                     id = FIELD_EXCLUDE_ZERO,
-                    titleEn = "Zero Amounts",
-                    titleBn = "শূন্য পরিমাণ",
+                    titleEn = "Display Preferences",
+                    titleBn = "প্রদর্শন পছন্দসমূহ",
                     icon = Icons.Default.Tune,
                     conditions = listOf(
                         FilterCondition("exclude", "Exclude Zero Amounts", "শূন্য পরিমাণ বাদ দিন", icon = Icons.Default.Tune)
