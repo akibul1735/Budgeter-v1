@@ -123,6 +123,7 @@ import com.example.ui.components.filter.UnifiedFilterDialog
 import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
+import com.example.ui.dialogs.BalanceSheetFilterDialog
 import com.example.ui.components.BalanceSheetQuickShortcutsRow
 import com.example.util.FilterStore
 import com.example.data.model.Account
@@ -1017,20 +1018,16 @@ fun BalanceSheetScreen(
         )
     }
 
-    // Unified Filter Dialog
+    // Balance Sheet Filter Dialog (matching Budget tab filter popup layout)
     if (showFilterDialog) {
-        UnifiedFilterDialog(
-            spec = balanceSheetSpec,
+        BalanceSheetFilterDialog(
             initialState = filterState,
+            accounts = accounts,
             languageMode = languageMode,
             onDismiss = { showFilterDialog = false },
             onApply = { newFilter ->
                 updateFilterState(newFilter)
                 showFilterDialog = false
-            },
-            countProvider = { state ->
-                val accIds = BalanceSheetFilterSpec.getSelectedAccountIds(state)
-                if (accIds.isEmpty()) accounts.size else accIds.size
             }
         )
     }

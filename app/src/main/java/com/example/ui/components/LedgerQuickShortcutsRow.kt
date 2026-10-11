@@ -66,17 +66,13 @@ import com.example.util.LanguageHelper
  * Fast-access toolbar for the Transactions (Ledger) tab.
  * Gives immediate 1-tap switching for Type (All/Expense/Income/Transfer),
  * Date timeline preset dropdown, Payment account filter, Sort order,
- * formatted aggregate total badge, and Filter dialog trigger.
+ * and Filter dialog trigger.
  */
 @Composable
 fun LedgerQuickShortcutsRow(
     filterState: FilterState,
     onFilterChange: (FilterState) -> Unit,
     accounts: List<Account>,
-    totalFormatted: String,
-    totalTextColor: Color,
-    totalBgColor: Color,
-    totalBorderColor: Color,
     onOpenFilterDialog: () -> Unit,
     languageMode: LanguageMode,
     modifier: Modifier = Modifier
@@ -463,38 +459,7 @@ fun LedgerQuickShortcutsRow(
         }
 
         // ---------------------------------------------------------------------
-        // 5. Total Aggregate Pill (Live sum based on filters)
-        // ---------------------------------------------------------------------
-        if (totalFormatted.isNotBlank()) {
-            Surface(
-                shape = RoundedCornerShape(7.dp),
-                color = totalBgColor,
-                border = BorderStroke(0.8.dp, totalBorderColor),
-                modifier = Modifier.height(25.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Text(
-                        text = if (isBn) "মোট: " else "Total: ",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = totalTextColor.copy(alpha = 0.85f)
-                    )
-                    Text(
-                        text = totalFormatted,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = totalTextColor
-                    )
-                }
-            }
-        }
-
-        // ---------------------------------------------------------------------
-        // 6. Full Filter Dialog Trigger
+        // 5. Full Filter Dialog Trigger
         // ---------------------------------------------------------------------
         CompactToolbarPill(
             icon = Icons.Default.FilterAlt,

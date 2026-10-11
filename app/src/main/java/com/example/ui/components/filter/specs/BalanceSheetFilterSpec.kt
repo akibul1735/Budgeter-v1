@@ -161,21 +161,51 @@ object BalanceSheetFilterSpec {
     )
 
     fun createSpec(allAccounts: List<Account> = emptyList()): FilterSpec<Any> {
-        val accountOptions = allAccounts.map { acc ->
-            SelectItemOption(
-                id = acc.id.toString(),
-                titleEn = acc.nameEn,
-                titleBn = acc.nameBn,
-                subtitleEn = acc.accountNumber,
-                subtitleBn = acc.accountNumber,
-                icon = Icons.Default.AccountBalance
+        val parentMap = allAccounts.filter { it.parentId == null }.associateBy { it.id }
+        val childAccounts = allAccounts.filter { it.parentId != null }
+        val standaloneAccounts = allAccounts.filter { acc -> acc.parentId == null && childAccounts.none { it.parentId == acc.id } }
+
+        val selectItems = mutableListOf<SelectItemOption>()
+        childAccounts.forEach { child ->
+            val parentName = parentMap[child.parentId]?.nameEn ?: "Other"
+            val parentNameBn = parentMap[child.parentId]?.nameBn ?: "অন্যান্য"
+            selectItems.add(
+                SelectItemOption(
+                    id = child.id.toString(),
+                    titleEn = child.nameEn,
+                    titleBn = child.nameBn.ifBlank { child.nameEn },
+                    subtitleEn = child.accountNumber,
+                    subtitleBn = child.accountNumber,
+                    groupKey = parentName,
+                    groupTitleEn = parentName,
+                    groupTitleBn = parentNameBn,
+                    icon = Icons.Default.AccountBalance
+                )
+            )
+        }
+        standaloneAccounts.forEach { st ->
+            selectItems.add(
+                SelectItemOption(
+                    id = st.id.toString(),
+                    titleEn = st.nameEn,
+                    titleBn = st.nameBn.ifBlank { st.nameEn },
+                    subtitleEn = st.accountNumber,
+                    subtitleBn = st.accountNumber,
+                    groupKey = "General Accounts",
+                    groupTitleEn = "General Accounts",
+                    groupTitleBn = "সাধারণ অ্যাকাউন্ট",
+                    icon = Icons.Default.AccountBalance
+                )
             )
         }
 
         return FilterSpec(
             key = SPEC_KEY,
-            titleEn = "Filter & Compare Balance Sheet",
-            titleBn = "ব্যালেন্স শিট ফিল্টার ও তুলনা",
+            titleEn = "Balance Sheet Filter",
+            titleBn = "ব্যালেন্স শিট ফিল্টার",
+            subtitleEn = "Assets, Liabilities & Net Worth",
+            subtitleBn = "সম্পদ, দায় ও ব্যালেন্স তুলনা",
+            icon = Icons.Default.AccountBalance,
             accentColor = SolidPrimary,
             fields = listOf(
                 FilterField.SearchField(
@@ -208,13 +238,14 @@ object BalanceSheetFilterSpec {
                 ),
                 FilterField.SelectField(
                     id = FIELD_ACCOUNTS,
-                    titleEn = "Filter Accounts",
-                    titleBn = "নির্দিষ্ট অ্যাকাউন্ট নির্বাচন",
+                    titleEn = "Filter Accounts & Groups",
+                    titleBn = "নির্দিষ্ট অ্যাকাউন্ট ও গ্রুপ",
                     subtitleEn = "Select accounts to include in balance sheet",
                     subtitleBn = "ব্যালেন্স শিটে অন্তর্ভুক্ত অ্যাকাউন্ট নির্বাচন করুন",
                     icon = Icons.Default.AccountBalance,
                     isMultiSelect = true,
-                    items = accountOptions
+                    isHierarchical = true,
+                    items = selectItems
                 ),
                 FilterField.SelectField(
                     id = FIELD_STATUSES,
@@ -234,50 +265,53 @@ object BalanceSheetFilterSpec {
                     options = SORT_OPTIONS,
                     defaultSortId = SORT_AMOUNT_DESC
                 ),
-                FilterField.BooleanField(
-                    id = FIELD_EXCLUDE_ZERO,
-                    titleEn = "Exclude Zero Balance Accounts",
-                    titleBn = "শূন্য ব্যালেন্সের অ্যাকাউন্ট বাদ দিন",
-                    subtitleEn = "Hide accounts with ৳0 balance from the report",
-                    subtitleBn = "০ টাকার ব্যালেন্স সম্পন্ন হিসাবগুলো লুকান",
+                FilterField.ToggleGroupField(
+                    id = "display_options",
+                    titleEn = "Display & Cleanliness Preferences",
+                    titleBn = "প্রদর্শন পছন্দসমূহ",
                     icon = Icons.Default.Tune,
-                    defaultValue = true
-                ),
-                FilterField.BooleanField(
-                    id = FIELD_FILTER_NON_ZERO_GROUPS,
-                    titleEn = "Hide Empty Groups",
-                    titleBn = "খালি গ্রুপ লুকান",
-                    subtitleEn = "Hide parent account groups having no balance change",
-                    subtitleBn = "যেসব প্যারেন্ট গ্রুপের কোনো পরিবর্তন নেই তা লুকান",
-                    icon = Icons.Default.VisibilityOff,
-                    defaultValue = false
-                ),
-                FilterField.BooleanField(
-                    id = FIELD_SHOW_HIDDEN,
-                    titleEn = "Show Inactive Accounts",
-                    titleBn = "নিষ্ক্রিয় অ্যাকাউন্ট দেখান",
-                    subtitleEn = "Include archived and inactive accounts in calculations",
-                    subtitleBn = "আর্কাইভ বা বন্ধ হওয়া হিসাব অন্তর্ভুক্ত করুন",
-                    icon = Icons.Default.Visibility,
-                    defaultValue = false
-                ),
-                FilterField.BooleanField(
-                    id = FIELD_ONLY_CURRENT,
-                    titleEn = "Current Balance Only",
-                    titleBn = "শুধু বর্তমান ব্যালেন্স (তুলনাহীন)",
-                    subtitleEn = "Show single current balance column without historical delta",
-                    subtitleBn = "অতীতের তুলনা ছাড়া একক বর্তমান ব্যালেন্স কলাম প্রদর্শন করুন",
-                    icon = Icons.Default.Layers,
-                    defaultValue = false
-                ),
-                FilterField.BooleanField(
-                    id = FIELD_WITHOUT_GROUPS,
-                    titleEn = "Flatten Accounts (No Groups)",
-                    titleBn = "গ্রুপ ছাড়া সমতল তালিকা",
-                    subtitleEn = "Show all accounts without grouping structure",
-                    subtitleBn = "প্যারেন্ট-সাব গ্রুপ বিন্যাস ছাড়াই হিসাবগুলো দেখান",
-                    icon = Icons.Default.Layers,
-                    defaultValue = false
+                    conditions = listOf(
+                        FilterCondition(
+                            id = FIELD_EXCLUDE_ZERO,
+                            titleEn = "Exclude Zero Balance Accounts",
+                            titleBn = "শূন্য ব্যালেন্সের অ্যাকাউন্ট বাদ দিন",
+                            subtitleEn = "Hide accounts with ৳0 balance from report",
+                            subtitleBn = "০ টাকার ব্যালেন্স সম্পন্ন হিসাবগুলো লুকান",
+                            icon = Icons.Default.Tune
+                        ),
+                        FilterCondition(
+                            id = FIELD_FILTER_NON_ZERO_GROUPS,
+                            titleEn = "Hide Empty Groups",
+                            titleBn = "খালি গ্রুপ লুকান",
+                            subtitleEn = "Hide parent account groups having no change",
+                            subtitleBn = "যেসব প্যারেন্ট গ্রুপের কোনো পরিবর্তন নেই তা লুকান",
+                            icon = Icons.Default.VisibilityOff
+                        ),
+                        FilterCondition(
+                            id = FIELD_SHOW_HIDDEN,
+                            titleEn = "Show Inactive Accounts",
+                            titleBn = "নিষ্ক্রিয় অ্যাকাউন্ট দেখান",
+                            subtitleEn = "Include archived and inactive accounts",
+                            subtitleBn = "আর্কাইভ বা বন্ধ হওয়া হিসাব অন্তর্ভুক্ত করুন",
+                            icon = Icons.Default.Visibility
+                        ),
+                        FilterCondition(
+                            id = FIELD_ONLY_CURRENT,
+                            titleEn = "Current Balance Only",
+                            titleBn = "শুধু বর্তমান ব্যালেন্স (তুলনাহীন)",
+                            subtitleEn = "Show single current balance column without delta",
+                            subtitleBn = "অতীতের তুলনা ছাড়া একক বর্তমান ব্যালেন্স",
+                            icon = Icons.Default.Layers
+                        ),
+                        FilterCondition(
+                            id = FIELD_WITHOUT_GROUPS,
+                            titleEn = "Flatten Accounts (No Groups)",
+                            titleBn = "গ্রুপ ছাড়া সমতল তালিকা",
+                            subtitleEn = "Show all accounts without grouping structure",
+                            subtitleBn = "গ্রুপ বিন্যাস ছাড়াই হিসাবগুলো দেখান",
+                            icon = Icons.Default.Tune
+                        )
+                    )
                 )
             )
         )
@@ -344,23 +378,33 @@ object BalanceSheetFilterSpec {
     }
 
     fun getExcludeZero(state: FilterState): Boolean {
-        return (state[FIELD_EXCLUDE_ZERO] as? FilterValue.BooleanVal)?.value ?: true
+        (state[FIELD_EXCLUDE_ZERO] as? FilterValue.BooleanVal)?.let { return it.value }
+        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_EXCLUDE_ZERO) }
+        return true
     }
 
     fun getFilterNonZeroGroups(state: FilterState): Boolean {
-        return (state[FIELD_FILTER_NON_ZERO_GROUPS] as? FilterValue.BooleanVal)?.value ?: false
+        (state[FIELD_FILTER_NON_ZERO_GROUPS] as? FilterValue.BooleanVal)?.let { return it.value }
+        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_FILTER_NON_ZERO_GROUPS) }
+        return false
     }
 
     fun getShowHidden(state: FilterState): Boolean {
-        return (state[FIELD_SHOW_HIDDEN] as? FilterValue.BooleanVal)?.value ?: false
+        (state[FIELD_SHOW_HIDDEN] as? FilterValue.BooleanVal)?.let { return it.value }
+        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_SHOW_HIDDEN) }
+        return false
     }
 
     fun getShowOnlyCurrent(state: FilterState): Boolean {
-        return (state[FIELD_ONLY_CURRENT] as? FilterValue.BooleanVal)?.value ?: false
+        (state[FIELD_ONLY_CURRENT] as? FilterValue.BooleanVal)?.let { return it.value }
+        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_ONLY_CURRENT) }
+        return false
     }
 
     fun getShowWithoutGroups(state: FilterState): Boolean {
-        return (state[FIELD_WITHOUT_GROUPS] as? FilterValue.BooleanVal)?.value ?: false
+        (state[FIELD_WITHOUT_GROUPS] as? FilterValue.BooleanVal)?.let { return it.value }
+        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_WITHOUT_GROUPS) }
+        return false
     }
 
     fun getActiveTab(state: FilterState): String {
@@ -415,10 +459,57 @@ object BalanceSheetFilterSpec {
     }
 
     fun withExcludeZero(state: FilterState, exclude: Boolean): FilterState {
-        return state + (FIELD_EXCLUDE_ZERO to FilterValue.BooleanVal(exclude))
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getExcludeZero(state)) setOf(FIELD_EXCLUDE_ZERO) else emptySet()
+        val updated = if (exclude) currOptions + FIELD_EXCLUDE_ZERO else currOptions - FIELD_EXCLUDE_ZERO
+        return state + (FIELD_EXCLUDE_ZERO to FilterValue.BooleanVal(exclude)) + ("display_options" to FilterValue.ToggleGroup(updated))
     }
 
     fun withActiveTab(state: FilterState, tab: String): FilterState {
         return state + (FIELD_ACTIVE_TAB to FilterValue.ToggleGroup(setOf(tab)))
+    }
+
+    fun withStatuses(state: FilterState, statuses: Set<TransactionStatus>): FilterState {
+        return if (statuses.isEmpty()) state - FIELD_STATUSES
+        else state + (FIELD_STATUSES to FilterValue.Select(statuses.map { it.name }.toSet()))
+    }
+
+    fun withFilterNonZeroGroups(state: FilterState, value: Boolean): FilterState {
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getFilterNonZeroGroups(state)) setOf(FIELD_FILTER_NON_ZERO_GROUPS) else emptySet()
+        val updated = if (value) currOptions + FIELD_FILTER_NON_ZERO_GROUPS else currOptions - FIELD_FILTER_NON_ZERO_GROUPS
+        return state + (FIELD_FILTER_NON_ZERO_GROUPS to FilterValue.BooleanVal(value)) + ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
+    fun withShowHidden(state: FilterState, value: Boolean): FilterState {
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getShowHidden(state)) setOf(FIELD_SHOW_HIDDEN) else emptySet()
+        val updated = if (value) currOptions + FIELD_SHOW_HIDDEN else currOptions - FIELD_SHOW_HIDDEN
+        return state + (FIELD_SHOW_HIDDEN to FilterValue.BooleanVal(value)) + ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
+    fun withShowOnlyCurrent(state: FilterState, value: Boolean): FilterState {
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getShowOnlyCurrent(state)) setOf(FIELD_ONLY_CURRENT) else emptySet()
+        val updated = if (value) currOptions + FIELD_ONLY_CURRENT else currOptions - FIELD_ONLY_CURRENT
+        return state + (FIELD_ONLY_CURRENT to FilterValue.BooleanVal(value)) + ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
+    fun withShowWithoutGroups(state: FilterState, value: Boolean): FilterState {
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getShowWithoutGroups(state)) setOf(FIELD_WITHOUT_GROUPS) else emptySet()
+        val updated = if (value) currOptions + FIELD_WITHOUT_GROUPS else currOptions - FIELD_WITHOUT_GROUPS
+        return state + (FIELD_WITHOUT_GROUPS to FilterValue.BooleanVal(value)) + ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
+    fun activeFilterCount(state: FilterState): Int {
+        var count = 0
+        if (getSearchQuery(state).isNotBlank()) count++
+        if (getActiveTab(state) != TAB_ALL) count++
+        if (getDatePreset(state) != BalanceSheetComparisonPreset.THIS_MONTH) count++
+        if (getSelectedAccountIds(state).isNotEmpty()) count++
+        if (getSelectedStatuses(state).isNotEmpty()) count++
+        if (getSortOrder(state) != BalanceSheetSortOrder.AMOUNT_DESC) count++
+        if (!getExcludeZero(state)) count++
+        if (getFilterNonZeroGroups(state)) count++
+        if (getShowHidden(state)) count++
+        if (getShowOnlyCurrent(state)) count++
+        if (getShowWithoutGroups(state)) count++
+        return count
     }
 }

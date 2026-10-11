@@ -1044,10 +1044,6 @@ fun LedgerScreen(
                 filterState = filterState,
                 onFilterChange = { updateFilterState(it) },
                 accounts = allAccounts,
-                totalFormatted = filteredTotals.formattedTotal,
-                totalTextColor = filteredTotals.textColor,
-                totalBgColor = filteredTotals.bgColor,
-                totalBorderColor = filteredTotals.borderColor,
                 onOpenFilterDialog = { showFilterDialog = true },
                 languageMode = languageMode,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
