@@ -270,6 +270,10 @@ fun BalanceSheetScreen(
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
     var isDualDateFlow by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    val filterSearchQuery = remember(filterState) { BalanceSheetFilterSpec.getSearchQuery(filterState) }
+    val effectiveSearchQuery = remember(searchQuery, filterSearchQuery) {
+        if (searchQuery.isNotBlank()) searchQuery else filterSearchQuery
+    }
     var isSpeedDialExpanded by remember { mutableStateOf(false) }
 
     // Counts for Excluded and Inactive accounts
@@ -299,7 +303,7 @@ fun BalanceSheetScreen(
         excludeZeroAmounts,
         filterNonZeroGroups,
         sortOrder,
-        searchQuery,
+        effectiveSearchQuery,
         accountCalcConfig,
         showOnlyAccountsWithoutGroups,
         languageMode
@@ -317,7 +321,7 @@ fun BalanceSheetScreen(
             excludeZeroAmounts = excludeZeroAmounts,
             filterNonZeroGroups = filterNonZeroGroups,
             sortOrder = sortOrder,
-            searchQuery = searchQuery,
+            searchQuery = effectiveSearchQuery,
             accountCalcConfig = accountCalcConfig,
             showOnlyAccountsWithoutGroups = showOnlyAccountsWithoutGroups,
             languageMode = languageMode
@@ -339,8 +343,11 @@ fun BalanceSheetScreen(
             // Header bar with Search, Filter, Timeline and Export buttons
             AppTabHeader(
                 title = LanguageHelper.getString("balance_sheet", languageMode),
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
+                searchQuery = effectiveSearchQuery,
+                onSearchQueryChange = { newQuery ->
+                    searchQuery = newQuery
+                    updateFilterState(BalanceSheetFilterSpec.withSearchQuery(filterState, newQuery))
+                },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts...",
                 showSearchButton = true,
                 showFilterButton = true,
