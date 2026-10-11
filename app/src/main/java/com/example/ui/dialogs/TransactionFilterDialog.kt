@@ -3,6 +3,7 @@ package com.example.ui.dialogs
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,33 +21,34 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,35 +62,47 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Account
+import com.example.data.model.AccountType
 import com.example.data.model.Category
+import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
+import com.example.ui.components.DropdownItem
+import com.example.ui.components.UnifiedFilterDialogContainer
+import com.example.ui.components.UnifiedFilterFooter
+import com.example.ui.components.UnifiedFilterGroup
+import com.example.ui.components.UnifiedFilterHeader
+import com.example.ui.components.UnifiedFilterItem
+import com.example.ui.components.UnifiedFilterSection
+import com.example.ui.components.UnifiedFilterShortcutBar
+import com.example.ui.components.UnifiedGroupedMultiSelectDropdown
+import com.example.ui.components.UnifiedMultiSelectDropdown
+import com.example.ui.components.UnifiedShortcutItem
+import com.example.ui.components.UnifiedSingleSelectDropdown
 import com.example.ui.screens.LedgerDatePreset
 import com.example.ui.screens.LedgerRowStyle
 import com.example.ui.theme.SolidExpense
@@ -97,315 +110,843 @@ import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidTransfer
 import com.example.util.DateUtils
-import com.example.util.IconHelper
+import com.example.util.LanguageHelper
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
- * Modern, tab-specific popup filter dialog for Transactions.
- * Uses Budget Maker filter dialog as the primary visual and interactive reference.
- * Tailored with relevant transaction filters: Type, Date presets, Categories, Accounts,
- * Amount Range, Status, Note conditions, and Display Options.
+ * Filter Popup for Transactions (Ledger) tab.
+ * Built using the EXACT Budget tab filter layout design (UnifiedFilterDialogContainer,
+ * UnifiedFilterHeader, UnifiedFilterShortcutBar, UnifiedFilterSection, Dropdowns, and UnifiedFilterFooter).
  */
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TransactionFilterDialog(
     currentFilter: TransactionTabFilter,
     categories: List<Category>,
     accounts: List<Account>,
+    allLabels: List<String> = emptyList(),
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onApplyFilter: (TransactionTabFilter) -> Unit
 ) {
     val context = LocalContext.current
     val isBangla = languageMode == LanguageMode.BANGLA
-    val accentColor = SolidPrimary
-
     var tempFilter by remember { mutableStateOf(currentFilter) }
 
-    // Date picker dialog states for custom date range
+    var showSavePresetDialog by remember { mutableStateOf(false) }
+    var showOpenPresetDialog by remember { mutableStateOf(false) }
+
     var showCustomStartDatePicker by remember { mutableStateOf(false) }
     var showCustomEndDatePicker by remember { mutableStateOf(false) }
 
+    val savedPresets = remember {
+        mutableStateListOf<SavedTransactionFilterPreset>().apply {
+            addAll(TransactionFilterPresetsStorage.loadPresets(context))
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Categories Grouped for UnifiedGroupedMultiSelectDropdown
+    // -------------------------------------------------------------------------
+    val categoryFilterGroups = remember(categories, languageMode) {
+        val activeCats = categories.filter { it.isActive }
+        val parentCats = activeCats.filter { it.parentId == null }
+        val childCats = activeCats.filter { it.parentId != null }
+        val childrenByParent = childCats.groupBy { it.parentId }
+
+        val groupList = mutableListOf<UnifiedFilterGroup<Long>>()
+
+        parentCats.forEach { parent ->
+            val children = childrenByParent[parent.id] ?: emptyList()
+            val parentName = if (isBangla) parent.nameBn.ifBlank { parent.nameEn } else parent.nameEn
+            val parentColor = try {
+                if (parent.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(parent.colorHex)) else null
+            } catch (_: Exception) { null }
+
+            if (children.isNotEmpty()) {
+                val items = children.map { child ->
+                    val childName = if (isBangla) child.nameBn.ifBlank { child.nameEn } else child.nameEn
+                    val childColor = try {
+                        if (child.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(child.colorHex)) else parentColor
+                    } catch (_: Exception) { parentColor }
+
+                    UnifiedFilterItem(
+                        id = child.id,
+                        title = childName,
+                        subtitle = if (child.type == CategoryType.EXPENSE) (if (isBangla) "ব্যয়" else "Expense") else (if (isBangla) "আয়" else "Income"),
+                        color = childColor
+                    )
+                }
+                groupList.add(
+                    UnifiedFilterGroup(
+                        groupKey = "cat_parent_${parent.id}",
+                        groupTitle = parentName,
+                        groupSubtitle = if (parent.type == CategoryType.EXPENSE) (if (isBangla) "ব্যয় গ্রুপ" else "Expense Group") else (if (isBangla) "আয় গ্রুপ" else "Income Group"),
+                        color = parentColor,
+                        items = items
+                    )
+                )
+            } else {
+                val singleItem = UnifiedFilterItem(
+                    id = parent.id,
+                    title = parentName,
+                    subtitle = if (parent.type == CategoryType.EXPENSE) (if (isBangla) "ব্যয়" else "Expense") else (if (isBangla) "আয়" else "Income"),
+                    color = parentColor
+                )
+                groupList.add(
+                    UnifiedFilterGroup(
+                        groupKey = "cat_parent_${parent.id}",
+                        groupTitle = parentName,
+                        color = parentColor,
+                        items = listOf(singleItem)
+                    )
+                )
+            }
+        }
+
+        val orphaned = childCats.filter { child -> parentCats.none { it.id == child.parentId } }
+        if (orphaned.isNotEmpty()) {
+            val items = orphaned.map { child ->
+                val childName = if (isBangla) child.nameBn.ifBlank { child.nameEn } else child.nameEn
+                UnifiedFilterItem(
+                    id = child.id,
+                    title = childName,
+                    subtitle = if (child.type == CategoryType.EXPENSE) (if (isBangla) "ব্যয়" else "Expense") else (if (isBangla) "আয়" else "Income")
+                )
+            }
+            groupList.add(
+                UnifiedFilterGroup(
+                    groupKey = "cat_orphaned",
+                    groupTitle = if (isBangla) "অন্যান্য ক্যাটাগরি" else "Other Categories",
+                    items = items
+                )
+            )
+        }
+
+        groupList
+    }
+
+    // -------------------------------------------------------------------------
+    // Accounts Grouped for UnifiedGroupedMultiSelectDropdown
+    // -------------------------------------------------------------------------
+    val accountFilterGroups = remember(accounts, languageMode) {
+        val activeAccs = accounts.filter { it.isActive }
+        val parentAccs = activeAccs.filter { it.parentId == null }
+        val childAccs = activeAccs.filter { it.parentId != null }
+        val childrenByParent = childAccs.groupBy { it.parentId }
+
+        val groupList = mutableListOf<UnifiedFilterGroup<Long>>()
+
+        if (childAccs.isNotEmpty()) {
+            parentAccs.forEach { parent ->
+                val children = childrenByParent[parent.id] ?: emptyList()
+                val parentName = if (isBangla) parent.nameBn.ifBlank { parent.nameEn } else parent.nameEn
+                val parentColor = try {
+                    if (parent.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(parent.colorHex)) else null
+                } catch (_: Exception) { null }
+
+                if (children.isNotEmpty()) {
+                    val items = children.map { child ->
+                        val childName = if (isBangla) child.nameBn.ifBlank { child.nameEn } else child.nameEn
+                        val childColor = try {
+                            if (child.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(child.colorHex)) else parentColor
+                        } catch (_: Exception) { parentColor }
+
+                        UnifiedFilterItem(
+                            id = child.id,
+                            title = childName,
+                            subtitle = child.accountNumber.ifBlank { child.type.name },
+                            color = childColor
+                        )
+                    }
+                    groupList.add(
+                        UnifiedFilterGroup(
+                            groupKey = "acc_parent_${parent.id}",
+                            groupTitle = parentName,
+                            groupSubtitle = parent.type.name,
+                            color = parentColor,
+                            items = items
+                        )
+                    )
+                } else {
+                    val singleItem = UnifiedFilterItem(
+                        id = parent.id,
+                        title = parentName,
+                        subtitle = parent.accountNumber.ifBlank { parent.type.name },
+                        color = parentColor
+                    )
+                    groupList.add(
+                        UnifiedFilterGroup(
+                            groupKey = "acc_parent_${parent.id}",
+                            groupTitle = parentName,
+                            color = parentColor,
+                            items = listOf(singleItem)
+                        )
+                    )
+                }
+            }
+        } else {
+            // Group by Account Type
+            val byType = activeAccs.groupBy { it.type }
+            AccountType.values().forEach { type ->
+                val accList = byType[type] ?: emptyList()
+                if (accList.isNotEmpty()) {
+                    val groupTitle = when (type) {
+                        AccountType.ASSET -> if (isBangla) "সম্পদ (Assets)" else "Assets"
+                        AccountType.LIABILITY -> if (isBangla) "দায় (Liabilities)" else "Liabilities"
+                        AccountType.EQUITY -> if (isBangla) "মালিকানাস্বত্ব (Equity)" else "Equity"
+                        AccountType.INCOME -> if (isBangla) "আয় (Income)" else "Income"
+                        AccountType.EXPENSE -> if (isBangla) "ব্যয় (Expense)" else "Expense"
+                    }
+                    val groupColor = when (type) {
+                        AccountType.ASSET -> Color(0xFF10B981)
+                        AccountType.LIABILITY -> Color(0xFFEF4444)
+                        AccountType.EQUITY -> Color(0xFF6366F1)
+                        AccountType.INCOME -> Color(0xFF10B981)
+                        AccountType.EXPENSE -> Color(0xFFEF4444)
+                    }
+                    val items = accList.map { acc ->
+                        val accName = if (isBangla) acc.nameBn.ifBlank { acc.nameEn } else acc.nameEn
+                        UnifiedFilterItem(
+                            id = acc.id,
+                            title = accName,
+                            subtitle = acc.accountNumber.ifBlank { acc.type.name },
+                            color = try {
+                                if (acc.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(acc.colorHex)) else groupColor
+                            } catch (_: Exception) { groupColor }
+                        )
+                    }
+                    groupList.add(
+                        UnifiedFilterGroup(
+                            groupKey = "acc_type_${type.name}",
+                            groupTitle = groupTitle,
+                            color = groupColor,
+                            items = items
+                        )
+                    )
+                }
+            }
+        }
+        groupList
+    }
+
+    // -------------------------------------------------------------------------
+    // Dropdown Items
+    // -------------------------------------------------------------------------
+    val datePresetDropdownItems = remember(languageMode) {
+        listOf(
+            Pair(LedgerDatePreset.LAST_12_MONTHS, if (isBangla) "গত ১২ মাস (Last 12 Months)" else "Last 12 Months"),
+            Pair(LedgerDatePreset.THIS_MONTH, if (isBangla) "চলতি মাস (This Month)" else "This Month"),
+            Pair(LedgerDatePreset.LAST_MONTH, if (isBangla) "গত মাস (Last Month)" else "Last Month"),
+            Pair(LedgerDatePreset.TODAY, if (isBangla) "আজ (Today)" else "Today"),
+            Pair(LedgerDatePreset.YESTERDAY, if (isBangla) "গতকাল (Yesterday)" else "Yesterday"),
+            Pair(LedgerDatePreset.THIS_WEEK, if (isBangla) "চলতি সপ্তাহ (This Week)" else "This Week"),
+            Pair(LedgerDatePreset.LAST_WEEK, if (isBangla) "গত সপ্তাহ (Last Week)" else "Last Week"),
+            Pair(LedgerDatePreset.THIS_QUARTER, if (isBangla) "চলতি কোয়ার্টার (This Quarter)" else "This Quarter"),
+            Pair(LedgerDatePreset.THIS_YEAR, if (isBangla) "চলতি বছর (This Year)" else "This Year"),
+            Pair(LedgerDatePreset.LAST_YEAR, if (isBangla) "গত বছর (Last Year)" else "Last Year"),
+            Pair(LedgerDatePreset.SINCE_LAST_YEAR, if (isBangla) "গত বছর থেকে (Since Last Year)" else "Since Last Year"),
+            Pair(LedgerDatePreset.ALL_TIME, if (isBangla) "সব সময় (All Time)" else "All Time"),
+            Pair(LedgerDatePreset.CUSTOM, if (isBangla) "কাস্টম সময়কাল (Custom Date Range)" else "Custom Date Range")
+        ).map { (preset, label) ->
+            DropdownItem(
+                id = preset,
+                title = label
+            )
+        }
+    }
+
+    val statusDropdownItems = remember(languageMode) {
+        listOf(
+            Pair(TransactionStatus.CLEARED, if (isBangla) "ক্লিয়ার্ড (Cleared)" else "Cleared"),
+            Pair(TransactionStatus.RECONCILED, if (isBangla) "রিকনসাইল্ড (Reconciled)" else "Reconciled"),
+            Pair(TransactionStatus.NONE, if (isBangla) "অনির্ধারিত (Unspecified/None)" else "None")
+        ).map { (status, label) ->
+            DropdownItem(
+                id = status.ordinal.toLong(),
+                title = label
+            )
+        }
+    }
+
+    val selectedStatusIds = remember(tempFilter.selectedStatuses) {
+        tempFilter.selectedStatuses.map { it.ordinal.toLong() }.toSet()
+    }
+
+    val labelDropdownItems = remember(allLabels) {
+        allLabels.map { lbl ->
+            DropdownItem(
+                id = lbl.hashCode().toLong(),
+                title = lbl
+            )
+        }
+    }
+
+    val selectedLabelIds = remember(tempFilter.labelOrReference, allLabels) {
+        val current = tempFilter.labelOrReference
+        if (!current.isNullOrBlank() && allLabels.contains(current)) {
+            setOf(current.hashCode().toLong())
+        } else emptySet()
+    }
+
+    // -------------------------------------------------------------------------
+    // 1-Tap Quick Filter Shortcuts (Parity with Budget tab)
+    // -------------------------------------------------------------------------
+    val shortcuts = remember(tempFilter, isBangla) {
+        listOf(
+            UnifiedShortcutItem(
+                id = "this_month",
+                label = if (isBangla) "চলতি মাস" else "This Month",
+                icon = Icons.Default.CalendarMonth,
+                isActive = tempFilter.datePreset == LedgerDatePreset.THIS_MONTH,
+                onClick = {
+                    tempFilter = if (tempFilter.datePreset == LedgerDatePreset.THIS_MONTH) {
+                        tempFilter.copy(datePreset = LedgerDatePreset.LAST_12_MONTHS)
+                    } else {
+                        tempFilter.copy(datePreset = LedgerDatePreset.THIS_MONTH)
+                    }
+                }
+            ),
+            UnifiedShortcutItem(
+                id = "only_expense",
+                label = if (isBangla) "ব্যয় মাত্র" else "Expense Only",
+                color = SolidExpense,
+                isActive = tempFilter.selectedTypes == setOf(TransactionType.EXPENSE),
+                onClick = {
+                    tempFilter = if (tempFilter.selectedTypes == setOf(TransactionType.EXPENSE)) {
+                        tempFilter.copy(selectedTypes = emptySet())
+                    } else {
+                        tempFilter.copy(selectedTypes = setOf(TransactionType.EXPENSE))
+                    }
+                }
+            ),
+            UnifiedShortcutItem(
+                id = "only_income",
+                label = if (isBangla) "আয় মাত্র" else "Income Only",
+                color = SolidIncome,
+                isActive = tempFilter.selectedTypes == setOf(TransactionType.INCOME),
+                onClick = {
+                    tempFilter = if (tempFilter.selectedTypes == setOf(TransactionType.INCOME)) {
+                        tempFilter.copy(selectedTypes = emptySet())
+                    } else {
+                        tempFilter.copy(selectedTypes = setOf(TransactionType.INCOME))
+                    }
+                }
+            ),
+            UnifiedShortcutItem(
+                id = "only_transfer",
+                label = if (isBangla) "স্থানান্তর" else "Transfer",
+                color = SolidTransfer,
+                isActive = tempFilter.selectedTypes == setOf(TransactionType.TRANSFER),
+                onClick = {
+                    tempFilter = if (tempFilter.selectedTypes == setOf(TransactionType.TRANSFER)) {
+                        tempFilter.copy(selectedTypes = emptySet())
+                    } else {
+                        tempFilter.copy(selectedTypes = setOf(TransactionType.TRANSFER))
+                    }
+                }
+            ),
+            UnifiedShortcutItem(
+                id = "high_value",
+                label = if (isBangla) "উচ্চ মান (≥১০হাজার)" else "High Value (≥10k)",
+                icon = Icons.Default.MonetizationOn,
+                isActive = tempFilter.onlyHighValue,
+                onClick = {
+                    tempFilter = tempFilter.copy(onlyHighValue = !tempFilter.onlyHighValue)
+                }
+            ),
+            UnifiedShortcutItem(
+                id = "with_notes",
+                label = if (isBangla) "নোট সহ" else "With Notes",
+                icon = Icons.Default.Description,
+                isActive = tempFilter.onlyWithReceiptOrNote,
+                onClick = {
+                    tempFilter = tempFilter.copy(
+                        onlyWithReceiptOrNote = !tempFilter.onlyWithReceiptOrNote,
+                        onlyWithoutNote = false
+                    )
+                }
+            )
+        )
+    }
+
     val activeCount = tempFilter.activeCount
 
-    Dialog(
+    // -------------------------------------------------------------------------
+    // Unified Modal Container (Anchored Bottom Sheet Modal)
+    // -------------------------------------------------------------------------
+    UnifiedFilterDialogContainer(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        testTag = "transaction_filter_dialog"
     ) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.88f)
-                .testTag("transaction_filter_dialog")
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Header (Matching BudgetMakerFilterDialog)
-                Surface(
-                    color = accentColor.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    modifier = Modifier.fillMaxWidth()
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Unified Header (Budget Tab layout)
+            UnifiedFilterHeader(
+                title = if (isBangla) "লেনদেন ফিল্টার" else "Transaction Filter",
+                activeCount = activeCount,
+                languageMode = languageMode,
+                onReset = {
+                    tempFilter = TransactionTabFilter()
+                    Toast.makeText(
+                        context,
+                        if (isBangla) "ফিল্টার রিসেট করা হয়েছে" else "Filters reset to default",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                onSavePreset = { showSavePresetDialog = true },
+                onOpenPreset = { showOpenPresetDialog = true },
+                onDismiss = onDismiss
+            )
+
+            // Horizontal 1-tap Shortcut Bar
+            UnifiedFilterShortcutBar(shortcuts = shortcuts)
+
+            // Scrollable Content
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // 1. Transaction Type Chips (Expense, Income, Transfer)
+                UnifiedFilterSection(
+                    icon = Icons.Default.SwapHoriz,
+                    title = if (isBangla) "লেনদেনের ধরন" else "Transaction Type"
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
+                        val types = listOf(
+                            Triple(TransactionType.EXPENSE, if (isBangla) "ব্যয়" else "Expense", SolidExpense),
+                            Triple(TransactionType.INCOME, if (isBangla) "আয়" else "Income", SolidIncome),
+                            Triple(TransactionType.TRANSFER, if (isBangla) "স্থানান্তর" else "Transfer", SolidTransfer)
+                        )
+
+                        types.forEach { (type, label, color) ->
+                            val isSelected = tempFilter.selectedTypes.contains(type)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    val currentTypes = tempFilter.selectedTypes.toMutableSet()
+                                    if (isSelected) currentTypes.remove(type) else currentTypes.add(type)
+                                    tempFilter = tempFilter.copy(selectedTypes = currentTypes)
+                                },
+                                label = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .background(color, CircleShape)
+                                        )
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
+                                },
+                                leadingIcon = if (isSelected) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                                } else null,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = color.copy(alpha = 0.18f),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    selectedBorderColor = color
+                                ),
+                                shape = RoundedCornerShape(9.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // 2. Date Range Dropdown
+                UnifiedFilterSection(
+                    icon = Icons.Default.DateRange,
+                    title = if (isBangla) "সময়কাল" else "Date Range"
+                ) {
+                    UnifiedSingleSelectDropdown(
+                        label = if (isBangla) "সময়কাল নির্বাচন করুন" else "Select Date Range",
+                        items = datePresetDropdownItems,
+                        selectedId = tempFilter.datePreset,
+                        onSelectionChanged = { tempFilter = tempFilter.copy(datePreset = it) },
+                        leadingIcon = Icons.Default.DateRange,
+                        languageMode = languageMode
+                    )
+
+                    // Custom Date Range Pickers (shown when Custom is selected)
+                    if (tempFilter.datePreset == LedgerDatePreset.CUSTOM) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = accentColor.copy(alpha = 0.20f),
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
-                                        contentDescription = null,
-                                        tint = accentColor,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Column {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = if (isBangla) "কাস্টম সময়কাল নির্ধারণ" else "Select Custom Date Range",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        text = if (isBangla) "লেনদেন ফিল্টার" else "Transaction Filter",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    if (activeCount > 0) {
-                                        Surface(
-                                            shape = RoundedCornerShape(10.dp),
-                                            color = accentColor,
-                                            modifier = Modifier.padding(start = 2.dp)
-                                        ) {
-                                            Text(
-                                                text = "$activeCount",
-                                                fontSize = 10.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                            )
+                                    OutlinedButton(
+                                        onClick = { showCustomStartDatePicker = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        val startText = if (tempFilter.customStartDateMs > 0L) {
+                                            DateUtils.formatDate(tempFilter.customStartDateMs, languageMode)
+                                        } else {
+                                            if (isBangla) "শুরুর তারিখ" else "Start Date"
                                         }
+                                        Text(
+                                            text = startText,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showCustomEndDatePicker = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        val endText = if (tempFilter.customEndDateMs > 0L) {
+                                            DateUtils.formatDate(tempFilter.customEndDateMs, languageMode)
+                                        } else {
+                                            if (isBangla) "শেষ তারিখ" else "End Date"
+                                        }
+                                        Text(
+                                            text = endText,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                 }
-                                Text(
-                                    text = if (isBangla) "ধরণ, তারিখ, ক্যাটাগরি ও পরিমাণ ফিল্টার" else "Filter type, date, categories & amounts",
-                                    fontSize = 11.5.sp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    tempFilter = TransactionTabFilter(
-                                        rowStyle = tempFilter.rowStyle,
-                                        displaySettings = tempFilter.displaySettings
-                                    )
-                                    Toast.makeText(
-                                        context,
-                                        if (isBangla) "ফিল্টার রিসেট করা হয়েছে" else "Filters reset",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                modifier = Modifier.testTag("filter_dialog_reset_button")
-                            ) {
-                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(15.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = if (isBangla) "রিসেট" else "Reset",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-
-                            IconButton(
-                                onClick = onDismiss,
-                                modifier = Modifier.size(32.dp).testTag("filter_dialog_close_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         }
                     }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-
-                // Scrollable Body
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                // 3. Categories & Accounts side-by-side in compact 2-column row (Exact Budget tab layout)
+                UnifiedFilterSection(
+                    icon = Icons.Default.Category,
+                    title = if (isBangla) "ক্যাটাগরি ও অ্যাকাউন্ট" else "Categories & Accounts"
                 ) {
-                    // 1. Transaction Type Section
-                    TransactionTypeCard(
-                        selectedTypes = tempFilter.selectedTypes,
-                        onTypesChange = { tempFilter = tempFilter.copy(selectedTypes = it) },
-                        accentColor = accentColor,
-                        isBangla = isBangla
-                    )
-
-                    // 2. Date Range Presets & Custom Dates
-                    DateRangeFilterCard(
-                        selectedPreset = tempFilter.datePreset,
-                        customStartDateMs = tempFilter.customStartDateMs,
-                        customEndDateMs = tempFilter.customEndDateMs,
-                        onPresetChange = { tempFilter = tempFilter.copy(datePreset = it) },
-                        onOpenCustomStartPicker = { showCustomStartDatePicker = true },
-                        onOpenCustomEndPicker = { showCustomEndDatePicker = true },
-                        accentColor = accentColor,
-                        isBangla = isBangla
-                    )
-
-                    // 3. Amount Range Card with Quick Presets
-                    AmountRangeCard(
-                        title = if (isBangla) "লেনদেন পরিমাণ রেঞ্জ (৳)" else "Amount Range (৳)",
-                        minAmount = tempFilter.minAmount,
-                        maxAmount = tempFilter.maxAmount,
-                        onMinChange = { tempFilter = tempFilter.copy(minAmount = it) },
-                        onMaxChange = { tempFilter = tempFilter.copy(maxAmount = it) },
-                        isBangla = isBangla,
-                        accentColor = accentColor
-                    )
-
-                    // 4. Categories & Groups Section
-                    val activeCategories = remember(categories) { categories.filter { it.isActive } }
-                    CategoryFilterSection(
-                        sectionTitle = if (isBangla) "ক্যাটাগরি ও সাব-ক্যাটাগরি" else "Categories & Sub-Categories",
-                        sectionSubtitle = if (isBangla) "নির্দিষ্ট ক্যাটাগরি বা গ্রুপ নির্বাচন করুন" else "Filter by specific categories or groups",
-                        categories = activeCategories,
-                        selectedItemIds = tempFilter.selectedCategoryIds,
-                        selectedGroupNames = tempFilter.selectedCategoryGroupNames,
-                        onItemIdsChange = { tempFilter = tempFilter.copy(selectedCategoryIds = it) },
-                        onGroupNamesChange = { tempFilter = tempFilter.copy(selectedCategoryGroupNames = it) },
-                        accentColor = accentColor,
-                        isBangla = isBangla
-                    )
-
-                    // 5. Accounts & Groups Section
-                    val activeAccounts = remember(accounts) { accounts.filter { it.isActive } }
-                    AccountFilterSection(
-                        sectionTitle = if (isBangla) "একাউন্ট ও ওয়ালেট" else "Accounts & Wallets",
-                        sectionSubtitle = if (isBangla) "নির্দিষ্ট একাউন্ট বা গ্রুপ নির্বাচন করুন" else "Filter by source or destination accounts",
-                        accounts = activeAccounts,
-                        selectedItemIds = tempFilter.selectedAccountIds,
-                        selectedGroupNames = tempFilter.selectedAccountGroupNames,
-                        onItemIdsChange = { tempFilter = tempFilter.copy(selectedAccountIds = it) },
-                        onGroupNamesChange = { tempFilter = tempFilter.copy(selectedAccountGroupNames = it) },
-                        accentColor = accentColor,
-                        isBangla = isBangla
-                    )
-
-                    // 6. Transaction Status Card
-                    TransactionStatusCard(
-                        selectedStatuses = tempFilter.selectedStatuses,
-                        onStatusesChange = { tempFilter = tempFilter.copy(selectedStatuses = it) },
-                        accentColor = accentColor,
-                        isBangla = isBangla
-                    )
-
-                    // 7. Special Conditions Card
-                    TransactionConditionsCard(
-                        filter = tempFilter,
-                        onFilterChange = { tempFilter = it },
-                        accentColor = accentColor,
-                        isBangla = isBangla
-                    )
-
-                    // 8. Display & Layout Preferences
-                    TransactionDisplayOptionsCard(
-                        rowStyle = tempFilter.rowStyle,
-                        onRowStyleChange = { tempFilter = tempFilter.copy(rowStyle = it) },
-                        displaySettings = tempFilter.displaySettings,
-                        onDisplaySettingsChange = { tempFilter = tempFilter.copy(displaySettings = it) },
-                        accentColor = accentColor,
-                        isBangla = isBangla
-                    )
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-
-                // Footer Actions (Matching BudgetMakerFilterDialog)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("filter_dialog_cancel_button")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(if (isBangla) "বাতিল" else "Cancel")
-                    }
-
-                    Button(
-                        onClick = {
-                            onApplyFilter(tempFilter)
-                            onDismiss()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.testTag("filter_dialog_apply_button")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Text(
-                                text = if (isBangla) "ফিল্টার প্রয়োগ করুন" else "Apply Filter",
-                                fontWeight = FontWeight.Bold
+                        Box(modifier = Modifier.weight(1f)) {
+                            UnifiedGroupedMultiSelectDropdown(
+                                label = if (isBangla) "ক্যাটাগরি" else "Categories",
+                                groups = categoryFilterGroups,
+                                selectedIds = tempFilter.selectedCategoryIds,
+                                onSelectionChanged = { tempFilter = tempFilter.copy(selectedCategoryIds = it) },
+                                placeholder = if (isBangla) "(সকল)" else "(All)",
+                                leadingIcon = Icons.Default.Category,
+                                languageMode = languageMode
                             )
-                            if (activeCount > 0) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = Color.White.copy(alpha = 0.25f),
-                                    modifier = Modifier.padding(start = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "$activeCount",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        }
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            UnifiedGroupedMultiSelectDropdown(
+                                label = if (isBangla) "অ্যাকাউন্ট" else "Accounts",
+                                groups = accountFilterGroups,
+                                selectedIds = tempFilter.selectedAccountIds,
+                                onSelectionChanged = { tempFilter = tempFilter.copy(selectedAccountIds = it) },
+                                placeholder = if (isBangla) "(সকল)" else "(All)",
+                                leadingIcon = Icons.Default.AccountBalanceWallet,
+                                languageMode = languageMode
+                            )
+                        }
+                    }
+                }
+
+                // 4. Status & Labels side-by-side in compact 2-column row (Exact Budget tab layout)
+                UnifiedFilterSection(
+                    icon = Icons.Default.Check,
+                    title = if (isBangla) "স্ট্যাটাস ও লেবেল" else "Status & Labels"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            UnifiedMultiSelectDropdown(
+                                label = if (isBangla) "স্ট্যাটাস" else "Status",
+                                items = statusDropdownItems,
+                                selectedIds = selectedStatusIds,
+                                onSelectionChanged = { newIds ->
+                                    val selectedStatuses = TransactionStatus.entries.filter { newIds.contains(it.ordinal.toLong()) }.toSet()
+                                    tempFilter = tempFilter.copy(selectedStatuses = selectedStatuses)
+                                },
+                                placeholder = if (isBangla) "(সকল)" else "(All)",
+                                leadingIcon = Icons.Default.Check,
+                                languageMode = languageMode
+                            )
+                        }
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (allLabels.isNotEmpty()) {
+                                UnifiedMultiSelectDropdown(
+                                    label = if (isBangla) "লেবেল" else "Labels",
+                                    items = labelDropdownItems,
+                                    selectedIds = selectedLabelIds,
+                                    onSelectionChanged = { newIds ->
+                                        val selectedString = allLabels.firstOrNull { newIds.contains(it.hashCode().toLong()) }
+                                        tempFilter = tempFilter.copy(labelOrReference = selectedString)
+                                    },
+                                    placeholder = if (isBangla) "(সকল)" else "(All)",
+                                    leadingIcon = Icons.Default.Label,
+                                    languageMode = languageMode
+                                )
+                            } else {
+                                // Manual Reference / Note text field
+                                var labelInput by remember(tempFilter.labelOrReference) {
+                                    mutableStateOf(tempFilter.labelOrReference ?: "")
+                                }
+                                OutlinedTextField(
+                                    value = labelInput,
+                                    onValueChange = {
+                                        labelInput = it
+                                        tempFilter = tempFilter.copy(labelOrReference = it.ifBlank { null })
+                                    },
+                                    label = { Text(if (isBangla) "লেবেল / রেফারেন্স" else "Label / Ref", fontSize = 10.5.sp) },
+                                    placeholder = { Text(if (isBangla) "(সকল)" else "(All)", fontSize = 11.5.sp) },
+                                    leadingIcon = { Icon(Icons.Default.Label, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                                    trailingIcon = {
+                                        if (labelInput.isNotBlank()) {
+                                            IconButton(onClick = {
+                                                labelInput = ""
+                                                tempFilter = tempFilter.copy(labelOrReference = null)
+                                            }, modifier = Modifier.size(20.dp)) {
+                                                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(13.dp))
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 5. Amount Range (Min & Max Bounds)
+                UnifiedFilterSection(
+                    icon = Icons.Default.MonetizationOn,
+                    title = if (isBangla) "পরিমাণের সীমা (৳)" else "Amount Range (৳)"
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                var minInput by remember(tempFilter.minAmount) {
+                                    mutableStateOf(tempFilter.minAmount?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "")
+                                }
+                                var maxInput by remember(tempFilter.maxAmount) {
+                                    mutableStateOf(tempFilter.maxAmount?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "")
+                                }
+
+                                OutlinedTextField(
+                                    value = minInput,
+                                    onValueChange = {
+                                        minInput = it
+                                        val parsed = it.toDoubleOrNull()
+                                        tempFilter = tempFilter.copy(minAmount = parsed)
+                                    },
+                                    label = { Text(if (isBangla) "সর্বনিম্ন (Min ৳)" else "Min ৳", fontSize = 10.5.sp) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                OutlinedTextField(
+                                    value = maxInput,
+                                    onValueChange = {
+                                        maxInput = it
+                                        val parsed = it.toDoubleOrNull()
+                                        tempFilter = tempFilter.copy(maxAmount = parsed)
+                                    },
+                                    label = { Text(if (isBangla) "সর্বোচ্চ (Max ৳)" else "Max ৳", fontSize = 10.5.sp) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            // Quick Amount Presets
+                            Spacer(modifier = Modifier.height(6.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val amountPresets = listOf(
+                                    Pair("≥ ১,০০০ ৳", 1000.0),
+                                    Pair("≥ ৫,০০০ ৳", 5000.0),
+                                    Pair("≥ ১০,০০০ ৳", 10000.0),
+                                    Pair("≥ ৫০,০০০ ৳", 50000.0)
+                                )
+                                amountPresets.forEach { (label, amount) ->
+                                    val isSelected = tempFilter.minAmount == amount
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            tempFilter = if (isSelected) {
+                                                tempFilter.copy(minAmount = null)
+                                            } else {
+                                                tempFilter.copy(minAmount = amount)
+                                            }
+                                        },
+                                        label = { Text(label, fontSize = 10.sp) },
+                                        shape = RoundedCornerShape(6.dp)
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+
+                // 6. Display & Basic Options (Exact Budget tab style with compact toggle rows)
+                UnifiedFilterSection(
+                    icon = Icons.Default.Tune,
+                    title = if (isBangla) "প্রদর্শন ও বিকল্প" else "Display & Options"
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "শুধু নোট/রসিদযুক্ত লেনদেন" else "Only Transactions with Notes/Receipt",
+                                checked = tempFilter.onlyWithReceiptOrNote,
+                                onCheckedChange = { isChecked ->
+                                    tempFilter = tempFilter.copy(
+                                        onlyWithReceiptOrNote = isChecked,
+                                        onlyWithoutNote = if (isChecked) false else tempFilter.onlyWithoutNote
+                                    )
+                                }
+                            )
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "নোটবিহীন লেনদেন (Empty Notes)" else "Only Without Notes",
+                                checked = tempFilter.onlyWithoutNote,
+                                onCheckedChange = { isChecked ->
+                                    tempFilter = tempFilter.copy(
+                                        onlyWithoutNote = isChecked,
+                                        onlyWithReceiptOrNote = if (isChecked) false else tempFilter.onlyWithReceiptOrNote
+                                    )
+                                }
+                            )
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "শুধু রিভার্সাল/ফেরত লেনদেন (Reversals)" else "Only Reversal Transactions",
+                                checked = tempFilter.onlyReversals,
+                                onCheckedChange = { tempFilter = tempFilter.copy(onlyReversals = it) }
+                            )
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "উচ্চ মানের লেনদেন (≥ ১০,০০০ ৳)" else "High Value (≥ 10,000 ৳)",
+                                checked = tempFilter.onlyHighValue,
+                                onCheckedChange = { tempFilter = tempFilter.copy(onlyHighValue = it) }
+                            )
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "স্থানান্তর লেনদেন মোট যোগফলে অন্তর্ভুক্ত" else "Include Transfers in Net Sum",
+                                checked = tempFilter.displaySettings.showTransfersInTotal,
+                                onCheckedChange = { isChecked ->
+                                    tempFilter = tempFilter.copy(
+                                        displaySettings = tempFilter.displaySettings.copy(showTransfersInTotal = isChecked)
+                                    )
+                                }
+                            )
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "মোট সারসংক্ষেপ দেখান" else "Show Total Amount",
+                                checked = tempFilter.displaySettings.showTotalAmount,
+                                onCheckedChange = { isChecked ->
+                                    tempFilter = tempFilter.copy(
+                                        displaySettings = tempFilter.displaySettings.copy(showTotalAmount = isChecked)
+                                    )
+                                }
+                            )
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "অ্যাকাউন্ট ব্যালেন্স দেখান" else "Show Account Balance",
+                                checked = tempFilter.displaySettings.showAccountBalance,
+                                onCheckedChange = { isChecked ->
+                                    tempFilter = tempFilter.copy(
+                                        displaySettings = tempFilter.displaySettings.copy(showAccountBalance = isChecked)
+                                    )
+                                }
+                            )
+                            TransactionCompactToggleRow(
+                                title = if (isBangla) "পুরনো লেনদেন আগে দেখান (Oldest First)" else "Show Oldest Date First",
+                                checked = tempFilter.displaySettings.showOldestDateFirst,
+                                onCheckedChange = { isChecked ->
+                                    tempFilter = tempFilter.copy(
+                                        displaySettings = tempFilter.displaySettings.copy(showOldestDateFirst = isChecked)
+                                    )
+                                }
+                            )
                         }
                     }
                 }
             }
+
+            // Unified Footer (Exact Budget tab layout)
+            UnifiedFilterFooter(
+                activeCount = activeCount,
+                languageMode = languageMode,
+                onReset = {
+                    tempFilter = TransactionTabFilter()
+                },
+                onDismiss = onDismiss,
+                onApply = { onApplyFilter(tempFilter) }
+            )
         }
     }
 
-    // Custom Date Pickers
+    // -------------------------------------------------------------------------
+    // Date Pickers for Custom Date Range
+    // -------------------------------------------------------------------------
     if (showCustomStartDatePicker) {
         val datePickerState = rememberDatePickerState(
             initialSelectedDateMillis = if (tempFilter.customStartDateMs > 0) tempFilter.customStartDateMs else System.currentTimeMillis()
@@ -415,19 +956,20 @@ fun TransactionFilterDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let {
-                        tempFilter = tempFilter.copy(customStartDateMs = it, datePreset = LedgerDatePreset.CUSTOM)
+                        tempFilter = tempFilter.copy(customStartDateMs = it)
                     }
                     showCustomStartDatePicker = false
-                }) { Text("OK") }
+                }) {
+                    Text(if (isBangla) "ঠিক আছে" else "OK")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showCustomStartDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showCustomStartDatePicker = false }) {
+                    Text(if (isBangla) "বাতিল" else "Cancel")
+                }
             }
         ) {
-            DatePicker(
-                state = datePickerState,
-                title = { Text(if (isBangla) "শুরুর তারিখ নির্বাচন করুন" else "Select Start Date", modifier = Modifier.padding(16.dp)) }
-            )
+            DatePicker(state = datePickerState)
         }
     }
 
@@ -440,1174 +982,327 @@ fun TransactionFilterDialog(
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let {
-                        tempFilter = tempFilter.copy(customEndDateMs = it, datePreset = LedgerDatePreset.CUSTOM)
+                        tempFilter = tempFilter.copy(customEndDateMs = it)
                     }
                     showCustomEndDatePicker = false
-                }) { Text("OK") }
+                }) {
+                    Text(if (isBangla) "ঠিক আছে" else "OK")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showCustomEndDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showCustomEndDatePicker = false }) {
+                    Text(if (isBangla) "বাতিল" else "Cancel")
+                }
             }
         ) {
-            DatePicker(
-                state = datePickerState,
-                title = { Text(if (isBangla) "শেষ তারিখ নির্বাচন করুন" else "Select End Date", modifier = Modifier.padding(16.dp)) }
-            )
+            DatePicker(state = datePickerState)
         }
     }
-}
 
-/**
- * Transaction Type Card with Expense, Income, and Transfer toggle chips.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TransactionTypeCard(
-    selectedTypes: Set<TransactionType>,
-    onTypesChange: (Set<TransactionType>) -> Unit,
-    accentColor: Color,
-    isBangla: Boolean
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (isBangla) "লেনদেনের ধরণ" else "Transaction Types",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isBangla) "একাধিক বা সব ধরণ নির্বাচন করতে পারেন" else "Filter by expense, income or transfer",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                if (selectedTypes.isNotEmpty()) {
-                    TextButton(onClick = { onTypesChange(emptySet()) }) {
-                        Text(if (isBangla) "সব দেখান" else "Show All", fontSize = 11.5.sp, color = accentColor)
-                    }
-                }
-            }
+    // -------------------------------------------------------------------------
+    // Save Preset Dialog (Identical to Budget tab)
+    // -------------------------------------------------------------------------
+    if (showSavePresetDialog) {
+        var presetNameInput by remember { mutableStateOf("") }
 
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val types = listOf(
-                    Triple(TransactionType.EXPENSE, if (isBangla) "ব্যয়" else "Expense", SolidExpense),
-                    Triple(TransactionType.INCOME, if (isBangla) "আয়" else "Income", SolidIncome),
-                    Triple(TransactionType.TRANSFER, if (isBangla) "স্থানান্তর" else "Transfer", SolidTransfer)
+        AlertDialog(
+            onDismissRequest = { showSavePresetDialog = false },
+            title = {
+                Text(
+                    text = if (isBangla) "ফিল্টার প্রিসেট সংরক্ষণ" else "Save Filter Preset",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
                 )
-
-                types.forEach { (type, label, color) ->
-                    val isSelected = selectedTypes.contains(type)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            val newSet = selectedTypes.toMutableSet()
-                            if (isSelected) newSet.remove(type) else newSet.add(type)
-                            onTypesChange(newSet)
-                        },
-                        label = { Text(label, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = when (type) {
-                                    TransactionType.EXPENSE -> Icons.Default.TrendingDown
-                                    TransactionType.INCOME -> Icons.Default.TrendingUp
-                                    TransactionType.TRANSFER -> Icons.Default.SwapHoriz
-                                },
-                                contentDescription = null,
-                                modifier = Modifier.size(15.dp),
-                                tint = if (isSelected) color else MaterialTheme.colorScheme.outline
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = color.copy(alpha = 0.16f),
-                            selectedLabelColor = color,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        border = BorderStroke(
-                            0.7.dp,
-                            if (isSelected) color else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Date Range Presets & Custom Range Card.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun DateRangeFilterCard(
-    selectedPreset: LedgerDatePreset,
-    customStartDateMs: Long,
-    customEndDateMs: Long,
-    onPresetChange: (LedgerDatePreset) -> Unit,
-    onOpenCustomStartPicker: () -> Unit,
-    onOpenCustomEndPicker: () -> Unit,
-    accentColor: Color,
-    isBangla: Boolean
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = if (isBangla) "তারিখ ও সময়সীমা" else "Date & Time Range",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = if (isBangla) "বর্তমান ফিল্টার সেটিংস ভবিষ্যতে দ্রুত ব্যবহারের জন্য একটি নামে সংরক্ষণ করুন:" else "Save current filter settings for quick access later:",
+                        fontSize = 12.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = if (isBangla) "নির্দিষ্ট প্রিসেট বা কাস্টম তারিখ নির্বাচন করুন" else "Preset periods or custom start/end dates",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = presetNameInput,
+                        onValueChange = { presetNameInput = it },
+                        label = { Text(if (isBangla) "প্রিসেটের নাম" else "Preset Name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
-                if (selectedPreset != LedgerDatePreset.LAST_12_MONTHS) {
-                    TextButton(onClick = { onPresetChange(LedgerDatePreset.LAST_12_MONTHS) }) {
-                        Text(if (isBangla) "রিসেট" else "Reset", fontSize = 11.5.sp, color = accentColor)
-                    }
-                }
-            }
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                val presets = listOf(
-                    Pair(LedgerDatePreset.THIS_MONTH, if (isBangla) "এই মাস" else "This Month"),
-                    Pair(LedgerDatePreset.LAST_MONTH, if (isBangla) "গত মাস" else "Last Month"),
-                    Pair(LedgerDatePreset.LAST_12_MONTHS, if (isBangla) "গত ১২ মাস" else "Last 12 Mos"),
-                    Pair(LedgerDatePreset.THIS_YEAR, if (isBangla) "এই বছর" else "This Year"),
-                    Pair(LedgerDatePreset.TODAY, if (isBangla) "আজ" else "Today"),
-                    Pair(LedgerDatePreset.THIS_WEEK, if (isBangla) "এই সপ্তাহ" else "This Week"),
-                    Pair(LedgerDatePreset.THIS_QUARTER, if (isBangla) "এই ত্রৈমাসিক" else "This Quarter"),
-                    Pair(LedgerDatePreset.ALL_TIME, if (isBangla) "সব সময়" else "All Time"),
-                    Pair(LedgerDatePreset.CUSTOM, if (isBangla) "কাস্টম..." else "Custom...")
-                )
-
-                presets.forEach { (preset, label) ->
-                    val isSelected = selectedPreset == preset
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) accentColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(0.6.dp, if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                        modifier = Modifier.clickable { onPresetChange(preset) }
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 11.5.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val name = presetNameInput.trim().ifEmpty {
+                            if (isBangla) "কাস্টম প্রিসেট ${savedPresets.size + 1}" else "Preset ${savedPresets.size + 1}"
+                        }
+                        val newPreset = SavedTransactionFilterPreset(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = name,
+                            filter = tempFilter,
+                            createdAt = System.currentTimeMillis()
                         )
-                    }
+                        savedPresets.add(newPreset)
+                        TransactionFilterPresetsStorage.savePresets(context, savedPresets)
+                        showSavePresetDialog = false
+                        Toast.makeText(
+                            context,
+                            if (isBangla) "প্রিসেট সংরক্ষিত হয়েছে" else "Preset saved",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(if (isBangla) "সংরক্ষণ করুন" else "Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSavePresetDialog = false }) {
+                    Text(if (isBangla) "বাতিল" else "Cancel")
                 }
             }
+        )
+    }
 
-            // Custom Range inputs if CUSTOM selected
-            if (selectedPreset == LedgerDatePreset.CUSTOM) {
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(0.6.dp, accentColor.copy(alpha = 0.35f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
+    // -------------------------------------------------------------------------
+    // Open Preset Dialog (Identical to Budget tab)
+    // -------------------------------------------------------------------------
+    if (showOpenPresetDialog) {
+        AlertDialog(
+            onDismissRequest = { showOpenPresetDialog = false },
+            title = {
+                Text(
+                    text = if (isBangla) "সংরক্ষিত প্রিসেটসমূহ" else "Saved Filter Presets",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                if (savedPresets.isEmpty()) {
+                    Text(
+                        text = if (isBangla) "কোন সংরক্ষিত প্রিসেট পাওয়া যায়নি।" else "No saved presets found.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onOpenCustomStartPicker() }
-                        ) {
-                            Text(if (isBangla) "শুরু" else "From", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline)
-                            val sText = if (customStartDateMs > 0) DateUtils.formatDate(customStartDateMs, if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH) else "Select..."
-                            Text(sText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accentColor)
-                        }
-
-                        Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
-
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onOpenCustomEndPicker() }
-                                .padding(start = 12.dp)
-                        ) {
-                            Text(if (isBangla) "শেষ" else "To", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline)
-                            val eText = if (customEndDateMs > 0) DateUtils.formatDate(customEndDateMs, if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH) else "Select..."
-                            Text(eText, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accentColor)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Amount Range Card with presets and custom inputs.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AmountRangeCard(
-    title: String,
-    minAmount: Double?,
-    maxAmount: Double?,
-    onMinChange: (Double?) -> Unit,
-    onMaxChange: (Double?) -> Unit,
-    isBangla: Boolean,
-    accentColor: Color
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurface)
-                if (minAmount != null || maxAmount != null) {
-                    TextButton(onClick = {
-                        onMinChange(null)
-                        onMaxChange(null)
-                    }) {
-                        Text(if (isBangla) "সাফ করুন" else "Clear", fontSize = 11.5.sp, color = accentColor)
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = minAmount?.toInt()?.toString() ?: "",
-                    onValueChange = { onMinChange(it.toDoubleOrNull()) },
-                    label = { Text(if (isBangla) "সর্বনিম্ন ৳" else "Min ৳", fontSize = 11.5.sp) },
-                    placeholder = { Text("0", fontSize = 12.sp) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = accentColor,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                    ),
-                    modifier = Modifier.weight(1f).height(52.dp)
-                )
-
-                OutlinedTextField(
-                    value = maxAmount?.toInt()?.toString() ?: "",
-                    onValueChange = { onMaxChange(it.toDoubleOrNull()) },
-                    label = { Text(if (isBangla) "সর্বোচ্চ ৳" else "Max ৳", fontSize = 11.5.sp) },
-                    placeholder = { Text("50000", fontSize = 12.sp) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = accentColor,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                    ),
-                    modifier = Modifier.weight(1f).height(52.dp)
-                )
-            }
-
-            // Quick preset chips
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                val presets = listOf(
-                    Triple(0.0, 500.0, if (isBangla) "< ৫০০ ৳" else "< 500 ৳"),
-                    Triple(500.0, 2000.0, if (isBangla) "৫০০ - ২k ৳" else "500 - 2k ৳"),
-                    Triple(2000.0, 10000.0, if (isBangla) "২k - ১০k ৳" else "2k - 10k ৳"),
-                    Triple(10000.0, 50000.0, if (isBangla) "১০k - ৫০k ৳" else "10k - 50k ৳"),
-                    Triple(50000.0, null, if (isBangla) "> ৫০k ৳" else "> 50k ৳")
-                )
-
-                presets.forEach { (min, max, label) ->
-                    val isSelected = minAmount == min && maxAmount == max
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isSelected) accentColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(0.6.dp, if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                        modifier = Modifier.clickable {
-                            if (isSelected) {
-                                onMinChange(null)
-                                onMaxChange(null)
-                            } else {
-                                onMinChange(min)
-                                onMaxChange(max)
-                            }
-                        }
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Category & Group filter section with search and expand.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CategoryFilterSection(
-    sectionTitle: String,
-    sectionSubtitle: String,
-    categories: List<Category>,
-    selectedItemIds: Set<Long>,
-    selectedGroupNames: Set<String>,
-    onItemIdsChange: (Set<Long>) -> Unit,
-    onGroupNamesChange: (Set<String>) -> Unit,
-    accentColor: Color,
-    isBangla: Boolean
-) {
-    var searchQuery by remember { mutableStateOf("") }
-    val parentMap = remember(categories) {
-        categories.filter { it.parentId == null }.associateBy { it.id }
-    }
-    val childCategories = remember(categories) {
-        categories.filter { it.parentId != null }
-    }
-    val standaloneCategories = remember(categories) {
-        val parentIdsWithChildren = childCategories.mapNotNull { it.parentId }.toSet()
-        categories.filter { it.parentId == null && !parentIdsWithChildren.contains(it.id) }
-    }
-
-    val groupToItemsMap = remember(categories, parentMap, childCategories, standaloneCategories) {
-        val map = mutableMapOf<String, MutableList<Category>>()
-        childCategories.forEach { child ->
-            val parentName = parentMap[child.parentId]?.let {
-                if (isBangla && it.nameBn.isNotBlank()) it.nameBn else it.nameEn
-            } ?: (if (isBangla) "অন্যান্য" else "Other")
-            map.getOrPut(parentName) { mutableListOf() }.add(child)
-        }
-        standaloneCategories.forEach { standalone ->
-            val groupKey = if (isBangla) "প্রধান ক্যাটাগরি" else "Main Categories"
-            map.getOrPut(groupKey) { mutableListOf() }.add(standalone)
-        }
-        map
-    }
-
-    val filteredGroups = remember(groupToItemsMap, searchQuery) {
-        if (searchQuery.isBlank()) {
-            groupToItemsMap
-        } else {
-            val q = searchQuery.trim().lowercase()
-            groupToItemsMap.mapValues { entry ->
-                entry.value.filter { cat ->
-                    cat.nameEn.lowercase().contains(q) ||
-                    cat.nameBn.lowercase().contains(q) ||
-                    entry.key.lowercase().contains(q)
-                }
-            }.filter { it.value.isNotEmpty() }
-        }
-    }
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = sectionTitle, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurface)
-                    Text(text = sectionSubtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                }
-                if (selectedItemIds.isNotEmpty() || selectedGroupNames.isNotEmpty()) {
-                    TextButton(onClick = {
-                        onItemIdsChange(emptySet())
-                        onGroupNamesChange(emptySet())
-                    }) {
-                        Text(if (isBangla) "সাফ করুন" else "Clear", fontSize = 11.5.sp, color = accentColor)
-                    }
-                }
-            }
-
-            // Search input
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    BasicTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface),
-                        cursorBrush = SolidColor(accentColor),
-                        decorationBox = { innerTextField ->
-                            if (searchQuery.isEmpty()) {
-                                Text(
-                                    text = if (isBangla) "ক্যাটাগরি বা গ্রুপ খুঁজুন..." else "Search category or group...",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            innerTextField()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (searchQuery.isNotEmpty()) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Clear",
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp).clickable { searchQuery = "" }
-                        )
-                    }
-                }
-            }
-
-            // Expandable groups
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                filteredGroups.forEach { (groupName, items) ->
-                    val isGroupSelected = selectedGroupNames.contains(groupName)
-                    val allItemsSelected = items.isNotEmpty() && items.all { selectedItemIds.contains(it.id) }
-                    val someItemsSelected = items.any { selectedItemIds.contains(it.id) }
-                    var isExpanded by remember { mutableStateOf(false) }
-
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(
-                            0.7.dp,
-                            if (isGroupSelected || someItemsSelected) accentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                        savedPresets.forEach { preset ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        tempFilter = preset.filter
+                                        showOpenPresetDialog = false
+                                        Toast.makeText(
+                                            context,
+                                            if (isBangla) "\"${preset.name}\" প্রয়োগ করা হয়েছে" else "Loaded \"${preset.name}\"",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f).clickable { isExpanded = !isExpanded }
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = groupName,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.5.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                    ) {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "${items.size}",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            text = preset.name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = if (isBangla) "সক্রিয় ফিল্টার: ${preset.filter.activeCount}" else "Active rules: ${preset.filter.activeCount}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            savedPresets.remove(preset)
+                                            TransactionFilterPresetsStorage.savePresets(context, savedPresets)
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Delete",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
-
-                                Checkbox(
-                                    checked = isGroupSelected || allItemsSelected,
-                                    onCheckedChange = { checked ->
-                                        val newGroupSet = selectedGroupNames.toMutableSet()
-                                        val newItemSet = selectedItemIds.toMutableSet()
-                                        if (checked) {
-                                            newGroupSet.add(groupName)
-                                            items.forEach { newItemSet.add(it.id) }
-                                        } else {
-                                            newGroupSet.remove(groupName)
-                                            items.forEach { newItemSet.remove(it.id) }
-                                        }
-                                        onGroupNamesChange(newGroupSet)
-                                        onItemIdsChange(newItemSet)
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = accentColor),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            AnimatedVisibility(visible = isExpanded) {
-                                Column(modifier = Modifier.padding(top = 8.dp, start = 8.dp)) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        items.forEach { cat ->
-                                            val isCatSelected = selectedItemIds.contains(cat.id)
-                                            val catName = if (isBangla && cat.nameBn.isNotBlank()) cat.nameBn else cat.nameEn
-                                            FilterChip(
-                                                selected = isCatSelected,
-                                                onClick = {
-                                                    val newSet = selectedItemIds.toMutableSet()
-                                                    if (isCatSelected) newSet.remove(cat.id) else newSet.add(cat.id)
-                                                    onItemIdsChange(newSet)
-                                                },
-                                                label = { Text(catName, fontSize = 11.5.sp) },
-                                                leadingIcon = {
-                                                    IconHelper.AppIcon(
-                                                        iconName = cat.iconName,
-                                                        fallbackName = catName,
-                                                        contentDescription = catName,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = accentColor.copy(alpha = 0.15f),
-                                                    selectedLabelColor = accentColor,
-                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                border = BorderStroke(
-                                                    0.6.dp,
-                                                    if (isCatSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                                ),
-                                                modifier = Modifier.height(28.dp)
-                                            )
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
                 }
+            },
+            confirmButton = {
+                TextButton(onClick = { showOpenPresetDialog = false }) {
+                    Text(if (isBangla) "বন্ধ করুন" else "Close")
+                }
             }
-        }
+        )
     }
 }
 
-/**
- * Account & Group filter section with search and expand.
- */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AccountFilterSection(
-    sectionTitle: String,
-    sectionSubtitle: String,
-    accounts: List<Account>,
-    selectedItemIds: Set<Long>,
-    selectedGroupNames: Set<String>,
-    onItemIdsChange: (Set<Long>) -> Unit,
-    onGroupNamesChange: (Set<String>) -> Unit,
-    accentColor: Color,
-    isBangla: Boolean
-) {
-    var searchQuery by remember { mutableStateOf("") }
-    val parentMap = remember(accounts) {
-        accounts.filter { it.parentId == null }.associateBy { it.id }
-    }
-    val childAccounts = remember(accounts) {
-        accounts.filter { it.parentId != null }
-    }
-    val standaloneAccounts = remember(accounts) {
-        val parentIdsWithChildren = childAccounts.mapNotNull { it.parentId }.toSet()
-        accounts.filter { it.parentId == null && !parentIdsWithChildren.contains(it.id) }
-    }
-
-    val groupToItemsMap = remember(accounts, parentMap, childAccounts, standaloneAccounts) {
-        val map = mutableMapOf<String, MutableList<Account>>()
-        childAccounts.forEach { child ->
-            val parentName = parentMap[child.parentId]?.let {
-                if (isBangla && it.nameBn.isNotBlank()) it.nameBn else it.nameEn
-            } ?: (if (isBangla) "অন্যান্য" else "Other")
-            map.getOrPut(parentName) { mutableListOf() }.add(child)
-        }
-        standaloneAccounts.forEach { standalone ->
-            val groupKey = if (isBangla) "সাধারণ একাউন্ট" else "General Accounts"
-            map.getOrPut(groupKey) { mutableListOf() }.add(standalone)
-        }
-        map
-    }
-
-    val filteredGroups = remember(groupToItemsMap, searchQuery) {
-        if (searchQuery.isBlank()) {
-            groupToItemsMap
-        } else {
-            val q = searchQuery.trim().lowercase()
-            groupToItemsMap.mapValues { entry ->
-                entry.value.filter { acc ->
-                    acc.nameEn.lowercase().contains(q) ||
-                    acc.nameBn.lowercase().contains(q) ||
-                    entry.key.lowercase().contains(q)
-                }
-            }.filter { it.value.isNotEmpty() }
-        }
-    }
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = sectionTitle, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurface)
-                    Text(text = sectionSubtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                }
-                if (selectedItemIds.isNotEmpty() || selectedGroupNames.isNotEmpty()) {
-                    TextButton(onClick = {
-                        onItemIdsChange(emptySet())
-                        onGroupNamesChange(emptySet())
-                    }) {
-                        Text(if (isBangla) "সাফ করুন" else "Clear", fontSize = 11.5.sp, color = accentColor)
-                    }
-                }
-            }
-
-            // Search input
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    BasicTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface),
-                        cursorBrush = SolidColor(accentColor),
-                        decorationBox = { innerTextField ->
-                            if (searchQuery.isEmpty()) {
-                                Text(
-                                    text = if (isBangla) "একাউন্ট বা গ্রুপ খুঁজুন..." else "Search account or group...",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            innerTextField()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (searchQuery.isNotEmpty()) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Clear",
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp).clickable { searchQuery = "" }
-                        )
-                    }
-                }
-            }
-
-            // Expandable groups
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                filteredGroups.forEach { (groupName, items) ->
-                    val isGroupSelected = selectedGroupNames.contains(groupName)
-                    val allItemsSelected = items.isNotEmpty() && items.all { selectedItemIds.contains(it.id) }
-                    val someItemsSelected = items.any { selectedItemIds.contains(it.id) }
-                    var isExpanded by remember { mutableStateOf(false) }
-
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(
-                            0.7.dp,
-                            if (isGroupSelected || someItemsSelected) accentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f).clickable { isExpanded = !isExpanded }
-                                ) {
-                                    Icon(
-                                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = groupName,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.5.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                    ) {
-                                        Text(
-                                            text = "${items.size}",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                }
-
-                                Checkbox(
-                                    checked = isGroupSelected || allItemsSelected,
-                                    onCheckedChange = { checked ->
-                                        val newGroupSet = selectedGroupNames.toMutableSet()
-                                        val newItemSet = selectedItemIds.toMutableSet()
-                                        if (checked) {
-                                            newGroupSet.add(groupName)
-                                            items.forEach { newItemSet.add(it.id) }
-                                        } else {
-                                            newGroupSet.remove(groupName)
-                                            items.forEach { newItemSet.remove(it.id) }
-                                        }
-                                        onGroupNamesChange(newGroupSet)
-                                        onItemIdsChange(newItemSet)
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = accentColor),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            AnimatedVisibility(visible = isExpanded) {
-                                Column(modifier = Modifier.padding(top = 8.dp, start = 8.dp)) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        items.forEach { acc ->
-                                            val isAccSelected = selectedItemIds.contains(acc.id)
-                                            val accName = if (isBangla && acc.nameBn.isNotBlank()) acc.nameBn else acc.nameEn
-                                            FilterChip(
-                                                selected = isAccSelected,
-                                                onClick = {
-                                                    val newSet = selectedItemIds.toMutableSet()
-                                                    if (isAccSelected) newSet.remove(acc.id) else newSet.add(acc.id)
-                                                    onItemIdsChange(newSet)
-                                                },
-                                                label = { Text(accName, fontSize = 11.5.sp) },
-                                                leadingIcon = {
-                                                    IconHelper.AppIcon(
-                                                        iconName = acc.iconName,
-                                                        fallbackName = accName,
-                                                        contentDescription = accName,
-                                                        modifier = Modifier.size(13.dp)
-                                                    )
-                                                },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = accentColor.copy(alpha = 0.15f),
-                                                    selectedLabelColor = accentColor,
-                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                border = BorderStroke(
-                                                    0.6.dp,
-                                                    if (isAccSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                                ),
-                                                modifier = Modifier.height(28.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Transaction Status Card.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TransactionStatusCard(
-    selectedStatuses: Set<TransactionStatus>,
-    onStatusesChange: (Set<TransactionStatus>) -> Unit,
-    accentColor: Color,
-    isBangla: Boolean
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (isBangla) "লেনদেনের স্ট্যাটাস" else "Transaction Status",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isBangla) "ক্লিয়ার্ড, মুলতুবি বা বাতিলকৃত এন্ট্রি ফিল্টার করুন" else "Filter cleared, pending or void entries",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                if (selectedStatuses.isNotEmpty()) {
-                    TextButton(onClick = { onStatusesChange(emptySet()) }) {
-                        Text(if (isBangla) "সব দেখান" else "Show All", fontSize = 11.5.sp, color = accentColor)
-                    }
-                }
-            }
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val statuses = listOf(
-                    Pair(TransactionStatus.CLEARED, if (isBangla) "ক্লিয়ার্ড (সম্পন্ন)" else "Cleared"),
-                    Pair(TransactionStatus.RECONCILED, if (isBangla) "রিকনসাইল্ড" else "Reconciled"),
-                    Pair(TransactionStatus.VOID, if (isBangla) "ভয়েড (বাতিল)" else "Void"),
-                    Pair(TransactionStatus.NONE, if (isBangla) "কোনটি নয় (সাধারণ)" else "Standard / None")
-                )
-
-                statuses.forEach { (status, label) ->
-                    val isSelected = selectedStatuses.contains(status)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            val newSet = selectedStatuses.toMutableSet()
-                            if (isSelected) newSet.remove(status) else newSet.add(status)
-                            onStatusesChange(newSet)
-                        },
-                        label = { Text(label, fontSize = 11.5.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = accentColor.copy(alpha = 0.16f),
-                            selectedLabelColor = accentColor,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        border = BorderStroke(
-                            0.7.dp,
-                            if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Transaction specific conditions (matching BudgetMaker Conditions style).
- */
-@Composable
-private fun TransactionConditionsCard(
-    filter: TransactionTabFilter,
-    onFilterChange: (TransactionTabFilter) -> Unit,
-    accentColor: Color,
-    isBangla: Boolean
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = if (isBangla) "বিশেষ শর্ত ও নোট ফিল্টার" else "Special Conditions & Notes",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            ConditionRowItem(
-                title = if (isBangla) "শুধু নোট বা বিবরণযুক্ত লেনদেন" else "Has Notes / Description Only",
-                subtitle = if (isBangla) "যেসব লেনদেনে নোট বা মেমো সংযুক্ত আছে" else "Transactions with attached notes or remarks",
-                checked = filter.onlyWithReceiptOrNote,
-                onCheckedChange = { onFilterChange(filter.copy(onlyWithReceiptOrNote = it, onlyWithoutNote = false)) },
-                accentColor = accentColor,
-                icon = Icons.Default.Description
-            )
-
-            ConditionRowItem(
-                title = if (isBangla) "নোটহীন লেনদেন" else "Without Notes Only",
-                subtitle = if (isBangla) "যেসব লেনদেনে কোনো নোট বা মন্তব্য নেই" else "Transactions with empty note fields",
-                checked = filter.onlyWithoutNote,
-                onCheckedChange = { onFilterChange(filter.copy(onlyWithoutNote = it, onlyWithReceiptOrNote = false)) },
-                accentColor = accentColor,
-                icon = Icons.Default.Tune
-            )
-
-            ConditionRowItem(
-                title = if (isBangla) "শুধু রিভার্সাল / রিভার্ট লেনদেন" else "Reversals / Adjustments Only",
-                subtitle = if (isBangla) "ফেরত বা রিভার্সকৃত ঋণাত্মক এন্ট্রি" else "Negative or reverted adjustment entries",
-                checked = filter.onlyReversals,
-                onCheckedChange = { onFilterChange(filter.copy(onlyReversals = it)) },
-                accentColor = accentColor,
-                icon = Icons.Default.SwapHoriz
-            )
-
-            ConditionRowItem(
-                title = if (isBangla) "শুধু বড় অংকের লেনদেন (≥ ১০,০০০ ৳)" else "High Value Transactions (≥ 10,000 ৳)",
-                subtitle = if (isBangla) "১০,০০০ টাকার সমান বা বেশি বড় অংকের লেনদেন" else "Transactions equal to or exceeding ৳10,000",
-                checked = filter.onlyHighValue,
-                onCheckedChange = { onFilterChange(filter.copy(onlyHighValue = it)) },
-                accentColor = accentColor,
-                icon = Icons.Default.MonetizationOn
-            )
-        }
-    }
-}
-
-/**
- * Display & Presentation options card.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TransactionDisplayOptionsCard(
-    rowStyle: LedgerRowStyle,
-    onRowStyleChange: (LedgerRowStyle) -> Unit,
-    displaySettings: TransactionDisplaySettings,
-    onDisplaySettingsChange: (TransactionDisplaySettings) -> Unit,
-    accentColor: Color,
-    isBangla: Boolean
-) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = if (isBangla) "প্রদর্শন পছন্দসমূহ ও রো স্টাইল" else "Display & Layout Preferences",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            // Row style selector
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = if (isBangla) "রো স্টাইল:" else "Row Density:",
-                    fontSize = 11.5.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val styles = listOf(
-                        Pair(LedgerRowStyle.STANDARD, if (isBangla) "স্ট্যান্ডার্ড" else "Standard"),
-                        Pair(LedgerRowStyle.COMPACT, if (isBangla) "কমপ্যাক্ট" else "Compact"),
-                        Pair(LedgerRowStyle.DETAILED, if (isBangla) "বিস্তারিত" else "Detailed")
-                    )
-                    styles.forEach { (style, label) ->
-                        val isSelected = rowStyle == style
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onRowStyleChange(style) },
-                            label = { Text(label, fontSize = 11.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = accentColor.copy(alpha = 0.16f),
-                                selectedLabelColor = accentColor
-                            )
-                        )
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-            ConditionRowItem(
-                title = if (isBangla) "মোট পরিমাণ প্রদর্শন করুন" else "Show Filtered Total Amount",
-                subtitle = if (isBangla) "ফিল্টার বারে মোট আয়ের/ব্যয়ের সারসংক্ষেপ দেখান" else "Display net total amount badge in filter bar",
-                checked = displaySettings.showTotalAmount,
-                onCheckedChange = { onDisplaySettingsChange(displaySettings.copy(showTotalAmount = it)) },
-                accentColor = accentColor,
-                icon = Icons.Default.FilterAlt
-            )
-
-            ConditionRowItem(
-                title = if (isBangla) "মোটে স্থানান্তর অন্তর্ভুক্ত করুন" else "Include Transfers in Net Total",
-                subtitle = if (isBangla) "মোট হিসাব করার সময় স্থানান্তর লেনদেন যোগ করুন" else "Factor transfer amounts into net calculation",
-                checked = displaySettings.showTransfersInTotal,
-                onCheckedChange = { onDisplaySettingsChange(displaySettings.copy(showTransfersInTotal = it)) },
-                accentColor = accentColor,
-                icon = Icons.Default.SwapHoriz
-            )
-
-            ConditionRowItem(
-                title = if (isBangla) "পুরাতন তারিখ আগে দেখান" else "Show Oldest Date First",
-                subtitle = if (isBangla) "তারিখের ঊর্ধ্বক্রম অনুযায়ী লেনদেন সাজান" else "Sort chronological oldest to newest",
-                checked = displaySettings.showOldestDateFirst,
-                onCheckedChange = { onDisplaySettingsChange(displaySettings.copy(showOldestDateFirst = it)) },
-                accentColor = accentColor,
-                icon = Icons.Default.CalendarMonth
-            )
-        }
-    }
-}
-
-/**
- * Reusable condition row with title, description, and Checkbox (Matching BudgetMakerFilterDialog).
- */
-@Composable
-private fun ConditionRowItem(
+private fun TransactionCompactToggleRow(
     title: String,
-    subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    accentColor: Color,
-    icon: ImageVector? = null
+    modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = if (checked) accentColor.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            0.6.dp,
-            if (checked) accentColor.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-        ),
-        modifier = Modifier
+    Row(
+        modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (icon != null) {
-                    Surface(
-                        shape = RoundedCornerShape(7.dp),
-                        color = if (checked) accentColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                tint = if (checked) accentColor else MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+        Text(
+            text = title,
+            fontSize = 11.sp,
+            fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.scale(0.70f)
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Presets Persistence for Transactions Tab
+// -----------------------------------------------------------------------------
+data class SavedTransactionFilterPreset(
+    val id: String,
+    val name: String,
+    val filter: TransactionTabFilter,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+object TransactionFilterPresetsStorage {
+    private const val PREFS_KEY = "saved_transaction_filter_presets"
+
+    fun loadPresets(context: android.content.Context): List<SavedTransactionFilterPreset> {
+        val prefs = context.getSharedPreferences("budgeter_filter_presets", android.content.Context.MODE_PRIVATE)
+        val json = prefs.getString(PREFS_KEY, null) ?: return emptyList()
+        val list = mutableListOf<SavedTransactionFilterPreset>()
+        try {
+            val array = JSONArray(json)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val id = obj.getString("id")
+                val name = obj.getString("name")
+                val filterObj = obj.getJSONObject("filter")
+
+                val datePresetName = filterObj.optString("datePreset", LedgerDatePreset.LAST_12_MONTHS.name)
+                val datePreset = try { LedgerDatePreset.valueOf(datePresetName) } catch (_: Exception) { LedgerDatePreset.LAST_12_MONTHS }
+
+                val typeArr = filterObj.optJSONArray("selectedTypes")
+                val types = mutableSetOf<TransactionType>()
+                if (typeArr != null) {
+                    for (t in 0 until typeArr.length()) {
+                        try { types.add(TransactionType.valueOf(typeArr.getString(t))) } catch (_: Exception) {}
                     }
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 12.sp,
-                        color = if (checked) accentColor else MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = subtitle,
-                        fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
 
-            Checkbox(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = CheckboxDefaults.colors(checkedColor = accentColor),
-                modifier = Modifier.size(22.dp)
-            )
+                val catArr = filterObj.optJSONArray("selectedCategoryIds")
+                val catIds = mutableSetOf<Long>()
+                if (catArr != null) {
+                    for (c in 0 until catArr.length()) catIds.add(catArr.getLong(c))
+                }
+
+                val accArr = filterObj.optJSONArray("selectedAccountIds")
+                val accIds = mutableSetOf<Long>()
+                if (accArr != null) {
+                    for (a in 0 until accArr.length()) accIds.add(accArr.getLong(a))
+                }
+
+                val filter = TransactionTabFilter(
+                    selectedTypes = types,
+                    datePreset = datePreset,
+                    customStartDateMs = filterObj.optLong("customStartDateMs", 0L),
+                    customEndDateMs = filterObj.optLong("customEndDateMs", System.currentTimeMillis()),
+                    minAmount = if (filterObj.has("minAmount")) filterObj.getDouble("minAmount") else null,
+                    maxAmount = if (filterObj.has("maxAmount")) filterObj.getDouble("maxAmount") else null,
+                    selectedCategoryIds = catIds,
+                    selectedAccountIds = accIds,
+                    onlyWithReceiptOrNote = filterObj.optBoolean("onlyWithReceiptOrNote", false),
+                    onlyWithoutNote = filterObj.optBoolean("onlyWithoutNote", false),
+                    onlyReversals = filterObj.optBoolean("onlyReversals", false),
+                    onlyHighValue = filterObj.optBoolean("onlyHighValue", false)
+                )
+
+                list.add(
+                    SavedTransactionFilterPreset(
+                        id = id,
+                        name = name,
+                        filter = filter,
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+        return list
+    }
+
+    fun savePresets(context: android.content.Context, presets: List<SavedTransactionFilterPreset>) {
+        val prefs = context.getSharedPreferences("budgeter_filter_presets", android.content.Context.MODE_PRIVATE)
+        val array = JSONArray()
+        presets.forEach { p ->
+            val obj = JSONObject()
+            obj.put("id", p.id)
+            obj.put("name", p.name)
+            obj.put("createdAt", p.createdAt)
+
+            val f = JSONObject()
+            f.put("datePreset", p.filter.datePreset.name)
+            f.put("customStartDateMs", p.filter.customStartDateMs)
+            f.put("customEndDateMs", p.filter.customEndDateMs)
+            if (p.filter.minAmount != null) f.put("minAmount", p.filter.minAmount)
+            if (p.filter.maxAmount != null) f.put("maxAmount", p.filter.maxAmount)
+            f.put("onlyWithReceiptOrNote", p.filter.onlyWithReceiptOrNote)
+            f.put("onlyWithoutNote", p.filter.onlyWithoutNote)
+            f.put("onlyReversals", p.filter.onlyReversals)
+            f.put("onlyHighValue", p.filter.onlyHighValue)
+
+            val typeArr = JSONArray()
+            p.filter.selectedTypes.forEach { typeArr.put(it.name) }
+            f.put("selectedTypes", typeArr)
+
+            val catArr = JSONArray()
+            p.filter.selectedCategoryIds.forEach { catArr.put(it) }
+            f.put("selectedCategoryIds", catArr)
+
+            val accArr = JSONArray()
+            p.filter.selectedAccountIds.forEach { accArr.put(it) }
+            f.put("selectedAccountIds", accArr)
+
+            obj.put("filter", f)
+            array.put(obj)
         }
+        prefs.edit().putString(PREFS_KEY, array.toString()).apply()
     }
 }
