@@ -133,8 +133,10 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.ActiveBudgetFilterBar
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
+import com.example.ui.components.BudgetFilterDialog
 import com.example.ui.components.BudgetQuickShortcutsRow
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.rememberCollapsibleCardState
@@ -142,8 +144,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.ui.components.BudgetDateRangePreset
 import com.example.ui.components.BudgetComparisonPreset
 import com.example.ui.components.BudgetFilterState
-import com.example.ui.components.BudgetFilterDialog
-import com.example.ui.components.ActiveBudgetFilterBar
 import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.PopupCalculatorDialog
@@ -1478,10 +1478,8 @@ fun BudgetTrackingScreen(
 
             // Compact Quick Shortcuts Toolbar (View: All/Groups/Categories, Sort, Expand/Collapse, Quick Toggles)
             BudgetQuickShortcutsRow(
-                filterState = BudgetTrackingFilterSpec.fromBudgetFilterState(filterState),
-                onFilterChange = { unifiedState ->
-                    filterState = BudgetTrackingFilterSpec.toBudgetFilterState(unifiedState)
-                },
+                filterState = filterState,
+                onFilterChange = { filterState = it },
                 allGroupsExpanded = allGroupsExpanded,
                 onToggleExpandAll = { expanded ->
                     categoryGroups.forEach { group ->

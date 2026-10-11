@@ -58,6 +58,33 @@ import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 
 /**
+ * Overload for BudgetQuickShortcutsRow accepting BudgetFilterState.
+ */
+@Composable
+fun BudgetQuickShortcutsRow(
+    filterState: BudgetFilterState,
+    onFilterChange: (BudgetFilterState) -> Unit,
+    allGroupsExpanded: Boolean,
+    onToggleExpandAll: (Boolean) -> Unit,
+    languageMode: LanguageMode,
+    modifier: Modifier = Modifier
+) {
+    val unifiedState = remember(filterState) {
+        BudgetTrackingFilterSpec.fromBudgetFilterState(filterState)
+    }
+    BudgetQuickShortcutsRow(
+        filterState = unifiedState,
+        onFilterChange = { newUnified ->
+            onFilterChange(BudgetTrackingFilterSpec.toBudgetFilterState(newUnified, filterState))
+        },
+        allGroupsExpanded = allGroupsExpanded,
+        onToggleExpandAll = onToggleExpandAll,
+        languageMode = languageMode,
+        modifier = modifier
+    )
+}
+
+/**
  * Compact quick shortcut toolbar placed directly below the summary card in the Budget tab.
  * Includes view selector (All, Only Groups, Only Categories), sort menu with comprehensive options,
  * expand/collapse all toggle, and fast filter shortcuts.

@@ -30,6 +30,7 @@ class FilterStore private constructor(private val context: Context) {
         const val KEY_MIGRATED_CASH_FLOW = "migrated_cash_flow_v1"
         const val KEY_MIGRATED_NET_EARNINGS = "migrated_net_earnings_v1"
         const val KEY_MIGRATED_BUDGET_TRACKING = "migrated_budget_tracking_v1"
+        const val KEY_MIGRATED_LEDGER = "migrated_ledger_v1"
 
         val VALID_LABELS_DATE_PRESETS = setOf(
             "this_month", "last_month", "this_week", "today", "yesterday",
@@ -1335,6 +1336,81 @@ class FilterStore private constructor(private val context: Context) {
             }
         } catch (e: Exception) {
             System.err.println("Budget Tracking migration failed: $e")
+            e.printStackTrace()
+        }
+
+        // 13. Migrate LedgerScreen (Transactions tab) with per-screen flag
+        try {
+            if (!prefs.getBoolean(KEY_MIGRATED_LEDGER, false)) {
+                val ledgerKey = "filter_${com.example.ui.components.filter.specs.LedgerFilterSpec.SPEC_KEY}"
+                if (!prefs.contains(ledgerKey)) {
+                    val ledgerState = mutableMapOf<String, FilterValue>()
+
+                    val typeStr = when (tabFilterPrefs.ledgerTypeFilter) {
+                        com.example.data.model.TransactionType.EXPENSE -> com.example.ui.components.filter.specs.LedgerFilterSpec.TYPE_EXPENSE
+                        com.example.data.model.TransactionType.INCOME -> com.example.ui.components.filter.specs.LedgerFilterSpec.TYPE_INCOME
+                        com.example.data.model.TransactionType.TRANSFER -> com.example.ui.components.filter.specs.LedgerFilterSpec.TYPE_TRANSFER
+                        null -> com.example.ui.components.filter.specs.LedgerFilterSpec.TYPE_ALL
+                    }
+                    ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_TYPE] = FilterValue.ToggleGroup(setOf(typeStr))
+
+                    val datePreset = when (tabFilterPrefs.ledgerDatePreset) {
+                        com.example.ui.screens.LedgerDatePreset.THIS_MONTH -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_THIS_MONTH
+                        com.example.ui.screens.LedgerDatePreset.LAST_MONTH -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_LAST_MONTH
+                        com.example.ui.screens.LedgerDatePreset.LAST_12_MONTHS -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_LAST_12_MONTHS
+                        com.example.ui.screens.LedgerDatePreset.THIS_WEEK -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_THIS_WEEK
+                        com.example.ui.screens.LedgerDatePreset.LAST_WEEK -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_LAST_WEEK
+                        com.example.ui.screens.LedgerDatePreset.TODAY -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_TODAY
+                        com.example.ui.screens.LedgerDatePreset.YESTERDAY -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_YESTERDAY
+                        com.example.ui.screens.LedgerDatePreset.THIS_QUARTER -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_THIS_QUARTER
+                        com.example.ui.screens.LedgerDatePreset.THIS_YEAR -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_THIS_YEAR
+                        com.example.ui.screens.LedgerDatePreset.LAST_YEAR -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_LAST_YEAR
+                        com.example.ui.screens.LedgerDatePreset.SINCE_LAST_YEAR -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_SINCE_LAST_YEAR
+                        com.example.ui.screens.LedgerDatePreset.ALL_TIME -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_ALL_TIME
+                        com.example.ui.screens.LedgerDatePreset.CUSTOM -> com.example.ui.components.filter.specs.LedgerFilterSpec.PRESET_CUSTOM
+                    }
+                    val bounds = com.example.ui.dialogs.computePresetDateBounds(tabFilterPrefs.ledgerDatePreset)
+                    ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_DATE] = FilterValue.Date(
+                        presetId = datePreset,
+                        startMs = if (tabFilterPrefs.ledgerDatePreset == com.example.ui.screens.LedgerDatePreset.CUSTOM) tabFilterPrefs.ledgerCustomStartDateMs else bounds.first,
+                        endMs = if (tabFilterPrefs.ledgerDatePreset == com.example.ui.screens.LedgerDatePreset.CUSTOM) tabFilterPrefs.ledgerCustomEndDateMs else bounds.second
+                    )
+
+                    tabFilterPrefs.ledgerAccountId?.let { accId ->
+                        ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_ACCOUNTS] = FilterValue.Select(setOf(accId.toString()))
+                    }
+                    tabFilterPrefs.ledgerCategoryId?.let { catId ->
+                        ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_CATEGORIES] = FilterValue.Select(setOf(catId.toString()))
+                    }
+                    tabFilterPrefs.ledgerLabel?.let { lbl ->
+                        if (lbl.isNotBlank()) {
+                            ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_LABELS] = FilterValue.Select(setOf(lbl))
+                        }
+                    }
+                    tabFilterPrefs.ledgerStatus?.let { st ->
+                        ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_STATUSES] = FilterValue.Select(setOf(st.name))
+                    }
+
+                    val minAmt = if (tabFilterPrefs.ledgerMinAmount > 0.0) tabFilterPrefs.ledgerMinAmount else null
+                    val maxAmt = if (tabFilterPrefs.ledgerMaxAmount < Double.MAX_VALUE) tabFilterPrefs.ledgerMaxAmount else null
+                    if (minAmt != null || maxAmt != null) {
+                        ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_AMOUNT_RANGE] = FilterValue.Range(min = minAmt, max = maxAmt)
+                    }
+
+                    val styleStr = when (tabFilterPrefs.ledgerRowStyle) {
+                        com.example.ui.screens.LedgerRowStyle.COMPACT -> com.example.ui.components.filter.specs.LedgerFilterSpec.STYLE_COMPACT
+                        com.example.ui.screens.LedgerRowStyle.DETAILED -> com.example.ui.components.filter.specs.LedgerFilterSpec.STYLE_DETAILED
+                        com.example.ui.screens.LedgerRowStyle.STANDARD -> com.example.ui.components.filter.specs.LedgerFilterSpec.STYLE_STANDARD
+                    }
+                    ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_ROW_STYLE] = FilterValue.ToggleGroup(setOf(styleStr))
+                    ledgerState[com.example.ui.components.filter.specs.LedgerFilterSpec.FIELD_SHOW_TOTALS] = FilterValue.BooleanVal(tabFilterPrefs.ledgerDisplaySettings.showTotalAmount)
+
+                    saveFilterState(com.example.ui.components.filter.specs.LedgerFilterSpec.SPEC_KEY, ledgerState)
+                }
+                prefs.edit().putBoolean(KEY_MIGRATED_LEDGER, true).commit()
+            }
+        } catch (e: Exception) {
+            System.err.println("Ledger migration failed: $e")
             e.printStackTrace()
         }
     }

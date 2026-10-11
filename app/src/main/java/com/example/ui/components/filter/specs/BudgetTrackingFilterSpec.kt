@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Label
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import com.example.data.model.Account
 import com.example.data.model.Category
@@ -70,7 +69,7 @@ object BudgetTrackingFilterSpec {
     const val PRESET_ALL_TIME = "all_time"
     const val PRESET_CUSTOM = "custom"
 
-    val DATE_PRESET_OPTIONS = listOf(
+    val DATE_PRESETS: List<DatePresetOption> = listOf(
         DatePresetOption(PRESET_THIS_MONTH, "This Month", "চলতি মাস") {
             val cal = Calendar.getInstance()
             val y = cal.get(Calendar.YEAR)
@@ -108,20 +107,19 @@ object BudgetTrackingFilterSpec {
         DatePresetOption(PRESET_YEAR_TO_DATE, "Year to Date", "বছরের শুরু থেকে") {
             val cal = Calendar.getInstance()
             val y = cal.get(Calendar.YEAR)
-            val m = cal.get(Calendar.MONTH) + 1
-            Pair(DateUtils.getStartOfMonth(y, 1), DateUtils.getEndOfMonth(y, m))
+            Pair(DateUtils.getStartOfMonth(y, 1), DateUtils.getEndOfMonth(y, cal.get(Calendar.MONTH) + 1))
         },
         DatePresetOption(PRESET_SAME_MONTH_LAST_YEAR, "Same Month Last Year", "গত বছরের এই মাস") {
             val cal = Calendar.getInstance()
-            val y = cal.get(Calendar.YEAR) - 1
+            val prevY = cal.get(Calendar.YEAR) - 1
             val m = cal.get(Calendar.MONTH) + 1
-            Pair(DateUtils.getStartOfMonth(y, m), DateUtils.getEndOfMonth(y, m))
+            Pair(DateUtils.getStartOfMonth(prevY, m), DateUtils.getEndOfMonth(prevY, m))
         },
         DatePresetOption(PRESET_ALL_TIME, "All Time", "সব সময়") {
             Pair(0L, Long.MAX_VALUE)
         },
         DatePresetOption(PRESET_CUSTOM, "Custom Date Range", "নির্দিষ্ট সময়সীমা") {
-            Pair(0L, 0L)
+            Pair(0L, System.currentTimeMillis())
         }
     )
 
@@ -135,15 +133,15 @@ object BudgetTrackingFilterSpec {
     const val COMP_LAST_YEAR = "comp_last_year"
     const val COMP_CUSTOM = "comp_custom"
 
-    val COMPARISON_CONDITIONS: List<FilterCondition<CategoryBudgetTrackingItem>> = listOf(
-        FilterCondition(COMP_NONE, "No Comparison", "তুলনাহীন", icon = Icons.Default.CompareArrows, group = "comp"),
-        FilterCondition(COMP_SAME_DATE_PREV_MONTH, "Same Date Prev Month", "পূর্ববর্তী মাসের একই তারিখ", icon = Icons.Default.CompareArrows, group = "comp"),
-        FilterCondition(COMP_SAME_DATE_PREV_YEAR, "Same Date Prev Year", "গত বছরের একই তারিখ", icon = Icons.Default.CompareArrows, group = "comp"),
-        FilterCondition(COMP_LAST_MONTH, "Previous Full Month", "গত পুরো মাস", icon = Icons.Default.CompareArrows, group = "comp"),
-        FilterCondition(COMP_SAME_MONTH_LAST_YEAR, "Same Month Last Year", "গত বছরের এই মাস", icon = Icons.Default.CompareArrows, group = "comp"),
-        FilterCondition(COMP_LAST_3_MONTHS_AVG, "Previous 3 Months", "পূর্ববর্তী ৩ মাস", icon = Icons.Default.CompareArrows, group = "comp"),
-        FilterCondition(COMP_LAST_YEAR, "Previous Full Year", "গত পুরো বছর", icon = Icons.Default.CompareArrows, group = "comp"),
-        FilterCondition(COMP_CUSTOM, "Custom Date Range", "নির্দিষ্ট সময়সীমা", icon = Icons.Default.CompareArrows, group = "comp")
+    val COMPARISON_CONDITIONS = listOf(
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_NONE, "No Comparison", "তুলনাহীন", icon = Icons.Default.CompareArrows, group = "comparison"),
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_SAME_DATE_PREV_MONTH, "Same Date Prev Month", "পূর্ববর্তী মাসের একই তারিখ", icon = Icons.Default.CompareArrows, group = "comparison"),
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_SAME_DATE_PREV_YEAR, "Same Date Prev Year", "গত বছরের একই তারিখ", icon = Icons.Default.CompareArrows, group = "comparison"),
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_LAST_MONTH, "Previous Full Month", "গত পুরো মাস", icon = Icons.Default.CompareArrows, group = "comparison"),
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_SAME_MONTH_LAST_YEAR, "Same Month Last Year", "গত বছরের এই মাস", icon = Icons.Default.CompareArrows, group = "comparison"),
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_LAST_3_MONTHS_AVG, "Previous 3 Months", "পূর্ববর্তী ৩ মাস", icon = Icons.Default.CompareArrows, group = "comparison"),
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_LAST_YEAR, "Previous Full Year", "গত পুরো বছর", icon = Icons.Default.CompareArrows, group = "comparison"),
+        FilterCondition<CategoryBudgetTrackingItem>(COMP_CUSTOM, "Custom Date Range", "নির্দিষ্ট সময়সীমা", icon = Icons.Default.CompareArrows, group = "comparison")
     )
 
     // Flow Scope
@@ -151,10 +149,10 @@ object BudgetTrackingFilterSpec {
     const val SCOPE_EXPENSE_ONLY = "scope_expense_only"
     const val SCOPE_INCOME_ONLY = "scope_income_only"
 
-    val FLOW_SCOPE_CONDITIONS: List<FilterCondition<CategoryBudgetTrackingItem>> = listOf(
-        FilterCondition(SCOPE_ALL, "All (Expense & Income)", "উভয় (ব্যয় ও আয়)", icon = Icons.Default.FilterAlt, group = "flow"),
-        FilterCondition(SCOPE_EXPENSE_ONLY, "Expense Budgets", "ব্যয় বাজেট", icon = Icons.Default.FilterAlt, group = "flow"),
-        FilterCondition(SCOPE_INCOME_ONLY, "Income Budgets", "আয় বাজেট", icon = Icons.Default.FilterAlt, group = "flow")
+    val FLOW_SCOPE_CONDITIONS = listOf(
+        FilterCondition<CategoryBudgetTrackingItem>(SCOPE_ALL, "All (Expense & Income)", "উভয় (ব্যয় ও আয়)", icon = Icons.Default.FilterAlt, group = "flow_scope"),
+        FilterCondition<CategoryBudgetTrackingItem>(SCOPE_EXPENSE_ONLY, "Expense Budgets", "ব্যয় বাজেট", icon = Icons.Default.FilterAlt, group = "flow_scope"),
+        FilterCondition<CategoryBudgetTrackingItem>(SCOPE_INCOME_ONLY, "Income Budgets", "আয় বাজেট", icon = Icons.Default.FilterAlt, group = "flow_scope")
     )
 
     // Hierarchy View
@@ -162,10 +160,10 @@ object BudgetTrackingFilterSpec {
     const val HIERARCHY_ONLY_GROUPS = "hierarchy_only_groups"
     const val HIERARCHY_WITHOUT_GROUPS = "hierarchy_without_groups"
 
-    val HIERARCHY_CONDITIONS: List<FilterCondition<CategoryBudgetTrackingItem>> = listOf(
-        FilterCondition(HIERARCHY_GROUPED, "Grouped Hierarchy", "গ্রুপ ও ক্যাটাগরি", icon = Icons.Default.Tune, group = "hierarchy"),
-        FilterCondition(HIERARCHY_ONLY_GROUPS, "Only Parent Groups", "শুধু প্রধান গ্রুপ", icon = Icons.Default.Tune, group = "hierarchy"),
-        FilterCondition(HIERARCHY_WITHOUT_GROUPS, "Flat List (Without Groups)", "গ্রুপ ছাড়া তালিকা", icon = Icons.Default.Tune, group = "hierarchy")
+    val HIERARCHY_CONDITIONS = listOf(
+        FilterCondition<CategoryBudgetTrackingItem>(HIERARCHY_GROUPED, "Grouped Hierarchy", "গ্রুপ ও ক্যাটাগরি", icon = Icons.Default.Tune, group = "hierarchy"),
+        FilterCondition<CategoryBudgetTrackingItem>(HIERARCHY_ONLY_GROUPS, "Only Parent Groups", "শুধু প্রধান গ্রুপ", icon = Icons.Default.Tune, group = "hierarchy"),
+        FilterCondition<CategoryBudgetTrackingItem>(HIERARCHY_WITHOUT_GROUPS, "Flat List (Without Groups)", "গ্রুপ ছাড়া তালিকা", icon = Icons.Default.Tune, group = "hierarchy")
     )
 
     // Verification Statuses
@@ -188,18 +186,18 @@ object BudgetTrackingFilterSpec {
     const val SORT_NAME_ASC = "name_asc"
     const val SORT_NAME_DESC = "name_desc"
 
-    val SORT_OPTIONS: List<SortOptionItem<CategoryBudgetTrackingItem>> = listOf(
-        SortOptionItem(SORT_DEFAULT, "Default Order", "ডিফল্ট ক্রম", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_AMOUNT_DESC, "Amount: High → Low", "পরিমাণ: বেশি → কম", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_AMOUNT_ASC, "Amount: Low → High", "পরিমাণ: কম → বেশি", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_SPENT_DESC, "Actual Spent: High → Low", "প্রকৃত ব্যয়: বেশি → কম", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_REMAINING_DESC, "Remaining: High → Low", "অবশিষ্ট: বেশি → কম", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_REMAINING_ASC, "Remaining: Low → High", "অবশিষ্ট: কম → বেশি", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_BUDGET_DESC, "Budget Limit: High → Low", "বাজেট সীমা: বেশি → কম", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_BUDGET_ASC, "Budget Limit: Low → High", "বাজেট সীমা: কম → বেশি", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_UTILIZATION_DESC, "Utilization %: High → Low", "ব্যবহারের হার: বেশি → কম", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_NAME_ASC, "Alphabetical: A → Z", "নাম: A → Z", comparator = null, icon = Icons.AutoMirrored.Filled.Sort),
-        SortOptionItem(SORT_NAME_DESC, "Alphabetical: Z → A", "নাম: Z → A", comparator = null, icon = Icons.AutoMirrored.Filled.Sort)
+    val SORT_OPTIONS = listOf(
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_DEFAULT, "Default Order", "ডিফল্ট ক্রম", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_AMOUNT_DESC, "Amount: High → Low", "পরিমাণ: বেশি → কম", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_AMOUNT_ASC, "Amount: Low → High", "পরিমাণ: কম → বেশি", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_SPENT_DESC, "Actual Spent: High → Low", "প্রকৃত ব্যয়: বেশি → কম", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_REMAINING_DESC, "Remaining: High → Low", "অবশিষ্ট: বেশি → কম", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_REMAINING_ASC, "Remaining: Low → High", "অবশিষ্ট: কম → বেশি", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_BUDGET_DESC, "Budget Limit: High → Low", "বাজেট সীমা: বেশি → কম", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_BUDGET_ASC, "Budget Limit: Low → High", "বাজেট সীমা: কম → বেশি", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_UTILIZATION_DESC, "Utilization %: High → Low", "ব্যবহারের হার: বেশি → কম", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_NAME_ASC, "Alphabetical: A → Z", "নাম: A → Z", icon = Icons.AutoMirrored.Filled.Sort),
+        SortOptionItem<CategoryBudgetTrackingItem>(SORT_NAME_DESC, "Alphabetical: Z → A", "নাম: Z → A", icon = Icons.AutoMirrored.Filled.Sort)
     )
 
     // Toggles
@@ -214,17 +212,17 @@ object BudgetTrackingFilterSpec {
     const val TOGGLE_DISPLAY_CURRENCY = "display_currency"
     const val TOGGLE_DISPLAY_SYMBOL = "display_symbol"
 
-    val TOGGLE_CONDITIONS: List<FilterCondition<CategoryBudgetTrackingItem>> = listOf(
-        FilterCondition(TOGGLE_EXCLUDE_ZERO, "Exclude Zero Amounts", "শূন্য পরিমাণ বাদ দিন", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_HIDE_EMPTY_GROUPS, "Hide Empty Groups", "খালি গ্রুপ লুকান", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_ONLY_BUDGETED, "Only Budgeted Categories", "শুধু বাজেটযুক্ত ক্যাটাগরি", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_ONLY_OVER_BUDGET, "Only Over Budget (Exceeded)", "শুধু বাজেট অতিক্রান্ত", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_ONLY_REMAINING, "Only Categories with Remaining", "শুধু অবশিষ্ট ব্যালেন্স", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_ONLY_ACTUAL, "Only with Actual Expenses", "শুধু প্রকৃত ব্যয়যুক্ত", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_ACTIVE_3_MONTHS, "Active in Last 3 Months", "বিগত ৩ মাসে সক্রিয়", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_EXPENSE_FIRST, "Expense Categories First", "ব্যয় ক্যাটাগরি প্রথমে", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_DISPLAY_CURRENCY, "Display Currency Code", "মুদ্রা কোড প্রদর্শন", icon = Icons.Default.Tune),
-        FilterCondition(TOGGLE_DISPLAY_SYMBOL, "Display Currency Symbol", "মুদ্রা প্রতীক প্রদর্শন", icon = Icons.Default.Tune)
+    val TOGGLE_CONDITIONS = listOf(
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_EXCLUDE_ZERO, "Exclude Zero Amounts", "শূন্য পরিমাণ বাদ দিন", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_HIDE_EMPTY_GROUPS, "Hide Empty Groups", "খালি গ্রুপ লুকান", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_ONLY_BUDGETED, "Only Budgeted Categories", "শুধু বাজেটযুক্ত ক্যাটাগরি", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_ONLY_OVER_BUDGET, "Only Over Budget (Exceeded)", "শুধু বাজেট অতিক্রান্ত", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_ONLY_REMAINING, "Only Categories with Remaining", "শুধু অবশিষ্ট ব্যালেন্স", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_ONLY_ACTUAL, "Only with Actual Expenses", "শুধু প্রকৃত ব্যয়যুক্ত", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_ACTIVE_3_MONTHS, "Active in Last 3 Months", "বিগত ৩ মাসে সক্রিয়", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_EXPENSE_FIRST, "Expense Categories First", "ব্যয় ক্যাটাগরি প্রথমে", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_DISPLAY_CURRENCY, "Display Currency Code", "মুদ্রা কোড প্রদর্শন", icon = Icons.Default.Tune),
+        FilterCondition<CategoryBudgetTrackingItem>(TOGGLE_DISPLAY_SYMBOL, "Display Currency Symbol", "মুদ্রা প্রতীক প্রদর্শন", icon = Icons.Default.Tune)
     )
 
     fun createSpec(
@@ -274,7 +272,6 @@ object BudgetTrackingFilterSpec {
                 titleBn = "অনুসন্ধান",
                 hintEn = "Search categories or notes...",
                 hintBn = "ক্যাটাগরি বা নোট খুঁজুন...",
-                icon = Icons.Default.Search,
                 predicate = { item, query ->
                     if (query.isBlank()) true else {
                         val q = query.trim().lowercase()
@@ -292,8 +289,7 @@ object BudgetTrackingFilterSpec {
                 id = FIELD_DATE,
                 titleEn = "Date Range",
                 titleBn = "সময়সীমা",
-                icon = Icons.Default.CalendarMonth,
-                presets = DATE_PRESET_OPTIONS,
+                presets = DATE_PRESETS,
                 defaultPresetId = PRESET_THIS_MONTH
             )
         )
@@ -305,15 +301,7 @@ object BudgetTrackingFilterSpec {
                 titleEn = "Baseline Comparison",
                 titleBn = "তুলনামূলক ভিত্তি",
                 icon = Icons.Default.CompareArrows,
-                conditions = COMPARISON_CONDITIONS.map { cond ->
-                    FilterCondition<CategoryBudgetTrackingItem>(
-                        id = cond.id,
-                        titleEn = cond.titleEn,
-                        titleBn = cond.titleBn,
-                        icon = cond.icon,
-                        group = cond.group
-                    )
-                }
+                conditions = COMPARISON_CONDITIONS
             )
         )
 
@@ -324,15 +312,7 @@ object BudgetTrackingFilterSpec {
                 titleEn = "Flow Scope",
                 titleBn = "বাজেটের ধরন",
                 icon = Icons.Default.FilterAlt,
-                conditions = FLOW_SCOPE_CONDITIONS.map { cond ->
-                    FilterCondition<CategoryBudgetTrackingItem>(
-                        id = cond.id,
-                        titleEn = cond.titleEn,
-                        titleBn = cond.titleBn,
-                        icon = cond.icon,
-                        group = cond.group
-                    )
-                }
+                conditions = FLOW_SCOPE_CONDITIONS
             )
         )
 
@@ -343,15 +323,7 @@ object BudgetTrackingFilterSpec {
                 titleEn = "Hierarchy View",
                 titleBn = "বিন্যাস",
                 icon = Icons.Default.Tune,
-                conditions = HIERARCHY_CONDITIONS.map { cond ->
-                    FilterCondition<CategoryBudgetTrackingItem>(
-                        id = cond.id,
-                        titleEn = cond.titleEn,
-                        titleBn = cond.titleBn,
-                        icon = cond.icon,
-                        group = cond.group
-                    )
-                }
+                conditions = HIERARCHY_CONDITIONS
             )
         )
 
@@ -367,8 +339,9 @@ object BudgetTrackingFilterSpec {
                     isMultiSelect = true,
                     predicate = { item, selected ->
                         if (selected.isEmpty()) true else {
-                            selected.contains(item.category.id.toString()) ||
-                                    (item.category.parentId != null && selected.contains(item.category.parentId.toString()))
+                            val catId = item.category.id.toString()
+                            val parentId = item.category.parentId?.toString()
+                            selected.contains(catId) || (parentId != null && selected.contains(parentId))
                         }
                     }
                 )
@@ -387,10 +360,9 @@ object BudgetTrackingFilterSpec {
                     isMultiSelect = true,
                     predicate = { item, selected ->
                         if (selected.isEmpty()) true else {
-                            item.transactions.any { tx ->
-                                val d = tx.transaction.debitAccountId?.toString()
-                                val c = tx.transaction.creditAccountId?.toString()
-                                (d != null && selected.contains(d)) || (c != null && selected.contains(c))
+                            item.transactions.any { tw ->
+                                val accId = tw.debitAccount?.id ?: tw.creditAccount?.id ?: tw.transaction.debitAccountId ?: tw.transaction.creditAccountId
+                                accId != null && selected.contains(accId.toString())
                             }
                         }
                     }
@@ -410,8 +382,8 @@ object BudgetTrackingFilterSpec {
                     isMultiSelect = true,
                     predicate = { item, selected ->
                         if (selected.isEmpty()) true else {
-                            item.transactions.any { tx ->
-                                selected.any { tx.transaction.note.contains(it, ignoreCase = true) }
+                            item.transactions.any { tw ->
+                                selected.any { tag -> tw.transaction.note.contains(tag, ignoreCase = true) }
                             }
                         }
                     }
@@ -430,7 +402,7 @@ object BudgetTrackingFilterSpec {
                 isMultiSelect = true,
                 predicate = { item, selected ->
                     if (selected.isEmpty()) true else {
-                        item.transactions.any { selected.contains(it.transaction.status.name) }
+                        item.transactions.any { tw -> selected.contains(tw.transaction.status.name) }
                     }
                 }
             )
@@ -443,9 +415,9 @@ object BudgetTrackingFilterSpec {
                 titleEn = "Amount Range",
                 titleBn = "পরিমাণ সীমা",
                 predicate = { item, min, max ->
-                    val amt = item.spentAmount
-                    val passMin = min == null || (amt >= min || (item.hasBudget && item.budgetLimit >= min))
-                    val passMax = max == null || (amt <= max || (item.hasBudget && item.budgetLimit <= max))
+                    val amt = if (item.budgetLimit > 0) item.budgetLimit else item.spentAmount
+                    val passMin = min == null || amt >= min
+                    val passMax = max == null || amt <= max
                     passMin && passMax
                 }
             )
@@ -458,14 +430,7 @@ object BudgetTrackingFilterSpec {
                 titleEn = "Sort Order",
                 titleBn = "সাজানোর ক্রম",
                 icon = Icons.AutoMirrored.Filled.Sort,
-                options = SORT_OPTIONS.map { opt ->
-                    SortOptionItem<CategoryBudgetTrackingItem>(
-                        id = opt.id,
-                        titleEn = opt.titleEn,
-                        titleBn = opt.titleBn,
-                        icon = opt.icon
-                    )
-                },
+                options = SORT_OPTIONS,
                 defaultSortId = SORT_AMOUNT_DESC
             )
         )
@@ -477,14 +442,7 @@ object BudgetTrackingFilterSpec {
                 titleEn = "Display & Calculation Options",
                 titleBn = "প্রদর্শন ও গণনা অপশন",
                 icon = Icons.Default.Tune,
-                conditions = TOGGLE_CONDITIONS.map { cond ->
-                    FilterCondition<CategoryBudgetTrackingItem>(
-                        id = cond.id,
-                        titleEn = cond.titleEn,
-                        titleBn = cond.titleBn,
-                        icon = cond.icon
-                    )
-                }
+                conditions = TOGGLE_CONDITIONS
             )
         )
 
@@ -712,40 +670,57 @@ object BudgetTrackingFilterSpec {
             }
         }
 
-        // 2. Determine Comparison Date Range (If enabled)
-        val compPreset = getComparisonPreset(state)
         var comparisonRange: Pair<Long, Long>? = null
         var comparisonLabel: String? = null
 
+        val compPreset = getComparisonPreset(state)
         if (compPreset != COMP_NONE) {
             val (compStart, compEnd, compLbl) = when (compPreset) {
                 COMP_SAME_DATE_PREV_MONTH -> {
-                    cal.set(Calendar.YEAR, year)
-                    cal.set(Calendar.MONTH, month - 1)
-                    cal.add(Calendar.MONTH, -1)
-                    val prevY = cal.get(Calendar.YEAR)
-                    val prevM = cal.get(Calendar.MONTH) + 1
-                    val start = DateUtils.getStartOfMonth(prevY, prevM)
-                    val end = DateUtils.getEndOfMonth(prevY, prevM)
-                    val label = DateUtils.formatMonthYear(prevY, prevM, languageMode)
+                    val calStart = Calendar.getInstance().apply {
+                        timeInMillis = primaryStartMs
+                        add(Calendar.MONTH, -1)
+                    }
+                    val calEnd = Calendar.getInstance().apply {
+                        timeInMillis = primaryEndMs
+                        add(Calendar.MONTH, -1)
+                    }
+                    val start = calStart.timeInMillis
+                    val end = calEnd.timeInMillis
+                    val label = if (preset == PRESET_THIS_MONTH) {
+                        DateUtils.formatMonthYear(calStart.get(Calendar.YEAR), calStart.get(Calendar.MONTH) + 1, languageMode)
+                    } else {
+                        "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+                    }
                     Triple(start, end, label)
                 }
                 COMP_SAME_DATE_PREV_YEAR -> {
-                    val prevYear = year - 1
-                    val start = DateUtils.getStartOfMonth(prevYear, month)
-                    val end = DateUtils.getEndOfMonth(prevYear, month)
-                    val label = DateUtils.formatMonthYear(prevYear, month, languageMode)
+                    val calStart = Calendar.getInstance().apply {
+                        timeInMillis = primaryStartMs
+                        add(Calendar.YEAR, -1)
+                    }
+                    val calEnd = Calendar.getInstance().apply {
+                        timeInMillis = primaryEndMs
+                        add(Calendar.YEAR, -1)
+                    }
+                    val start = calStart.timeInMillis
+                    val end = calEnd.timeInMillis
+                    val label = if (preset == PRESET_THIS_MONTH) {
+                        DateUtils.formatMonthYear(calStart.get(Calendar.YEAR), calStart.get(Calendar.MONTH) + 1, languageMode)
+                    } else {
+                        "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+                    }
                     Triple(start, end, label)
                 }
                 COMP_LAST_MONTH -> {
                     cal.set(Calendar.YEAR, year)
                     cal.set(Calendar.MONTH, month - 1)
                     cal.add(Calendar.MONTH, -1)
-                    val prevY = cal.get(Calendar.YEAR)
-                    val prevM = cal.get(Calendar.MONTH) + 1
-                    val start = DateUtils.getStartOfMonth(prevY, prevM)
-                    val end = DateUtils.getEndOfMonth(prevY, prevM)
-                    val label = DateUtils.formatMonthYear(prevY, prevM, languageMode)
+                    val prevYear = cal.get(Calendar.YEAR)
+                    val prevMonth = cal.get(Calendar.MONTH) + 1
+                    val start = DateUtils.getStartOfMonth(prevYear, prevMonth)
+                    val end = DateUtils.getEndOfMonth(prevYear, prevMonth)
+                    val label = DateUtils.formatMonthYear(prevYear, prevMonth, languageMode)
                     Triple(start, end, label)
                 }
                 COMP_SAME_MONTH_LAST_YEAR -> {
@@ -794,103 +769,26 @@ object BudgetTrackingFilterSpec {
         )
     }
 
-    fun toBudgetFilterState(state: FilterState): BudgetFilterState {
-        val presetStr = getDatePreset(state)
-        val datePreset = when (presetStr) {
-            PRESET_LAST_12_MONTHS -> BudgetDateRangePreset.LAST_12_MONTHS
-            PRESET_THIS_MONTH -> BudgetDateRangePreset.THIS_MONTH
-            PRESET_LAST_MONTH -> BudgetDateRangePreset.LAST_MONTH
-            PRESET_LAST_3_MONTHS -> BudgetDateRangePreset.LAST_3_MONTHS
-            PRESET_LAST_6_MONTHS -> BudgetDateRangePreset.LAST_6_MONTHS
-            PRESET_YEAR_TO_DATE -> BudgetDateRangePreset.YEAR_TO_DATE
-            PRESET_SAME_MONTH_LAST_YEAR -> BudgetDateRangePreset.SAME_MONTH_LAST_YEAR
-            PRESET_ALL_TIME -> BudgetDateRangePreset.ALL_TIME
-            PRESET_CUSTOM -> BudgetDateRangePreset.CUSTOM
-            else -> BudgetDateRangePreset.THIS_MONTH
-        }
-
-        val compPresetStr = getComparisonPreset(state)
-        val comparisonEnabled = compPresetStr != COMP_NONE
-        val compPreset = when (compPresetStr) {
-            COMP_SAME_DATE_PREV_MONTH -> BudgetComparisonPreset.SAME_DATE_PREV_MONTH
-            COMP_SAME_DATE_PREV_YEAR -> BudgetComparisonPreset.SAME_DATE_PREV_YEAR
-            COMP_LAST_MONTH -> BudgetComparisonPreset.LAST_MONTH
-            COMP_SAME_MONTH_LAST_YEAR -> BudgetComparisonPreset.SAME_MONTH_LAST_YEAR
-            COMP_LAST_3_MONTHS_AVG -> BudgetComparisonPreset.LAST_3_MONTHS_AVG
-            COMP_LAST_YEAR -> BudgetComparisonPreset.LAST_YEAR
-            COMP_CUSTOM -> BudgetComparisonPreset.CUSTOM
-            else -> BudgetComparisonPreset.LAST_MONTH
-        }
-
-        val sortId = getSortOrder(state)
-        val sortOrder = when (sortId) {
-            SORT_DEFAULT -> BudgetSortOrder.DEFAULT
-            SORT_AMOUNT_ASC -> BudgetSortOrder.AMOUNT_ASC
-            SORT_SPENT_DESC -> BudgetSortOrder.SPENT_DESC
-            SORT_REMAINING_DESC -> BudgetSortOrder.REMAINING_DESC
-            SORT_REMAINING_ASC -> BudgetSortOrder.REMAINING_ASC
-            SORT_BUDGET_DESC -> BudgetSortOrder.BUDGET_DESC
-            SORT_BUDGET_ASC -> BudgetSortOrder.BUDGET_ASC
-            SORT_UTILIZATION_DESC -> BudgetSortOrder.UTILIZATION_DESC
-            SORT_NAME_ASC -> BudgetSortOrder.NAME_ASC
-            SORT_NAME_DESC -> BudgetSortOrder.NAME_DESC
-            else -> BudgetSortOrder.AMOUNT_DESC
-        }
-
-        val hierarchy = getHierarchyView(state)
-        val onlyGroups = hierarchy == HIERARCHY_ONLY_GROUPS
-        val withoutGroups = hierarchy == HIERARCHY_WITHOUT_GROUPS
-
-        return BudgetFilterState(
-            datePreset = datePreset,
-            customStartDateMs = getCustomStartDate(state),
-            customEndDateMs = getCustomEndDate(state),
-            comparisonEnabled = comparisonEnabled,
-            comparisonPreset = compPreset,
-            selectedCategoryIds = getSelectedCategoryIds(state),
-            selectedAccountIds = getSelectedAccountIds(state),
-            selectedLabels = getSelectedLabels(state),
-            selectedStatusSet = getSelectedStatuses(state),
-            excludeZeroAmounts = getExcludeZero(state),
-            hideEmptyGroups = getHideEmptyGroups(state),
-            showOnlyCategoriesWithoutGroups = withoutGroups,
-            showOnlyGroups = onlyGroups,
-            displayCurrency = getDisplayCurrency(state),
-            displayCurrencySymbol = getDisplayCurrencySymbol(state),
-            sortByAmount = sortOrder == BudgetSortOrder.AMOUNT_DESC || sortOrder == BudgetSortOrder.AMOUNT_ASC,
-            showExpenseCategoriesFirst = getExpenseFirst(state),
-            sortOrder = sortOrder,
-            showOnlyRemainingBalance = getOnlyRemaining(state),
-            showOnlyActual = getOnlyActual(state),
-            filterOnlyBudgeted = getOnlyBudgeted(state),
-            filterOnlyOverBudget = getOnlyOverBudget(state),
-            filterActive3Months = getActive3Months(state),
-            minAmount = getMinAmount(state),
-            maxAmount = getMaxAmount(state)
-        )
-    }
-
     fun fromBudgetFilterState(old: BudgetFilterState): FilterState {
-        val state = mutableMapOf<String, FilterValue>()
-
+        val btState = mutableMapOf<String, FilterValue>()
         val presetId = when (old.datePreset) {
-            BudgetDateRangePreset.LAST_12_MONTHS -> PRESET_LAST_12_MONTHS
             BudgetDateRangePreset.THIS_MONTH -> PRESET_THIS_MONTH
             BudgetDateRangePreset.LAST_MONTH -> PRESET_LAST_MONTH
             BudgetDateRangePreset.LAST_3_MONTHS -> PRESET_LAST_3_MONTHS
             BudgetDateRangePreset.LAST_6_MONTHS -> PRESET_LAST_6_MONTHS
+            BudgetDateRangePreset.LAST_12_MONTHS -> PRESET_LAST_12_MONTHS
             BudgetDateRangePreset.YEAR_TO_DATE -> PRESET_YEAR_TO_DATE
             BudgetDateRangePreset.SAME_MONTH_LAST_YEAR -> PRESET_SAME_MONTH_LAST_YEAR
             BudgetDateRangePreset.ALL_TIME -> PRESET_ALL_TIME
             BudgetDateRangePreset.CUSTOM -> PRESET_CUSTOM
         }
-        state[FIELD_DATE] = FilterValue.Date(
+        btState[FIELD_DATE] = FilterValue.Date(
             presetId = presetId,
             startMs = old.customStartDateMs,
             endMs = old.customEndDateMs
         )
 
-        val compId = if (old.comparisonEnabled) {
+        val compPresetId = if (old.comparisonEnabled) {
             when (old.comparisonPreset) {
                 BudgetComparisonPreset.SAME_DATE_PREV_MONTH -> COMP_SAME_DATE_PREV_MONTH
                 BudgetComparisonPreset.SAME_DATE_PREV_YEAR -> COMP_SAME_DATE_PREV_YEAR
@@ -903,34 +801,32 @@ object BudgetTrackingFilterSpec {
         } else {
             COMP_NONE
         }
-        state[FIELD_COMPARISON] = FilterValue.ToggleGroup(setOf(compId))
+        btState[FIELD_COMPARISON] = FilterValue.ToggleGroup(setOf(compPresetId))
 
         val hierarchyId = when {
             old.showOnlyGroups -> HIERARCHY_ONLY_GROUPS
             old.showOnlyCategoriesWithoutGroups -> HIERARCHY_WITHOUT_GROUPS
             else -> HIERARCHY_GROUPED
         }
-        state[FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(hierarchyId))
+        btState[FIELD_HIERARCHY] = FilterValue.ToggleGroup(setOf(hierarchyId))
 
         if (old.selectedCategoryIds.isNotEmpty()) {
-            state[FIELD_CATEGORIES] = FilterValue.Select(old.selectedCategoryIds.map { it.toString() }.toSet())
+            btState[FIELD_CATEGORIES] = FilterValue.Select(old.selectedCategoryIds.map { it.toString() }.toSet())
         }
         if (old.selectedAccountIds.isNotEmpty()) {
-            state[FIELD_ACCOUNTS] = FilterValue.Select(old.selectedAccountIds.map { it.toString() }.toSet())
+            btState[FIELD_ACCOUNTS] = FilterValue.Select(old.selectedAccountIds.map { it.toString() }.toSet())
         }
         if (old.selectedLabels.isNotEmpty()) {
-            state[FIELD_LABELS] = FilterValue.Select(old.selectedLabels)
+            btState[FIELD_LABELS] = FilterValue.Select(old.selectedLabels)
         }
         if (old.selectedStatusSet.isNotEmpty()) {
-            state[FIELD_STATUSES] = FilterValue.Select(old.selectedStatusSet.map { it.name }.toSet())
+            btState[FIELD_STATUSES] = FilterValue.Select(old.selectedStatusSet.map { it.name }.toSet())
         }
-
         if (old.minAmount != null || old.maxAmount != null) {
-            state[FIELD_AMOUNT_RANGE] = FilterValue.Range(min = old.minAmount, max = old.maxAmount)
+            btState[FIELD_AMOUNT_RANGE] = FilterValue.Range(min = old.minAmount, max = old.maxAmount)
         }
 
         val sortId = when (old.sortOrder) {
-            BudgetSortOrder.DEFAULT -> SORT_DEFAULT
             BudgetSortOrder.AMOUNT_DESC -> SORT_AMOUNT_DESC
             BudgetSortOrder.AMOUNT_ASC -> SORT_AMOUNT_ASC
             BudgetSortOrder.SPENT_DESC -> SORT_SPENT_DESC
@@ -941,8 +837,9 @@ object BudgetTrackingFilterSpec {
             BudgetSortOrder.UTILIZATION_DESC -> SORT_UTILIZATION_DESC
             BudgetSortOrder.NAME_ASC -> SORT_NAME_ASC
             BudgetSortOrder.NAME_DESC -> SORT_NAME_DESC
+            BudgetSortOrder.DEFAULT -> SORT_DEFAULT
         }
-        state[FIELD_SORT] = FilterValue.Sort(sortId)
+        btState[FIELD_SORT] = FilterValue.Sort(sortId)
 
         val toggles = mutableSetOf<String>()
         if (old.excludeZeroAmounts) toggles.add(TOGGLE_EXCLUDE_ZERO)
@@ -955,8 +852,84 @@ object BudgetTrackingFilterSpec {
         if (old.showExpenseCategoriesFirst) toggles.add(TOGGLE_EXPENSE_FIRST)
         if (old.displayCurrency) toggles.add(TOGGLE_DISPLAY_CURRENCY)
         if (old.displayCurrencySymbol) toggles.add(TOGGLE_DISPLAY_SYMBOL)
-        state[FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
+        btState[FIELD_TOGGLES] = FilterValue.ToggleGroup(toggles)
 
-        return state
+        return btState
+    }
+
+    fun toBudgetFilterState(state: FilterState, defaultBase: BudgetFilterState = BudgetFilterState()): BudgetFilterState {
+        val datePreset = when (getDatePreset(state)) {
+            PRESET_THIS_MONTH -> BudgetDateRangePreset.THIS_MONTH
+            PRESET_LAST_MONTH -> BudgetDateRangePreset.LAST_MONTH
+            PRESET_LAST_3_MONTHS -> BudgetDateRangePreset.LAST_3_MONTHS
+            PRESET_LAST_6_MONTHS -> BudgetDateRangePreset.LAST_6_MONTHS
+            PRESET_LAST_12_MONTHS -> BudgetDateRangePreset.LAST_12_MONTHS
+            PRESET_YEAR_TO_DATE -> BudgetDateRangePreset.YEAR_TO_DATE
+            PRESET_SAME_MONTH_LAST_YEAR -> BudgetDateRangePreset.SAME_MONTH_LAST_YEAR
+            PRESET_ALL_TIME -> BudgetDateRangePreset.ALL_TIME
+            PRESET_CUSTOM -> BudgetDateRangePreset.CUSTOM
+            else -> BudgetDateRangePreset.THIS_MONTH
+        }
+
+        val compPresetStr = getComparisonPreset(state)
+        val compEnabled = compPresetStr != COMP_NONE
+        val compPreset = when (compPresetStr) {
+            COMP_SAME_DATE_PREV_MONTH -> BudgetComparisonPreset.SAME_DATE_PREV_MONTH
+            COMP_SAME_DATE_PREV_YEAR -> BudgetComparisonPreset.SAME_DATE_PREV_YEAR
+            COMP_LAST_MONTH -> BudgetComparisonPreset.LAST_MONTH
+            COMP_SAME_MONTH_LAST_YEAR -> BudgetComparisonPreset.SAME_MONTH_LAST_YEAR
+            COMP_LAST_3_MONTHS_AVG -> BudgetComparisonPreset.LAST_3_MONTHS_AVG
+            COMP_LAST_YEAR -> BudgetComparisonPreset.LAST_YEAR
+            COMP_CUSTOM -> BudgetComparisonPreset.CUSTOM
+            else -> BudgetComparisonPreset.LAST_MONTH
+        }
+
+        val hierarchy = getHierarchyView(state)
+        val onlyGroups = hierarchy == HIERARCHY_ONLY_GROUPS
+        val withoutGroups = hierarchy == HIERARCHY_WITHOUT_GROUPS
+
+        val sortOrder = when (getSortOrder(state)) {
+            SORT_AMOUNT_DESC -> BudgetSortOrder.AMOUNT_DESC
+            SORT_AMOUNT_ASC -> BudgetSortOrder.AMOUNT_ASC
+            SORT_SPENT_DESC -> BudgetSortOrder.SPENT_DESC
+            SORT_REMAINING_DESC -> BudgetSortOrder.REMAINING_DESC
+            SORT_REMAINING_ASC -> BudgetSortOrder.REMAINING_ASC
+            SORT_BUDGET_DESC -> BudgetSortOrder.BUDGET_DESC
+            SORT_BUDGET_ASC -> BudgetSortOrder.BUDGET_ASC
+            SORT_UTILIZATION_DESC -> BudgetSortOrder.UTILIZATION_DESC
+            SORT_NAME_ASC -> BudgetSortOrder.NAME_ASC
+            SORT_NAME_DESC -> BudgetSortOrder.NAME_DESC
+            SORT_DEFAULT -> BudgetSortOrder.DEFAULT
+            else -> BudgetSortOrder.AMOUNT_DESC
+        }
+
+        val toggles = getActiveToggles(state)
+
+        return defaultBase.copy(
+            datePreset = datePreset,
+            customStartDateMs = getCustomStartDate(state),
+            customEndDateMs = getCustomEndDate(state),
+            comparisonEnabled = compEnabled,
+            comparisonPreset = compPreset,
+            selectedCategoryIds = getSelectedCategoryIds(state),
+            selectedAccountIds = getSelectedAccountIds(state),
+            selectedLabels = getSelectedLabels(state),
+            selectedStatusSet = getSelectedStatuses(state),
+            excludeZeroAmounts = toggles.contains(TOGGLE_EXCLUDE_ZERO),
+            hideEmptyGroups = toggles.contains(TOGGLE_HIDE_EMPTY_GROUPS),
+            showOnlyGroups = onlyGroups,
+            showOnlyCategoriesWithoutGroups = withoutGroups,
+            displayCurrency = toggles.contains(TOGGLE_DISPLAY_CURRENCY),
+            displayCurrencySymbol = toggles.contains(TOGGLE_DISPLAY_SYMBOL),
+            showExpenseCategoriesFirst = toggles.contains(TOGGLE_EXPENSE_FIRST),
+            sortOrder = sortOrder,
+            showOnlyRemainingBalance = toggles.contains(TOGGLE_ONLY_REMAINING),
+            showOnlyActual = toggles.contains(TOGGLE_ONLY_ACTUAL),
+            filterOnlyBudgeted = toggles.contains(TOGGLE_ONLY_BUDGETED),
+            filterOnlyOverBudget = toggles.contains(TOGGLE_ONLY_OVER_BUDGET),
+            filterActive3Months = toggles.contains(TOGGLE_ACTIVE_3_MONTHS),
+            minAmount = getMinAmount(state),
+            maxAmount = getMaxAmount(state)
+        )
     }
 }
