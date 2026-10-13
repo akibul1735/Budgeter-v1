@@ -99,6 +99,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
@@ -473,7 +474,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val activeRepo: BudgetRepository get() = _activeRepository.value
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             activeRepo.seedDefaultsIfEmpty()
         }
         viewModelScope.launch {
@@ -563,7 +564,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val firstLaunchCheckDialogVisible: StateFlow<Boolean> = _firstLaunchCheckDialogVisible.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             activeRepo.ensureOthersGroupIntegrity()
             checkForPreviousBackupsOnLaunch()
             com.example.widget.WidgetUpdateHelper.updateAllWidgets(getApplication<android.app.Application>())
@@ -796,9 +797,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     @OptIn(ExperimentalCoroutinesApi::class)
     val financialOverview: StateFlow<FinancialOverview> = _activeRepository
         .flatMapLatest { it.getFinancialOverviewFlow(accountCalcConfig) }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = FinancialOverview(
                 totalAssets = 0.0,
                 totalLiabilities = 0.0,
@@ -815,36 +817,40 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     @OptIn(ExperimentalCoroutinesApi::class)
     val accountsWithBalances: StateFlow<List<AccountWithBalance>> = _activeRepository
         .flatMapLatest { it.accountsWithBalances }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val allAccounts: StateFlow<List<Account>> = _activeRepository
         .flatMapLatest { it.allAccounts }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val allCategories: StateFlow<List<Category>> = _activeRepository
         .flatMapLatest { it.allCategories }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val transactionsWithDetails: StateFlow<List<TransactionWithDetails>> = _activeRepository
         .flatMapLatest { it.transactionsWithDetails }
+        .flowOn(Dispatchers.Default)
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
+            started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )
 

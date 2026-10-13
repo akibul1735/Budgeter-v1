@@ -99,6 +99,7 @@ import com.example.ui.dialogs.AggregatedSortOrder
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.ui.theme.rememberFluidFlingBehavior
 import com.example.util.DateUtils
 import com.example.util.FilterStore
 import com.example.util.IconHelper
@@ -563,6 +564,7 @@ fun ItemsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    flingBehavior = rememberFluidFlingBehavior(),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 125.dp),
                     verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {

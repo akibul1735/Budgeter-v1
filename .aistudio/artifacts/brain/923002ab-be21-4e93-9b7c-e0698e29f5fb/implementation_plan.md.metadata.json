@@ -1,0 +1,6 @@
+{
+  "summary": "Comprehensive performance optimization plan to eliminate lag across startup, scrolling, and tab swiping:\n1. Architectural tab caching: Pre-compute and memoize tab view states in BudgetViewModel on Dispatchers.Default, retaining stable UI states so tabs remain instantly available during swiping.\n2. HorizontalPager & Compose rendering optimizations: Remove heavy per-frame graphicsLayer matrix calculations, set beyondViewportPageCount appropriately or maintain pre-warmed composable states, decouple nested scroll connections from full recompositions, and supply stable lambdas and contentType to LazyColumns.\n3. Transaction list pagination & chunking: Implement windowed/paginated lazy loading for transactions to prevent rendering huge transaction lists all at once, with stable keys and item prefetching.\n4. Heavy calculation offloading: Move grouping, filtering, running balance calculation, net earnings math, and balance sheet aggregations onto background coroutines with StateFlow memoization.",
+  "updatedAt": "2026-10-13T15:39:28.380047047Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

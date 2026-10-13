@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import com.example.ui.theme.rememberFluidFlingBehavior
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -95,8 +96,10 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -368,7 +371,10 @@ fun LedgerScreen(
     }
 
     // Historical running balances per account for each transaction so views reflect the actual effect at that time
-    val runningAccountBalances: Map<Pair<Long, Long>, Double> = remember(transactions, allAccounts) {
+    val runningAccountBalances: Map<Pair<Long, Long>, Double> = remember(transactions, allAccounts, displaySettings.showAccountBalance) {
+        if (!displaySettings.showAccountBalance || transactions.isEmpty() || allAccounts.isEmpty()) {
+            return@remember emptyMap()
+        }
         val chronological = transactions.sortedWith(
             compareBy<TransactionWithDetails> { it.transaction.dateEpochMs }
                 .thenBy { it.transaction.id }
@@ -563,9 +569,35 @@ fun LedgerScreen(
         }
     }
 
+    val listState = rememberLazyListState()
+    var visibleItemCount by remember { mutableIntStateOf(50) }
+    val totalFilteredCount = filteredTransactions.size
+
+    // Reset visible item count when filter conditions or result size changes
+    LaunchedEffect(
+        searchQuery,
+        selectedTypeFilter,
+        selectedDatePreset,
+        customStartDateMs,
+        customEndDateMs,
+        minAmountFilter,
+        maxAmountFilter,
+        selectedCategoryIdFilter,
+        selectedAccountIdFilter,
+        selectedLabelFilter,
+        selectedStatusFilter
+    ) {
+        visibleItemCount = 50
+    }
+
+    val paginatedTransactions = remember(filteredTransactions, visibleItemCount) {
+        if (filteredTransactions.size <= visibleItemCount) filteredTransactions
+        else filteredTransactions.take(visibleItemCount)
+    }
+
     // Group transactions by calendar day with precalculated aggregates
-    val groupedByDay = remember(filteredTransactions, displaySettings.showOldestDateFirst) {
-        val grouped = filteredTransactions.groupBy { DateUtils.getStartOfDay(it.transaction.dateEpochMs) }
+    val groupedByDay = remember(paginatedTransactions, displaySettings.showOldestDateFirst) {
+        val grouped = paginatedTransactions.groupBy { DateUtils.getStartOfDay(it.transaction.dateEpochMs) }
             .map { (dayEpochMs, dayTxList) ->
                 var inc = 0.0
                 var exp = 0.0
@@ -593,6 +625,19 @@ fun LedgerScreen(
             grouped.sortedBy { it.dayEpochMs }
         } else {
             grouped.sortedByDescending { it.dayEpochMs }
+        }
+    }
+
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            totalItems > 0 && lastVisibleItemIndex >= totalItems - 6
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore && visibleItemCount < totalFilteredCount) {
+            visibleItemCount = (visibleItemCount + 50).coerceAtMost(totalFilteredCount)
         }
     }
 
@@ -1051,6 +1096,7 @@ fun LedgerScreen(
         }
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .weight(1f)
@@ -1504,6 +1550,47 @@ fun LedgerScreen(
                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (visibleItemCount < totalFilteredCount) {
+                item(key = "pagination_load_more_footer") {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        color = Color.Transparent
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val statusText = if (languageMode == LanguageMode.BANGLA) {
+                                "${LanguageHelper.toBanglaDigits(visibleItemCount.coerceAtMost(totalFilteredCount).toString())}টি দেখানো হচ্ছে (${LanguageHelper.toBanglaDigits(totalFilteredCount.toString())}টির মধ্যে)"
+                            } else {
+                                "Showing ${visibleItemCount.coerceAtMost(totalFilteredCount)} of $totalFilteredCount transactions"
+                            }
+                            Text(
+                                text = statusText,
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    visibleItemCount = (visibleItemCount + 50).coerceAtMost(totalFilteredCount)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "আরও লোড করুন (+৫০)" else "Load More (+50)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
                     }

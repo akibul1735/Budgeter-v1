@@ -369,15 +369,26 @@ fun ReportsScreen(
             val childCategories = relevantCategories.filter { it.parentId != null }
 
             val flowTransactions = monthTransactions.filter { it.transaction.type == targetTxType }
+            val txByCatId = HashMap<Long, MutableList<TransactionWithDetails>>()
+            val directParentTxMap = HashMap<Long, MutableList<TransactionWithDetails>>()
+
+            for (item in flowTransactions) {
+                val catId = item.transaction.categoryId ?: item.category?.id ?: item.subCategory?.id
+                if (catId != null) {
+                    txByCatId.getOrPut(catId) { mutableListOf() }.add(item)
+                }
+                if (item.subCategory == null) {
+                    val pId = item.transaction.categoryId ?: item.category?.id
+                    if (pId != null) {
+                        directParentTxMap.getOrPut(pId) { mutableListOf() }.add(item)
+                    }
+                }
+            }
 
             val groups = parentCategories.mapNotNull { parent ->
                 val children = childCategories.filter { it.parentId == parent.id }
                 val items = children.map { child ->
-                    val childTx = flowTransactions.filter {
-                        it.transaction.categoryId == child.id ||
-                                it.category?.id == child.id ||
-                                it.subCategory?.id == child.id
-                    }
+                    val childTx = txByCatId[child.id] ?: emptyList()
                     val actualAmt = childTx.sumOf { it.transaction.amount }
                     val share = if (totalFlowAmount > 0) (actualAmt / totalFlowAmount) * 100.0 else 0.0
                     CategoryEarningsTrackingItem(
@@ -389,10 +400,7 @@ fun ReportsScreen(
                 }
 
                 // Also check transactions directly assigned to parent group if any
-                val directParentTx = flowTransactions.filter {
-                    (it.transaction.categoryId == parent.id || it.category?.id == parent.id) &&
-                            it.subCategory == null
-                }
+                val directParentTx = directParentTxMap[parent.id] ?: emptyList()
                 val parentDirectAmt = directParentTx.sumOf { it.transaction.amount }
 
                 val allItems = if (parentDirectAmt > 0) {
