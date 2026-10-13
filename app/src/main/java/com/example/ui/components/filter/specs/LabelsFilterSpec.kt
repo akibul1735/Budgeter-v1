@@ -376,4 +376,132 @@ object LabelsFilterSpec {
     fun getSortOrderId(state: FilterState): String {
         return (state[FIELD_SORT] as? FilterValue.Sort)?.sortId ?: "amount_desc"
     }
+
+    fun getTransactionType(state: FilterState): TransactionType? {
+        val selId = when (val v = state[FIELD_TRANSACTION_TYPE]) {
+            is FilterValue.SingleSelect -> v.selectedId
+            is FilterValue.Select -> v.selectedIds.firstOrNull()
+            else -> null
+        }
+        return selId?.let {
+            try { TransactionType.valueOf(it) } catch (_: Exception) { null }
+        }
+    }
+
+    fun getSelectedAccountIds(state: FilterState): Set<Long> {
+        val active = (state[FIELD_ACCOUNTS] as? FilterValue.Select)?.selectedIds ?: emptySet()
+        return active.mapNotNull { it.toLongOrNull() }.toSet()
+    }
+
+    fun getSelectedCategoryIds(state: FilterState): Set<Long> {
+        val active = (state[FIELD_CATEGORIES] as? FilterValue.Select)?.selectedIds ?: emptySet()
+        return active.mapNotNull { it.toLongOrNull() }.toSet()
+    }
+
+    fun getSelectedStatuses(state: FilterState): Set<TransactionStatus> {
+        val active = (state[FIELD_STATUSES] as? FilterValue.Select)?.selectedIds ?: emptySet()
+        return active.mapNotNull {
+            try {
+                when (it) {
+                    "COMPLETED" -> TransactionStatus.CLEARED
+                    "PENDING" -> TransactionStatus.VOID
+                    "CANCELLED" -> TransactionStatus.VOID
+                    else -> TransactionStatus.valueOf(it)
+                }
+            } catch (_: Exception) { null }
+        }.toSet()
+    }
+
+    fun getSelectedStatusNames(state: FilterState): Set<String> {
+        return (state[FIELD_STATUSES] as? FilterValue.Select)?.selectedIds ?: emptySet()
+    }
+
+    fun getMinAmount(state: FilterState): Double? {
+        return (state[FIELD_AMOUNT_RANGE] as? FilterValue.Range)?.min
+    }
+
+    fun getMaxAmount(state: FilterState): Double? {
+        return (state[FIELD_AMOUNT_RANGE] as? FilterValue.Range)?.max
+    }
+
+    fun getExcludeZero(state: FilterState): Boolean {
+        val active = (state[FIELD_EXCLUDE_ZERO] as? FilterValue.ToggleGroup)?.activeIds ?: emptySet()
+        return active.contains("exclude")
+    }
+
+    fun withSearchQuery(state: FilterState, query: String): FilterState {
+        return if (query.isBlank()) {
+            state - FIELD_SEARCH
+        } else {
+            state + (FIELD_SEARCH to FilterValue.Search(query))
+        }
+    }
+
+    fun withSegment(state: FilterState, segmentId: String): FilterState {
+        return state + (FIELD_SEGMENT to FilterValue.ToggleGroup(setOf(segmentId)))
+    }
+
+    fun withTypeMode(state: FilterState, mode: String): FilterState {
+        val normalized = mode.lowercase()
+        val validMode = if (normalized in listOf(MODE_EXPENSE, MODE_ALL, MODE_INCOME)) normalized else MODE_ALL
+        return state + (FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(validMode)))
+    }
+
+    fun withSortOrderId(state: FilterState, sortId: String): FilterState {
+        return state + (FIELD_SORT to FilterValue.Sort(sortId))
+    }
+
+    fun withTransactionType(state: FilterState, type: TransactionType?): FilterState {
+        return if (type == null) state - FIELD_TRANSACTION_TYPE else state + (FIELD_TRANSACTION_TYPE to FilterValue.SingleSelect(type.name))
+    }
+
+    fun withAccountIds(state: FilterState, ids: Set<Long>): FilterState {
+        return if (ids.isEmpty()) state - FIELD_ACCOUNTS else state + (FIELD_ACCOUNTS to FilterValue.Select(ids.map { it.toString() }.toSet()))
+    }
+
+    fun withCategoryIds(state: FilterState, ids: Set<Long>): FilterState {
+        return if (ids.isEmpty()) state - FIELD_CATEGORIES else state + (FIELD_CATEGORIES to FilterValue.Select(ids.map { it.toString() }.toSet()))
+    }
+
+    fun withStatuses(state: FilterState, statuses: Set<String>): FilterState {
+        return if (statuses.isEmpty()) state - FIELD_STATUSES else state + (FIELD_STATUSES to FilterValue.Select(statuses))
+    }
+
+    fun withAmountRange(state: FilterState, min: Double?, max: Double?): FilterState {
+        return if (min == null && max == null) state - FIELD_AMOUNT_RANGE else state + (FIELD_AMOUNT_RANGE to FilterValue.Range(min = min, max = max))
+    }
+
+    fun withDatePreset(state: FilterState, presetId: String): FilterState {
+        return state + (FIELD_DATE to FilterValue.Date(presetId = presetId))
+    }
+
+    fun withCustomDates(state: FilterState, startMs: Long, endMs: Long): FilterState {
+        return state + (FIELD_DATE to FilterValue.Date(presetId = "custom", startMs = startMs, endMs = endMs))
+    }
+
+    fun withExcludeZero(state: FilterState, exclude: Boolean): FilterState {
+        return if (exclude) {
+            state + (FIELD_EXCLUDE_ZERO to FilterValue.ToggleGroup(setOf("exclude")))
+        } else {
+            state - FIELD_EXCLUDE_ZERO
+        }
+    }
+
+    fun activeFilterCount(state: FilterState): Int {
+        var count = 0
+        if (getSearchQuery(state).isNotBlank()) count++
+        if (getSelectedSegmentId(state) != SEGMENT_HASHTAGS) count++
+        if (getTypeModeId(state) != MODE_ALL) count++
+        val dateVal = state[FIELD_DATE] as? FilterValue.Date
+        if (dateVal?.presetId != null && dateVal.presetId != "this_month" || dateVal?.startMs != null) count++
+        if (getTransactionType(state) != null) count++
+        if (getSelectedAccountIds(state).isNotEmpty()) count++
+        if (getSelectedCategoryIds(state).isNotEmpty()) count++
+        if (getSelectedStatusNames(state).isNotEmpty()) count++
+        if (getMinAmount(state) != null || getMaxAmount(state) != null) count++
+        if (getExcludeZero(state)) count++
+        val sortId = (state[FIELD_SORT] as? FilterValue.Sort)?.sortId ?: "amount_desc"
+        if (sortId != "amount_desc") count++
+        return count
+    }
 }
