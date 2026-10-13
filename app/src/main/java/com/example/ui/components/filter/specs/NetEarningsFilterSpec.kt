@@ -650,6 +650,37 @@ object NetEarningsFilterSpec {
         return state + (FIELD_TOGGLES to FilterValue.ToggleGroup(current))
     }
 
+    fun withStatuses(state: FilterState, statuses: Set<TransactionStatus>): FilterState {
+        return if (statuses.isEmpty()) state - FIELD_STATUSES else state + (FIELD_STATUSES to FilterValue.Select(statuses.map { it.name }.toSet()))
+    }
+
+    fun withLabels(state: FilterState, labels: Set<String>): FilterState {
+        return if (labels.isEmpty()) state - FIELD_LABELS else state + (FIELD_LABELS to FilterValue.Select(labels))
+    }
+
+    fun withAmountRange(state: FilterState, min: Double?, max: Double?): FilterState {
+        return if (min == null && max == null) state - FIELD_AMOUNT_RANGE else state + (FIELD_AMOUNT_RANGE to FilterValue.Range(min = min, max = max))
+    }
+
+    fun activeFilterCount(state: FilterState): Int {
+        var count = 0
+        if (getSearchQuery(state).isNotBlank()) count++
+        if (getDatePreset(state) != PRESET_THIS_MONTH || getCustomStartDate(state) != null) count++
+        if (isComparisonEnabled(state)) count++
+        if (getFlowScope(state) != SCOPE_ALL) count++
+        if (getHierarchyView(state) != HIERARCHY_GROUPED) count++
+        if (getSelectedCategoryIds(state).isNotEmpty()) count++
+        if (getSelectedAccountIds(state).isNotEmpty()) count++
+        if (getSelectedLabels(state).isNotEmpty()) count++
+        if (getSelectedStatuses(state).isNotEmpty()) count++
+        if (getMinAmount(state) != null || getMaxAmount(state) != null) count++
+        if (getSortOrder(state) != SORT_NET_DESC) count++
+        val activeToggles = getActiveToggles(state)
+        val defaultToggles = setOf(TOGGLE_EXCLUDE_ZERO, TOGGLE_HIDE_EMPTY_GROUPS, TOGGLE_DISPLAY_CURRENCY, TOGGLE_DISPLAY_SYMBOL)
+        if (activeToggles != defaultToggles) count++
+        return count
+    }
+
     /**
      * Resolves date bounds and labels for primary and comparison ranges.
      */
