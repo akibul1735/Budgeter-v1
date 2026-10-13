@@ -702,13 +702,18 @@ fun TransactionFilterDialog(
     }
 
     // All distinct labels from transactions
-    val allLabels = remember(allTransactions) {
-        allTransactions.flatMap { tw ->
-            val list = mutableListOf<String>()
-            if (tw.transaction.referenceNo.isNotBlank()) list.add(tw.transaction.referenceNo.trim())
-            tw.transaction.note.split(" ", "\n", ",").filter { it.startsWith("#") && it.length > 1 }.forEach { list.add(it.trim()) }
-            list
-        }.distinct().sorted()
+    val allLabels = remember(allTransactions, tempFilter.selectedLabels, tempFilter.label) {
+        val set = mutableSetOf<String>()
+        val hashtagRegex = Regex("#[\\w\\u0980-\\u09FF]+")
+        allTransactions.forEach { tw ->
+            val tx = tw.transaction
+            if (tx.referenceNo.isNotBlank()) set.add(tx.referenceNo.trim())
+            hashtagRegex.findAll("${tx.note} ${tx.referenceNo}").forEach { set.add(it.value.trim()) }
+            tx.note.split(" ", "\n", ",").filter { it.startsWith("#") && it.length > 1 }.forEach { set.add(it.trim()) }
+        }
+        tempFilter.selectedLabels.forEach { if (it.isNotBlank()) set.add(it.trim()) }
+        tempFilter.label?.let { if (it.isNotBlank()) set.add(it.trim()) }
+        set.filter { it.isNotBlank() }.sorted()
     }
 
     val labelDropdownItems = remember(allLabels) {
@@ -813,10 +818,76 @@ fun TransactionFilterDialog(
                     .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // 1. Date Range Dropdown
-                UnifiedFilterSection(
-                    icon = Icons.Default.DateRange,
-                    title = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Range"
+                // 1. Search (moved to top without header)
+                OutlinedTextField(
+                    value = tempFilter.searchQuery,
+                    onValueChange = { tempFilter = tempFilter.copy(searchQuery = it) },
+                    placeholder = {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "আইটেম, প্রাপক বা নোট দিয়ে খুঁজুন..." else "Search by item name, payee, or notes",
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                    trailingIcon = {
+                        if (tempFilter.searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { tempFilter = tempFilter.copy(searchQuery = "") }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // 2. Transaction Type (without header)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val typeOptions = listOf(
+                        null to (if (languageMode == LanguageMode.BANGLA) "সকল" else "All"),
+                        TransactionType.EXPENSE to (if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"),
+                        TransactionType.INCOME to (if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"),
+                        TransactionType.TRANSFER to (if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer")
+                    )
+                    typeOptions.forEach { (type, title) ->
+                        val isSelected = tempFilter.transactionType == type
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { tempFilter = tempFilter.copy(transactionType = type) },
+                            label = {
+                                Text(
+                                    text = title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) {
+                                        when (type) {
+                                            TransactionType.EXPENSE -> SolidExpense
+                                            TransactionType.INCOME -> SolidIncome
+                                            TransactionType.TRANSFER -> SolidTransfer
+                                            null -> MaterialTheme.colorScheme.primary
+                                        }
+                                    } else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            leadingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                            } else null,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // 3. Date Range (without header)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     UnifiedSingleSelectDropdown(
                         label = if (languageMode == LanguageMode.BANGLA) "সময়কাল নির্বাচন করুন" else "Select Date Range",
@@ -829,7 +900,6 @@ fun TransactionFilterDialog(
 
                     // Custom Date Range
                     if (tempFilter.datePreset == LedgerDatePreset.CUSTOM) {
-                        Spacer(modifier = Modifier.height(6.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                             shape = RoundedCornerShape(12.dp),
@@ -881,132 +951,76 @@ fun TransactionFilterDialog(
                     }
                 }
 
-                // 2. Transaction Type Section
-                UnifiedFilterSection(
-                    icon = Icons.Default.FilterList,
-                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন" else "Transaction Type"
+                // 4. Categories & Accounts side-by-side in compact 2-column row (without header)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val typeOptions = listOf(
-                            null to (if (languageMode == LanguageMode.BANGLA) "সকল" else "All"),
-                            TransactionType.EXPENSE to (if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"),
-                            TransactionType.INCOME to (if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"),
-                            TransactionType.TRANSFER to (if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer")
+                    Box(modifier = Modifier.weight(1f)) {
+                        UnifiedGroupedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
+                            groups = categoryFilterGroups,
+                            selectedIds = tempFilter.selectedCategoryIds,
+                            onSelectionChanged = { tempFilter = tempFilter.copy(selectedCategoryIds = it) },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                            leadingIcon = Icons.Default.Category,
+                            languageMode = languageMode
                         )
-                        typeOptions.forEach { (type, title) ->
-                            val isSelected = tempFilter.transactionType == type
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { tempFilter = tempFilter.copy(transactionType = type) },
-                                label = {
-                                    Text(
-                                        text = title,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) {
-                                            when (type) {
-                                                TransactionType.EXPENSE -> SolidExpense
-                                                TransactionType.INCOME -> SolidIncome
-                                                TransactionType.TRANSFER -> SolidTransfer
-                                                null -> MaterialTheme.colorScheme.primary
-                                            }
-                                        } else MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                } else null,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                    }
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        UnifiedGroupedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Accounts",
+                            groups = accountFilterGroups,
+                            selectedIds = tempFilter.selectedAccountIds,
+                            onSelectionChanged = { tempFilter = tempFilter.copy(selectedAccountIds = it) },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                            leadingIcon = Icons.Default.AccountBalance,
+                            languageMode = languageMode
+                        )
                     }
                 }
 
-                // 3. Categories & Accounts side-by-side in compact 2-column row (Identical to BudgetFilterDialog)
-                UnifiedFilterSection(
-                    icon = Icons.Default.Category,
-                    title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও অ্যাকাউন্ট" else "Categories & Accounts"
+                // 5. Status & Labels side-by-side in compact 2-column row (without header)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            UnifiedGroupedMultiSelectDropdown(
-                                label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
-                                groups = categoryFilterGroups,
-                                selectedIds = tempFilter.selectedCategoryIds,
-                                onSelectionChanged = { tempFilter = tempFilter.copy(selectedCategoryIds = it) },
-                                placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
-                                leadingIcon = Icons.Default.Category,
-                                languageMode = languageMode
-                            )
-                        }
+                    Box(modifier = Modifier.weight(1f)) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status",
+                            items = statusDropdownItems,
+                            selectedIds = selectedStatusIds,
+                            onSelectionChanged = { newIds ->
+                                val selectedStatuses = TransactionStatus.entries.filter { newIds.contains(it.ordinal.toLong()) }.toSet()
+                                tempFilter = tempFilter.copy(selectedStatusSet = selectedStatuses)
+                            },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                            leadingIcon = Icons.Default.Check,
+                            languageMode = languageMode
+                        )
+                    }
 
-                        Box(modifier = Modifier.weight(1f)) {
-                            UnifiedGroupedMultiSelectDropdown(
-                                label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Accounts",
-                                groups = accountFilterGroups,
-                                selectedIds = tempFilter.selectedAccountIds,
-                                onSelectionChanged = { tempFilter = tempFilter.copy(selectedAccountIds = it) },
-                                placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
-                                leadingIcon = Icons.Default.AccountBalance,
-                                languageMode = languageMode
-                            )
-                        }
+                    Box(modifier = Modifier.weight(1f)) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
+                            items = labelDropdownItems,
+                            selectedIds = selectedLabelIds,
+                            onSelectionChanged = { newIds ->
+                                val selectedStrings = allLabels.filter { newIds.contains(it.hashCode().toLong()) }.toSet()
+                                tempFilter = tempFilter.copy(selectedLabels = selectedStrings)
+                            },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
+                            leadingIcon = Icons.AutoMirrored.Filled.Label,
+                            languageMode = languageMode
+                        )
                     }
                 }
 
-                // 4. Status & Labels side-by-side in compact 2-column row (Identical to BudgetFilterDialog)
-                UnifiedFilterSection(
-                    icon = Icons.Default.Check,
-                    title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস ও লেবেল" else "Status & Labels"
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            UnifiedMultiSelectDropdown(
-                                label = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status",
-                                items = statusDropdownItems,
-                                selectedIds = selectedStatusIds,
-                                onSelectionChanged = { newIds ->
-                                    val selectedStatuses = TransactionStatus.entries.filter { newIds.contains(it.ordinal.toLong()) }.toSet()
-                                    tempFilter = tempFilter.copy(selectedStatusSet = selectedStatuses)
-                                },
-                                placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
-                                leadingIcon = Icons.Default.Check,
-                                languageMode = languageMode
-                            )
-                        }
-
-                        if (allLabels.isNotEmpty()) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                UnifiedMultiSelectDropdown(
-                                    label = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
-                                    items = labelDropdownItems,
-                                    selectedIds = selectedLabelIds,
-                                    onSelectionChanged = { newIds ->
-                                        val selectedStrings = allLabels.filter { newIds.contains(it.hashCode().toLong()) }.toSet()
-                                        tempFilter = tempFilter.copy(selectedLabels = selectedStrings)
-                                    },
-                                    placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল)" else "(All)",
-                                    leadingIcon = Icons.AutoMirrored.Filled.Label,
-                                    languageMode = languageMode
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 5. Amount Range
-                UnifiedFilterSection(
-                    icon = Icons.Default.Calculate,
-                    title = if (languageMode == LanguageMode.BANGLA) "পরিমাণের সীমা" else "Amount Range"
+                // 6. Amount Range (without header)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1045,7 +1059,6 @@ fun TransactionFilterDialog(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1063,38 +1076,6 @@ fun TransactionFilterDialog(
                             )
                         }
                     }
-                }
-
-                // 6. Search
-                UnifiedFilterSection(
-                    icon = Icons.Default.Search,
-                    title = if (languageMode == LanguageMode.BANGLA) "অনুসন্ধান" else "Search"
-                ) {
-                    OutlinedTextField(
-                        value = tempFilter.searchQuery,
-                        onValueChange = { tempFilter = tempFilter.copy(searchQuery = it) },
-                        placeholder = {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "আইটেম, প্রাপক বা নোট দিয়ে খুঁজুন..." else "Search by item name, payee, or notes",
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                        },
-                        trailingIcon = {
-                            if (tempFilter.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { tempFilter = tempFilter.copy(searchQuery = "") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
 
                 // 7. Display & Options

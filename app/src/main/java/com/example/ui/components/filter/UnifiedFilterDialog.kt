@@ -722,135 +722,122 @@ fun <T> UnifiedActiveFilterBar(
     }
 
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         color = accentColor.copy(alpha = 0.08f),
-        border = BorderStroke(0.8.dp, accentColor.copy(alpha = 0.30f)),
+        border = BorderStroke(0.6.dp, accentColor.copy(alpha = 0.25f)),
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(horizontal = 6.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            // Top Bar with Section Badge, Active count & Clear All
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Compact Active Filter Badge (Clickable to open dialog)
+            Surface(
+                shape = RoundedCornerShape(5.dp),
+                color = accentColor,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(5.dp))
+                    .clickable { onOpenFilterDialog() }
             ) {
                 Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onOpenFilterDialog() },
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.5.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.FilterAlt,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Text(
+                        text = if (isBangla) "ফিল্টার (${activeChips.size})" else "Filter (${activeChips.size})",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            // Horizontally scrolling active chips
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                activeChips.forEach { chip ->
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = accentColor
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(0.5.dp, accentColor.copy(alpha = 0.45f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.padding(start = 5.dp, end = 3.dp, top = 1.5.dp, bottom = 1.5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            Icon(Icons.Default.FilterAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                            if (chip.icon != null) {
+                                Icon(
+                                    imageVector = chip.icon,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
                             Text(
-                                text = "${if (isBangla) spec.titleBn else spec.titleEn} (${activeChips.size})",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                text = chip.label,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
                             )
+                            Box(
+                                modifier = Modifier
+                                    .size(15.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        val newState = spec.removeActiveChip(state, chip.id)
+                                        onFilterChange(newState)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remove",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(9.dp)
+                                )
+                            }
                         }
-                    }
-
-                    Text(
-                        text = if (isBangla) "সক্রিয় ফিল্টার নিয়ম" else "Active Filter Rules Applied",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    onClick = {
-                        if (onClearAll != null) onClearAll()
-                        else onFilterChange(emptyMap())
-                    },
-                    modifier = Modifier.size(22.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear All Filters",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(13.dp)
-                        )
                     }
                 }
             }
 
-            // Horizontal scrolling chip strip with individual close (X) buttons
-            if (activeChips.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    activeChips.forEach { chip ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(0.7.dp, accentColor.copy(alpha = 0.5f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(start = 7.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                if (chip.icon != null) {
-                                    Icon(
-                                        imageVector = chip.icon,
-                                        contentDescription = null,
-                                        tint = accentColor,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                }
-                                Text(
-                                    text = chip.label,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            val newState = spec.removeActiveChip(state, chip.id)
-                                            onFilterChange(newState)
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Remove",
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(10.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+            // Compact Clear All button
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                onClick = {
+                    if (onClearAll != null) onClearAll()
+                    else onFilterChange(emptyMap())
+                },
+                modifier = Modifier.size(20.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Clear All Filters",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(11.dp)
+                    )
                 }
             }
         }

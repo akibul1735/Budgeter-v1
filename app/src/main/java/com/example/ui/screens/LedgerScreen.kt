@@ -1154,30 +1154,30 @@ fun LedgerScreen(
 
                         // Active Filter Indicators bar with Total Amount (considering filter)
                         if (hasActiveFilters && !isSelectionMode) {
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        .padding(horizontal = 6.dp, vertical = 2.5.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(
                                         modifier = Modifier.weight(1f, fill = false),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.FilterAlt,
                                             contentDescription = null,
                                             tint = SolidPrimary,
-                                            modifier = Modifier.size(14.dp)
+                                            modifier = Modifier.size(12.dp)
                                         )
                                         Text(
                                             text = buildString {
@@ -1186,7 +1186,7 @@ fun LedgerScreen(
                                                     append(activeFilterSummary)
                                                 }
                                             },
-                                            fontSize = 11.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = SolidPrimary,
                                             maxLines = 1,
@@ -1195,28 +1195,28 @@ fun LedgerScreen(
                                     }
 
                                     if (displaySettings.showTotalAmount) {
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
 
                                         Surface(
-                                            shape = RoundedCornerShape(8.dp),
+                                            shape = RoundedCornerShape(6.dp),
                                             color = filteredTotals.bgColor,
-                                            border = BorderStroke(1.dp, filteredTotals.borderColor),
+                                            border = BorderStroke(0.8.dp, filteredTotals.borderColor),
                                             modifier = Modifier.testTag("filtered_total_amount_pill")
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(1.5.dp)
                                             ) {
                                                 Text(
                                                     text = if (languageMode == LanguageMode.BANGLA) "মোট: " else "Total: ",
-                                                    fontSize = 10.5.sp,
+                                                    fontSize = 9.5.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     color = filteredTotals.textColor.copy(alpha = 0.85f)
                                                 )
                                                 Text(
                                                     text = filteredTotals.formattedTotal,
-                                                    fontSize = 11.5.sp,
+                                                    fontSize = 10.5.sp,
                                                     fontWeight = FontWeight.ExtraBold,
                                                     color = filteredTotals.textColor,
                                                     modifier = Modifier.testTag("filtered_total_amount_text")
@@ -1225,7 +1225,7 @@ fun LedgerScreen(
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
 
                                     TextButton(
                                         onClick = {
@@ -1240,12 +1240,12 @@ fun LedgerScreen(
                                             selectedStatusFilter = null
                                             searchQuery = ""
                                         },
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(28.dp)
+                                        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(24.dp)
                                     ) {
                                         Text(
                                             text = if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset",
-                                            fontSize = 11.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = SolidExpense
                                         )
