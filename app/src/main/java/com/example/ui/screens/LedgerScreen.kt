@@ -1085,10 +1085,10 @@ fun LedgerScreen(
         }
 
         if (!isSelectionMode) {
-            LedgerQuickShortcutsRow(
-                filterState = filterState,
-                onFilterChange = { updateFilterState(it) },
-                accounts = allAccounts,
+            UnifiedActiveFilterBar(
+                spec = ledgerSpec,
+                state = filterState,
+                onFilterChange = updateFilterState,
                 onOpenFilterDialog = { showFilterDialog = true },
                 languageMode = languageMode,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
@@ -1198,102 +1198,37 @@ fun LedgerScreen(
                             }
                         }
 
-                        // Active Filter Indicators bar with Total Amount (considering filter)
-                        if (hasActiveFilters && !isSelectionMode) {
+                        // Filtered Total Amount Pill
+                        if (displaySettings.showTotalAmount && hasActiveFilters && !isSelectionMode) {
                             Spacer(modifier = Modifier.height(3.dp))
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                modifier = Modifier.fillMaxWidth()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 6.dp, vertical = 2.5.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = filteredTotals.bgColor,
+                                    border = BorderStroke(0.8.dp, filteredTotals.borderColor),
+                                    modifier = Modifier.testTag("filtered_total_amount_pill")
                                 ) {
                                     Row(
-                                        modifier = Modifier.weight(1f, fill = false),
-                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.FilterAlt,
-                                            contentDescription = null,
-                                            tint = SolidPrimary,
-                                            modifier = Modifier.size(12.dp)
-                                        )
                                         Text(
-                                            text = buildString {
-                                                append(if (languageMode == LanguageMode.BANGLA) "ফিল্টার: " else "Filtered: ")
-                                                if (activeFilterSummary.isNotBlank()) {
-                                                    append(activeFilterSummary)
-                                                }
-                                            },
-                                            fontSize = 10.sp,
+                                            text = if (languageMode == LanguageMode.BANGLA) "মোট: " else "Total: ",
+                                            fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = SolidPrimary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            color = filteredTotals.textColor.copy(alpha = 0.85f)
                                         )
-                                    }
-
-                                    if (displaySettings.showTotalAmount) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = filteredTotals.bgColor,
-                                            border = BorderStroke(0.8.dp, filteredTotals.borderColor),
-                                            modifier = Modifier.testTag("filtered_total_amount_pill")
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(1.5.dp)
-                                            ) {
-                                                Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA) "মোট: " else "Total: ",
-                                                    fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = filteredTotals.textColor.copy(alpha = 0.85f)
-                                                )
-                                                Text(
-                                                    text = filteredTotals.formattedTotal,
-                                                    fontSize = 10.5.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = filteredTotals.textColor,
-                                                    modifier = Modifier.testTag("filtered_total_amount_text")
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(3.dp))
-
-                                    TextButton(
-                                        onClick = {
-                                            updateFilterState(emptyMap())
-                                            selectedDatePreset = LedgerDatePreset.LAST_12_MONTHS
-                                            selectedTypeFilter = null
-                                            minAmountFilter = 0.0
-                                            maxAmountFilter = Double.MAX_VALUE
-                                            selectedCategoryIdFilter = null
-                                            selectedAccountIdFilter = null
-                                            selectedLabelFilter = null
-                                            selectedStatusFilter = null
-                                            searchQuery = ""
-                                        },
-                                        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp)
-                                    ) {
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = SolidExpense
+                                            text = filteredTotals.formattedTotal,
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = filteredTotals.textColor,
+                                            modifier = Modifier.testTag("filtered_total_amount_text")
                                         )
                                     }
                                 }

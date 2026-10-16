@@ -267,32 +267,6 @@ fun LabelsFilterDialog(
         )
     }
 
-    // Specific Transaction Type dropdown items
-    val specificTypeDropdownItems = remember(isBn) {
-        listOf(
-            DropdownItem(
-                id = "ALL",
-                title = if (isBn) "সকল লেনদেন প্রবাহ" else "All Flow Types",
-                icon = Icons.Default.FilterList
-            ),
-            DropdownItem(
-                id = TransactionType.EXPENSE.name,
-                title = if (isBn) "ব্যয় (Expense)" else "Expense",
-                icon = Icons.AutoMirrored.Filled.TrendingDown
-            ),
-            DropdownItem(
-                id = TransactionType.INCOME.name,
-                title = if (isBn) "আয় (Income)" else "Income",
-                icon = Icons.AutoMirrored.Filled.TrendingUp
-            ),
-            DropdownItem(
-                id = TransactionType.TRANSFER.name,
-                title = if (isBn) "স্থানান্তর (Transfer)" else "Transfer",
-                icon = Icons.Default.Payments
-            )
-        )
-    }
-
     // Date Preset dropdown items
     val datePresetDropdownItems = remember(isBn) {
         listOf(
@@ -329,7 +303,6 @@ fun LabelsFilterDialog(
     val searchQuery = remember(draftState) { LabelsFilterSpec.getSearchQuery(draftState) }
     val selectedSegment = remember(draftState) { LabelsFilterSpec.getSelectedSegmentId(draftState) }
     val typeMode = remember(draftState) { LabelsFilterSpec.getTypeModeId(draftState) }
-    val specificType = remember(draftState) { LabelsFilterSpec.getTransactionType(draftState)?.name ?: "ALL" }
     val currentDatePreset = remember(draftState) {
         (draftState[LabelsFilterSpec.FIELD_DATE] as? FilterValue.Date)?.presetId ?: "this_month"
     }
@@ -599,20 +572,7 @@ fun LabelsFilterDialog(
                     }
                 }
 
-                // 5. Specific Flow Type Dropdown (without header)
-                UnifiedSingleSelectDropdown(
-                    label = if (isBn) "নির্দিষ্ট লেনদেন প্রবাহ" else "Specific Flow Type",
-                    items = specificTypeDropdownItems,
-                    selectedId = specificType,
-                    onSelectionChanged = { newTypeId ->
-                        val parsedType = if (newTypeId == "ALL") null else try { TransactionType.valueOf(newTypeId) } catch (_: Exception) { null }
-                        draftState = LabelsFilterSpec.withTransactionType(draftState, parsedType)
-                    },
-                    leadingIcon = Icons.Default.Payments,
-                    languageMode = languageMode
-                )
-
-                // 6. Categories & Accounts side-by-side in compact 2-column row (without header)
+                // 5. Categories & Accounts side-by-side in compact 2-column row (without header)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -646,7 +606,7 @@ fun LabelsFilterDialog(
                     }
                 }
 
-                // 7. Status & Amount Range in compact 2-column layout (without header)
+                // 6. Status & Sort Order on the same row in compact 2-column layout (without header)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -665,68 +625,69 @@ fun LabelsFilterDialog(
                         )
                     }
 
-                    // Compact Amount Range inputs side-by-side inside the other half
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = minAmountText,
-                            onValueChange = {
-                                val filtered = it.filter { c -> c.isDigit() || c == '.' }
-                                minAmountText = filtered
-                                val minVal = filtered.toDoubleOrNull()
-                                val maxVal = maxAmountText.toDoubleOrNull()
-                                draftState = LabelsFilterSpec.withAmountRange(draftState, minVal, maxVal)
+                    Box(modifier = Modifier.weight(1f)) {
+                        UnifiedSingleSelectDropdown(
+                            label = if (isBn) "সাজানোর ক্রম" else "Sort Order",
+                            items = sortDropdownItems,
+                            selectedId = currentSortOrder,
+                            onSelectionChanged = { newSortId ->
+                                draftState = LabelsFilterSpec.withSortOrderId(draftState, newSortId)
                             },
-                            label = { Text(if (isBn) "ন্যূনতম" else "Min ৳", fontSize = 10.5.sp) },
-                            placeholder = { Text("0", fontSize = 10.5.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            trailingIcon = {
-                                IconButton(onClick = { showFromCalc = true }, modifier = Modifier.size(24.dp)) {
-                                    Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(14.dp))
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        OutlinedTextField(
-                            value = maxAmountText,
-                            onValueChange = {
-                                val filtered = it.filter { c -> c.isDigit() || c == '.' }
-                                maxAmountText = filtered
-                                val minVal = minAmountText.toDoubleOrNull()
-                                val maxVal = filtered.toDoubleOrNull()
-                                draftState = LabelsFilterSpec.withAmountRange(draftState, minVal, maxVal)
-                            },
-                            label = { Text(if (isBn) "সর্বোচ্চ" else "Max ৳", fontSize = 10.5.sp) },
-                            placeholder = { Text("∞", fontSize = 10.5.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            trailingIcon = {
-                                IconButton(onClick = { showToCalc = true }, modifier = Modifier.size(24.dp)) {
-                                    Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(14.dp))
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f)
+                            leadingIcon = Icons.AutoMirrored.Filled.Sort,
+                            languageMode = languageMode
                         )
                     }
                 }
 
-                // 8. Sort Order Dropdown (without header)
-                UnifiedSingleSelectDropdown(
-                    label = if (isBn) "সাজানোর ক্রম" else "Sort Order",
-                    items = sortDropdownItems,
-                    selectedId = currentSortOrder,
-                    onSelectionChanged = { newSortId ->
-                        draftState = LabelsFilterSpec.withSortOrderId(draftState, newSortId)
-                    },
-                    leadingIcon = Icons.AutoMirrored.Filled.Sort,
-                    languageMode = languageMode
-                )
+                // 7. Minimum and Maximum Amount on new row side-by-side
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = minAmountText,
+                        onValueChange = {
+                            val filtered = it.filter { c -> c.isDigit() || c == '.' }
+                            minAmountText = filtered
+                            val minVal = filtered.toDoubleOrNull()
+                            val maxVal = maxAmountText.toDoubleOrNull()
+                            draftState = LabelsFilterSpec.withAmountRange(draftState, minVal, maxVal)
+                        },
+                        label = { Text(if (isBn) "ন্যূনতম" else "Min ৳", fontSize = 11.sp) },
+                        placeholder = { Text("0", fontSize = 11.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        trailingIcon = {
+                            IconButton(onClick = { showFromCalc = true }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    OutlinedTextField(
+                        value = maxAmountText,
+                        onValueChange = {
+                            val filtered = it.filter { c -> c.isDigit() || c == '.' }
+                            maxAmountText = filtered
+                            val minVal = minAmountText.toDoubleOrNull()
+                            val maxVal = filtered.toDoubleOrNull()
+                            draftState = LabelsFilterSpec.withAmountRange(draftState, minVal, maxVal)
+                        },
+                        label = { Text(if (isBn) "সর্বোচ্চ" else "Max ৳", fontSize = 11.sp) },
+                        placeholder = { Text("∞", fontSize = 11.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        trailingIcon = {
+                            IconButton(onClick = { showToCalc = true }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
                 // 9. Display Preferences (Ultra-compact toggle section)
                 UnifiedFilterSection(

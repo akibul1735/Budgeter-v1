@@ -427,36 +427,69 @@ fun BudgetScreen(
     val liabilityFilter = remember(liabilityFilterState) { liabilityFilterState.toBudgetMakerTabFilter() }
     val dashboardFilter = remember(dashboardFilterState) { dashboardFilterState.toBudgetMakerDashboardFilter() }
 
+    var expenseSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetExpenseQuickFilters) }
+    var incomeSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetIncomeQuickFilters) }
+    var assetSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetAssetQuickFilters) }
+    var liabilitySelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetLiabilityQuickFilters) }
+
+    val syncQuickFiltersFromTabFilter: (Set<BudgetFilterOption>, BudgetMakerTabFilter) -> Set<BudgetFilterOption> = { currentQuick, tabFilter ->
+        val updated = currentQuick.filter { it != BudgetFilterOption.ALL }.toMutableSet()
+        if (tabFilter.onlyWithBudgetOrTarget) {
+            updated.add(BudgetFilterOption.BUDGETED_ONLY)
+            updated.remove(BudgetFilterOption.UNBUDGETED)
+        } else if (tabFilter.onlyWithoutBudgetOrTarget) {
+            updated.add(BudgetFilterOption.UNBUDGETED)
+            updated.remove(BudgetFilterOption.BUDGETED_ONLY)
+            updated.remove(BudgetFilterOption.ONLY_REMAINING)
+        } else {
+            updated.remove(BudgetFilterOption.BUDGETED_ONLY)
+            updated.remove(BudgetFilterOption.UNBUDGETED)
+        }
+
+        if (tabFilter.onlyUnderBudgetRemaining) {
+            updated.add(BudgetFilterOption.ONLY_REMAINING)
+            updated.remove(BudgetFilterOption.UNBUDGETED)
+        } else {
+            updated.remove(BudgetFilterOption.ONLY_REMAINING)
+        }
+
+        if (tabFilter.onlyWithActualActivity) {
+            updated.add(BudgetFilterOption.ACTIVE_ONLY)
+        } else {
+            updated.remove(BudgetFilterOption.ACTIVE_ONLY)
+        }
+        updated
+    }
+
     val updateExpenseFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
         val newState = newTabFilter.toFilterState(1)
         expenseFilterState = newState
         filterStore.saveFilterState("budget_maker_expense", newState)
+        expenseSelectedFilters = syncQuickFiltersFromTabFilter(expenseSelectedFilters, newTabFilter)
     }
     val updateIncomeFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
         val newState = newTabFilter.toFilterState(2)
         incomeFilterState = newState
         filterStore.saveFilterState("budget_maker_income", newState)
+        incomeSelectedFilters = syncQuickFiltersFromTabFilter(incomeSelectedFilters, newTabFilter)
     }
     val updateAssetFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
         val newState = newTabFilter.toFilterState(3)
         assetFilterState = newState
         filterStore.saveFilterState("budget_maker_asset", newState)
+        assetSelectedFilters = syncQuickFiltersFromTabFilter(assetSelectedFilters, newTabFilter)
     }
     val updateLiabilityFilter: (BudgetMakerTabFilter) -> Unit = { newTabFilter ->
         val newState = newTabFilter.toFilterState(4)
         liabilityFilterState = newState
         filterStore.saveFilterState("budget_maker_liability", newState)
+        liabilitySelectedFilters = syncQuickFiltersFromTabFilter(liabilitySelectedFilters, newTabFilter)
     }
     val updateDashboardFilter: (BudgetMakerDashboardFilter) -> Unit = { newDashFilter ->
         val newState = newDashFilter.toFilterState()
         dashboardFilterState = newState
         filterStore.saveFilterState("budget_maker_dashboard", newState)
     }
-
-    var expenseSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetExpenseQuickFilters) }
-    var incomeSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetIncomeQuickFilters) }
-    var assetSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetAssetQuickFilters) }
-    var liabilitySelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetLiabilityQuickFilters) }
 
     var expenseSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetExpenseSort) }
     var incomeSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetIncomeSort) }
@@ -2109,21 +2142,45 @@ fun BudgetScreen(
                             onNavigateToTab = { tabIdx ->
                                 when (tabIdx) {
                                     1 -> {
+                                        val updatedFilter = expenseFilter.copy(
+                                            onlyWithBudgetOrTarget = true,
+                                            onlyWithoutBudgetOrTarget = false,
+                                            onlyZeroActivity = false
+                                        )
+                                        updateExpenseFilter(updatedFilter)
                                         expenseSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         expenseSelectedSort = BudgetSortOption.BUDGET_DESC
                                         navigateToBudgetTab(1)
                                     }
                                     2 -> {
+                                        val updatedFilter = incomeFilter.copy(
+                                            onlyWithBudgetOrTarget = true,
+                                            onlyWithoutBudgetOrTarget = false,
+                                            onlyZeroActivity = false
+                                        )
+                                        updateIncomeFilter(updatedFilter)
                                         incomeSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         incomeSelectedSort = BudgetSortOption.BUDGET_DESC
                                         navigateToBudgetTab(2)
                                     }
                                     3 -> {
+                                        val updatedFilter = assetFilter.copy(
+                                            onlyWithBudgetOrTarget = true,
+                                            onlyWithoutBudgetOrTarget = false,
+                                            onlyZeroActivity = false
+                                        )
+                                        updateAssetFilter(updatedFilter)
                                         assetSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         assetSelectedSort = BudgetSortOption.BUDGET_DESC
                                         navigateToBudgetTab(3)
                                     }
                                     4 -> {
+                                        val updatedFilter = liabilityFilter.copy(
+                                            onlyWithBudgetOrTarget = true,
+                                            onlyWithoutBudgetOrTarget = false,
+                                            onlyZeroActivity = false
+                                        )
+                                        updateLiabilityFilter(updatedFilter)
                                         liabilitySelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
                                         liabilitySelectedSort = BudgetSortOption.BUDGET_DESC
                                         navigateToBudgetTab(4)
@@ -2156,7 +2213,16 @@ fun BudgetScreen(
                             tabFilter = expenseFilter,
                             selectedFilters = expenseSelectedFilters,
                             onFilterToggle = { opt ->
-                                expenseSelectedFilters = toggleFilterOption(expenseSelectedFilters, opt)
+                                expenseSelectedFilters = handleQuickFilterToggle(
+                                    expenseSelectedFilters,
+                                    opt,
+                                    expenseFilter,
+                                    updateExpenseFilter
+                                )
+                            },
+                            onResetFilters = {
+                                updateExpenseFilter(BudgetMakerTabFilter())
+                                expenseSelectedFilters = emptySet()
                             },
                             selectedSort = expenseSelectedSort,
                             onSortChange = { expenseSelectedSort = it },
@@ -2201,7 +2267,16 @@ fun BudgetScreen(
                             tabFilter = incomeFilter,
                             selectedFilters = incomeSelectedFilters,
                             onFilterToggle = { opt ->
-                                incomeSelectedFilters = toggleFilterOption(incomeSelectedFilters, opt)
+                                incomeSelectedFilters = handleQuickFilterToggle(
+                                    incomeSelectedFilters,
+                                    opt,
+                                    incomeFilter,
+                                    updateIncomeFilter
+                                )
+                            },
+                            onResetFilters = {
+                                updateIncomeFilter(BudgetMakerTabFilter())
+                                incomeSelectedFilters = emptySet()
                             },
                             selectedSort = incomeSelectedSort,
                             onSortChange = { incomeSelectedSort = it },
@@ -2246,7 +2321,16 @@ fun BudgetScreen(
                             tabFilter = assetFilter,
                             selectedFilters = assetSelectedFilters,
                             onFilterToggle = { opt ->
-                                assetSelectedFilters = toggleFilterOption(assetSelectedFilters, opt)
+                                assetSelectedFilters = handleQuickFilterToggle(
+                                    assetSelectedFilters,
+                                    opt,
+                                    assetFilter,
+                                    updateAssetFilter
+                                )
+                            },
+                            onResetFilters = {
+                                updateAssetFilter(BudgetMakerTabFilter())
+                                assetSelectedFilters = emptySet()
                             },
                             selectedSort = assetSelectedSort,
                             onSortChange = { assetSelectedSort = it },
@@ -2291,7 +2375,16 @@ fun BudgetScreen(
                             tabFilter = liabilityFilter,
                             selectedFilters = liabilitySelectedFilters,
                             onFilterToggle = { opt ->
-                                liabilitySelectedFilters = toggleFilterOption(liabilitySelectedFilters, opt)
+                                liabilitySelectedFilters = handleQuickFilterToggle(
+                                    liabilitySelectedFilters,
+                                    opt,
+                                    liabilityFilter,
+                                    updateLiabilityFilter
+                                )
+                            },
+                            onResetFilters = {
+                                updateLiabilityFilter(BudgetMakerTabFilter())
+                                liabilitySelectedFilters = emptySet()
                             },
                             selectedSort = liabilitySelectedSort,
                             onSortChange = { liabilitySelectedSort = it },
@@ -2843,20 +2936,116 @@ private fun CopyPasteBudgetDialog(
 }
 
 /**
- * Helper to toggle a BudgetFilterOption in a set of active filters (Cumulative/AND logic).
+ * Helper to handle toggling of on-screen quick filter chips in harmony with the popup tab filter.
+ * Ensures mutually exclusive options are not selected simultaneously, and synchronizes status conditions
+ * with the underlying BudgetMakerTabFilter so that popup and on-screen filters never conflict.
  */
-private fun toggleFilterOption(current: Set<BudgetFilterOption>, opt: BudgetFilterOption): Set<BudgetFilterOption> {
-    return if (opt == BudgetFilterOption.ALL) {
-        emptySet()
-    } else {
-        val updated = current.filter { it != BudgetFilterOption.ALL }.toMutableSet()
-        if (updated.contains(opt)) {
-            updated.remove(opt)
-        } else {
-            updated.add(opt)
-        }
-        updated
+private fun handleQuickFilterToggle(
+    currentQuick: Set<BudgetFilterOption>,
+    opt: BudgetFilterOption,
+    currentTabFilter: BudgetMakerTabFilter,
+    onTabFilterUpdated: (BudgetMakerTabFilter) -> Unit
+): Set<BudgetFilterOption> {
+    if (opt == BudgetFilterOption.ALL) {
+        val cleanedTabFilter = currentTabFilter.copy(
+            onlyWithBudgetOrTarget = false,
+            onlyWithoutBudgetOrTarget = false,
+            onlyWithActualActivity = false,
+            onlyZeroActivity = false,
+            onlyOverBudget = false,
+            onlyUnderBudgetRemaining = false,
+            onlyTargetAchieved = false,
+            onlyTargetPending = false
+        )
+        onTabFilterUpdated(cleanedTabFilter)
+        return emptySet()
     }
+
+    val updated = currentQuick.filter { it != BudgetFilterOption.ALL }.toMutableSet()
+    val isCurrentlyActive = updated.contains(opt)
+
+    var newTabFilter = currentTabFilter
+
+    when (opt) {
+        BudgetFilterOption.BUDGETED_ONLY -> {
+            if (isCurrentlyActive) {
+                updated.remove(opt)
+                newTabFilter = newTabFilter.copy(onlyWithBudgetOrTarget = false)
+            } else {
+                updated.add(opt)
+                updated.remove(BudgetFilterOption.UNBUDGETED)
+                newTabFilter = newTabFilter.copy(onlyWithBudgetOrTarget = true, onlyWithoutBudgetOrTarget = false)
+            }
+        }
+        BudgetFilterOption.UNBUDGETED -> {
+            if (isCurrentlyActive) {
+                updated.remove(opt)
+                newTabFilter = newTabFilter.copy(onlyWithoutBudgetOrTarget = false)
+            } else {
+                updated.add(opt)
+                updated.remove(BudgetFilterOption.BUDGETED_ONLY)
+                updated.remove(BudgetFilterOption.ONLY_REMAINING)
+                newTabFilter = newTabFilter.copy(
+                    onlyWithoutBudgetOrTarget = true,
+                    onlyWithBudgetOrTarget = false,
+                    onlyUnderBudgetRemaining = false,
+                    onlyOverBudget = false
+                )
+            }
+        }
+        BudgetFilterOption.ONLY_REMAINING -> {
+            if (isCurrentlyActive) {
+                updated.remove(opt)
+                newTabFilter = newTabFilter.copy(onlyUnderBudgetRemaining = false)
+            } else {
+                updated.add(opt)
+                updated.remove(BudgetFilterOption.UNBUDGETED)
+                newTabFilter = newTabFilter.copy(
+                    onlyUnderBudgetRemaining = true,
+                    onlyOverBudget = false,
+                    onlyWithoutBudgetOrTarget = false
+                )
+            }
+        }
+        BudgetFilterOption.ACTIVE_ONLY -> {
+            if (isCurrentlyActive) {
+                updated.remove(opt)
+                newTabFilter = newTabFilter.copy(onlyWithActualActivity = false)
+            } else {
+                updated.add(opt)
+                newTabFilter = newTabFilter.copy(onlyWithActualActivity = true, onlyZeroActivity = false)
+            }
+        }
+        BudgetFilterOption.ONLY_GROUPS -> {
+            if (isCurrentlyActive) {
+                updated.remove(opt)
+            } else {
+                updated.add(opt)
+                updated.remove(BudgetFilterOption.ONLY_CATEGORIES)
+            }
+        }
+        BudgetFilterOption.ONLY_CATEGORIES -> {
+            if (isCurrentlyActive) {
+                updated.remove(opt)
+            } else {
+                updated.add(opt)
+                updated.remove(BudgetFilterOption.ONLY_GROUPS)
+            }
+        }
+        else -> {
+            if (isCurrentlyActive) {
+                updated.remove(opt)
+            } else {
+                updated.add(opt)
+            }
+        }
+    }
+
+    if (newTabFilter != currentTabFilter) {
+        onTabFilterUpdated(newTabFilter)
+    }
+
+    return updated
 }
 
 /**
@@ -2889,6 +3078,7 @@ private fun CategoriesBudgetEntryView(
     tabFilter: BudgetMakerTabFilter = BudgetMakerTabFilter(),
     selectedFilters: Set<BudgetFilterOption> = emptySet(),
     onFilterToggle: (BudgetFilterOption) -> Unit,
+    onResetFilters: () -> Unit = {},
     selectedSort: BudgetSortOption,
     onSortChange: (BudgetSortOption) -> Unit,
     onMonthClick: () -> Unit,
@@ -3101,43 +3291,55 @@ private fun CategoriesBudgetEntryView(
             }
         }
 
-        // 4. Status and Condition filters (cumulative AND logic)
-        if (tabFilter.onlyWithBudgetOrTarget) {
+        // 4. Budget Status Condition (Harmonized non-conflicting logic between popup tabFilter and on-screen chips)
+        val isBudgeted = BudgetFilterOption.BUDGETED_ONLY in selectedFilters || tabFilter.onlyWithBudgetOrTarget
+        val isUnbudgeted = BudgetFilterOption.UNBUDGETED in selectedFilters || tabFilter.onlyWithoutBudgetOrTarget
+        if (isBudgeted && !isUnbudgeted) {
             list = list.filter { it.currentBudget > 0.0 }
-        }
-        if (tabFilter.onlyWithoutBudgetOrTarget) {
+        } else if (isUnbudgeted && !isBudgeted) {
             list = list.filter { it.currentBudget <= 0.0 }
         }
-        if (tabFilter.onlyWithActualActivity) {
+
+        // 5. Activity Condition (Harmonized non-conflicting logic)
+        val isAccountType = sectionItemType == "ASSET" || sectionItemType == "LIABILITY"
+        val isActive = BudgetFilterOption.ACTIVE_ONLY in selectedFilters || tabFilter.onlyWithActualActivity
+        val isZeroActivity = tabFilter.onlyZeroActivity
+        if (isActive && !isZeroActivity) {
             list = list.filter {
-                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
+                if (isAccountType) {
                     it.actualSpent != 0.0 || it.txCount > 0
                 } else {
                     it.actualSpent > 0.0
                 }
             }
-        }
-        if (tabFilter.onlyZeroActivity) {
+        } else if (isZeroActivity && !isActive) {
             list = list.filter {
-                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
+                if (isAccountType) {
                     it.actualSpent == 0.0 && it.txCount == 0
                 } else {
                     it.actualSpent == 0.0
                 }
             }
         }
-        if (tabFilter.onlyOverBudget) {
+
+        // 6. Surplus / Over Budget (Harmonized non-conflicting logic)
+        val isRemaining = BudgetFilterOption.ONLY_REMAINING in selectedFilters || tabFilter.onlyUnderBudgetRemaining
+        val isOverBudget = tabFilter.onlyOverBudget
+        if (isRemaining && !isOverBudget) {
+            list = list.filter { it.currentBudget > it.actualSpent && it.currentBudget > 0.0 }
+        } else if (isOverBudget && !isRemaining) {
             list = list.filter { it.actualSpent > it.currentBudget && it.currentBudget > 0.0 }
         }
-        if (tabFilter.onlyUnderBudgetRemaining) {
-            list = list.filter { it.currentBudget > it.actualSpent && it.currentBudget > 0.0 }
-        }
+
+        // 7. Target Achieved / Pending
         if (tabFilter.onlyTargetAchieved) {
             list = list.filter { it.actualSpent >= it.currentBudget && it.currentBudget > 0.0 }
         }
         if (tabFilter.onlyTargetPending) {
             list = list.filter { it.actualSpent < it.currentBudget }
         }
+
+        // 8. Other Specific Conditions from tabFilter
         if (tabFilter.onlyWithSuggestions) {
             list = list.filter { it.suggestions.isNotEmpty() }
         }
@@ -3160,35 +3362,15 @@ private fun CategoriesBudgetEntryView(
             list = list.filter { it.currentBudget > 0.0 || it.actualSpent != 0.0 || it.txCount > 0 }
         }
 
-        // 5. Filter Category Selection (Cumulative/AND logic across multiple active chips)
-        if (selectedFilters.isNotEmpty() && !selectedFilters.contains(BudgetFilterOption.ALL)) {
-            if (BudgetFilterOption.ONLY_REMAINING in selectedFilters) {
-                list = list.filter {
-                    it.currentBudget > 0.0 && (it.currentBudget - it.actualSpent) > 0.0
-                }
-            }
-            if (BudgetFilterOption.BUDGETED_ONLY in selectedFilters) {
-                list = list.filter { it.currentBudget > 0.0 }
-            }
-            if (BudgetFilterOption.UNBUDGETED in selectedFilters) {
-                list = list.filter { it.currentBudget <= 0.0 }
-            }
-            if (BudgetFilterOption.ACTIVE_ONLY in selectedFilters) {
-                list = when (sectionItemType) {
-                    "EXPENSE", "INCOME" -> list.filter { it.actualSpent > 0.0 }
-                    "ASSET", "LIABILITY" -> list.filter { it.actualSpent != 0.0 || it.txCount > 0 }
-                    else -> list.filter { it.actualSpent > 0.0 }
-                }
-            }
-            if (BudgetFilterOption.ACTIVE_3_MONTHS in selectedFilters) {
-                list = list.filter { it.is3MonthsActive }
-            }
-            if (BudgetFilterOption.FREQ_BUDGETED in selectedFilters) {
-                list = list.filter { it.isFrequentlyBudgeted }
-            }
-            if (BudgetFilterOption.FREQ_ACTIVE in selectedFilters) {
-                list = list.filter { it.isFrequentlyActive }
-            }
+        // 9. Other On-Screen Quick Filters
+        if (BudgetFilterOption.ACTIVE_3_MONTHS in selectedFilters) {
+            list = list.filter { it.is3MonthsActive }
+        }
+        if (BudgetFilterOption.FREQ_BUDGETED in selectedFilters) {
+            list = list.filter { it.isFrequentlyBudgeted }
+        }
+        if (BudgetFilterOption.FREQ_ACTIVE in selectedFilters) {
+            list = list.filter { it.isFrequentlyActive }
         }
 
         // 6. Sorting
@@ -3520,7 +3702,7 @@ private fun CategoriesBudgetEntryView(
                     )
                     Button(
                         onClick = {
-                            onFilterToggle(BudgetFilterOption.ALL)
+                            onResetFilters()
                             onSortChange(BudgetSortOption.DEFAULT)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = sectionColor)

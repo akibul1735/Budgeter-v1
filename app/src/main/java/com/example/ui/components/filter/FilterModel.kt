@@ -154,7 +154,8 @@ sealed interface FilterField<T> {
         override val subtitleEn: String? = null,
         override val subtitleBn: String? = null,
         override val icon: ImageVector? = null,
-        val conditions: List<FilterCondition<T>> = emptyList()
+        val conditions: List<FilterCondition<T>> = emptyList(),
+        val defaultConditionIds: Set<String> = emptySet()
     ) : FilterField<T>
 
     /**

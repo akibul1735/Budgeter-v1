@@ -24,9 +24,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
@@ -38,9 +41,13 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -77,6 +84,7 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
+import com.example.ui.components.DropdownItem
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.filter.FilterField
@@ -141,18 +149,7 @@ fun LabelsScreen(
     }
 
     var filterState by remember {
-        val loaded = filterStore.loadFilterState(LabelsFilterSpec.SPEC_KEY)
-        val initial = if (loaded.isEmpty()) {
-            mapOf(
-                LabelsFilterSpec.FIELD_SEGMENT to FilterValue.ToggleGroup(setOf(LabelsFilterSpec.SEGMENT_HASHTAGS)),
-                LabelsFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(LabelsFilterSpec.MODE_ALL)),
-                LabelsFilterSpec.FIELD_DATE to FilterValue.Date(presetId = "this_month"),
-                LabelsFilterSpec.FIELD_SORT to FilterValue.Sort("amount_desc")
-            )
-        } else {
-            loaded
-        }
-        mutableStateOf(initial)
+        mutableStateOf<FilterState>(filterStore.loadFilterState(LabelsFilterSpec.SPEC_KEY))
     }
 
     val updateFilterState: (FilterState) -> Unit = { newState ->
@@ -174,6 +171,22 @@ fun LabelsScreen(
     }
     val sortOrderId = remember(filterState) { LabelsFilterSpec.getSortOrderId(filterState) }
 
+    val isBn = languageMode == LanguageMode.BANGLA
+    val sortDropdownItems = remember(isBn) {
+        listOf(
+            DropdownItem("amount_desc", if (isBn) "পরিমাণ: বেশি → কম" else "Amount: High → Low", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("amount_asc", if (isBn) "পরিমাণ: কম → বেশি" else "Amount: Low → High", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("count_desc", if (isBn) "লেনদেন: বেশি → কম" else "Count: Most Frequent", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("count_asc", if (isBn) "লেনদেন: কম → বেশি" else "Count: Least Frequent", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("avg_desc", if (isBn) "গড়: বেশি → কম" else "Average: High → Low", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("avg_asc", if (isBn) "গড়: কম → বেশি" else "Average: Low → High", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("name_asc", if (isBn) "নাম: A → Z" else "Name: A → Z", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("name_desc", if (isBn) "নাম: Z → A" else "Name: Z → A", icon = Icons.AutoMirrored.Filled.Sort),
+            DropdownItem("recent_date", if (isBn) "সাম্প্রতিক লেনদেন" else "Recent Activity", icon = Icons.AutoMirrored.Filled.Sort)
+        )
+    }
+
+    var showSortMenu by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var selectedDrilldownLabel by remember { mutableStateOf<AggregatedLabel?>(null) }
@@ -198,12 +211,7 @@ fun LabelsScreen(
         "INCOME" -> TransactionType.INCOME
         else -> null
     }
-    val dlgTransactionType = remember(filterState) {
-        (filterState[LabelsFilterSpec.FIELD_TRANSACTION_TYPE] as? FilterValue.SingleSelect)?.selectedId?.let {
-            try { TransactionType.valueOf(it) } catch (_: Exception) { null }
-        }
-    }
-    val effectiveType = dlgTransactionType ?: currentTargetType
+    val effectiveType = currentTargetType
 
     val selectedAccountIds = remember(filterState) {
         (filterState[LabelsFilterSpec.FIELD_ACCOUNTS] as? FilterValue.Select)?.selectedIds?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
@@ -442,7 +450,7 @@ fun LabelsScreen(
         }
         val dateVal = filterState[LabelsFilterSpec.FIELD_DATE] as? FilterValue.Date
         val dateField = labelsSpec.fields.firstOrNull { it.id == LabelsFilterSpec.FIELD_DATE } as? FilterField.DateField<*>
-        val preset = dateField?.presets?.firstOrNull { it.id == dateVal?.presetId }
+        val preset = dateField?.presets?.firstOrNull { it.id == (dateVal?.presetId ?: dateField.defaultPresetId ?: "this_month") }
         val dateSummary = if (languageMode == LanguageMode.BANGLA) preset?.titleBn ?: "" else preset?.titleEn ?: ""
         val base = if (dateSummary.isNotBlank()) "$segLabel • $dateSummary" else segLabel
         if (searchQuery.isNotBlank()) {
@@ -473,6 +481,34 @@ fun LabelsScreen(
                 onOpenDrawer = onOpenDrawer,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
                 actions = {
+                    // Header Sort Action Button
+                    Box {
+                        IconButton(
+                            onClick = { showSortMenu = true },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .testTag("labels_header_sort_button")
+                        ) {
+                            BadgedBox(
+                                badge = {
+                                    if (sortOrderId != "amount_desc") {
+                                        Badge(
+                                            containerColor = CrimsonPink,
+                                            modifier = Modifier.size(6.dp)
+                                        )
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                                    contentDescription = "Sort Labels",
+                                    tint = if (sortOrderId != "amount_desc") CrimsonPink else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
                     ExportMenuButton(
                         languageMode = languageMode,
                         onExport = { format ->
@@ -509,75 +545,164 @@ fun LabelsScreen(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
             )
 
-            // Segmented Filter Pills Row
+            // Segmented Filter Pills Row & On-screen Sort Button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 12.dp, vertical = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // 1. Hashtags
-                SegmentPill(
-                    icon = Icons.Default.Tag,
-                    label = if (languageMode == LanguageMode.BANGLA) "হ্যাশট্যাগ ও লেবেল" else "Hashtags",
-                    count = hashtagMap.size,
-                    isSelected = selectedSegment == LabelCategorySegment.HASHTAGS,
-                    languageMode = languageMode,
-                    onClick = {
-                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_HASHTAGS))
-                    }
-                )
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 1. Hashtags
+                    SegmentPill(
+                        icon = Icons.Default.Tag,
+                        label = if (languageMode == LanguageMode.BANGLA) "হ্যাশট্যাগ ও লেবেল" else "Hashtags",
+                        count = hashtagMap.size,
+                        isSelected = selectedSegment == LabelCategorySegment.HASHTAGS,
+                        languageMode = languageMode,
+                        onClick = {
+                            updateFilterState(LabelsFilterSpec.withSegment(filterState, LabelsFilterSpec.SEGMENT_HASHTAGS))
+                        }
+                    )
 
-                // 2. Notes
-                SegmentPill(
-                    icon = Icons.Default.Description,
-                    label = if (languageMode == LanguageMode.BANGLA) "নোট (Notes)" else "Notes",
-                    count = noteMap.size,
-                    isSelected = selectedSegment == LabelCategorySegment.NOTES,
-                    languageMode = languageMode,
-                    onClick = {
-                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_NOTES))
-                    }
-                )
+                    // 2. Notes
+                    SegmentPill(
+                        icon = Icons.Default.Description,
+                        label = if (languageMode == LanguageMode.BANGLA) "নোট (Notes)" else "Notes",
+                        count = noteMap.size,
+                        isSelected = selectedSegment == LabelCategorySegment.NOTES,
+                        languageMode = languageMode,
+                        onClick = {
+                            updateFilterState(LabelsFilterSpec.withSegment(filterState, LabelsFilterSpec.SEGMENT_NOTES))
+                        }
+                    )
 
-                // 3. Payees
-                SegmentPill(
-                    icon = Icons.Default.Person,
-                    label = if (languageMode == LanguageMode.BANGLA) "প্রাপক / ব্যক্তি" else "Payees",
-                    count = payeeMap.size,
-                    isSelected = selectedSegment == LabelCategorySegment.PAYEES,
-                    languageMode = languageMode,
-                    onClick = {
-                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_PAYEES))
-                    }
-                )
+                    // 3. Payees
+                    SegmentPill(
+                        icon = Icons.Default.Person,
+                        label = if (languageMode == LanguageMode.BANGLA) "প্রাপক / ব্যক্তি" else "Payees",
+                        count = payeeMap.size,
+                        isSelected = selectedSegment == LabelCategorySegment.PAYEES,
+                        languageMode = languageMode,
+                        onClick = {
+                            updateFilterState(LabelsFilterSpec.withSegment(filterState, LabelsFilterSpec.SEGMENT_PAYEES))
+                        }
+                    )
 
-                // 4. Untagged
-                SegmentPill(
-                    icon = Icons.Default.LabelOff,
-                    label = if (languageMode == LanguageMode.BANGLA) "লেবেলহীন" else "Unlabeled",
-                    count = untaggedList.size,
-                    isSelected = selectedSegment == LabelCategorySegment.UNTAGGED,
-                    languageMode = languageMode,
-                    isAlertStyle = untaggedList.isNotEmpty(),
-                    onClick = {
-                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_UNTAGGED))
-                    }
-                )
+                    // 4. Untagged
+                    SegmentPill(
+                        icon = Icons.Default.LabelOff,
+                        label = if (languageMode == LanguageMode.BANGLA) "লেবেলহীন" else "Unlabeled",
+                        count = untaggedList.size,
+                        isSelected = selectedSegment == LabelCategorySegment.UNTAGGED,
+                        languageMode = languageMode,
+                        isAlertStyle = untaggedList.isNotEmpty(),
+                        onClick = {
+                            updateFilterState(LabelsFilterSpec.withSegment(filterState, LabelsFilterSpec.SEGMENT_UNTAGGED))
+                        }
+                    )
 
-                // 5. All
-                SegmentPill(
-                    icon = Icons.Default.Label,
-                    label = if (languageMode == LanguageMode.BANGLA) "সকল (All)" else "All",
-                    count = allMap.size,
-                    isSelected = selectedSegment == LabelCategorySegment.ALL,
-                    languageMode = languageMode,
-                    onClick = {
-                        updateFilterState(labelsSpec.toggleCondition(filterState, LabelsFilterSpec.FIELD_SEGMENT, LabelsFilterSpec.SEGMENT_ALL))
+                    // 5. All
+                    SegmentPill(
+                        icon = Icons.Default.Label,
+                        label = if (languageMode == LanguageMode.BANGLA) "সকল (All)" else "All",
+                        count = allMap.size,
+                        isSelected = selectedSegment == LabelCategorySegment.ALL,
+                        languageMode = languageMode,
+                        onClick = {
+                            updateFilterState(LabelsFilterSpec.withSegment(filterState, LabelsFilterSpec.SEGMENT_ALL))
+                        }
+                    )
+                }
+
+                // On-screen Sort Button Pill
+                Box {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (sortOrderId != "amount_desc") CrimsonPink.copy(alpha = 0.12f) else if (isLight) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(0.8.dp, if (sortOrderId != "amount_desc") CrimsonPink.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showSortMenu = true }
+                            .testTag("labels_on_screen_sort_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Sort,
+                                contentDescription = "Sort Labels",
+                                tint = if (sortOrderId != "amount_desc") CrimsonPink else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            val currentSortItem = sortDropdownItems.firstOrNull { it.id == sortOrderId }
+                            val currentSortLabel = currentSortItem?.title ?: (if (languageMode == LanguageMode.BANGLA) "সাজান" else "Sort")
+                            Text(
+                                text = currentSortLabel.take(12),
+                                fontSize = 11.sp,
+                                fontWeight = if (sortOrderId != "amount_desc") FontWeight.Bold else FontWeight.Medium,
+                                color = if (sortOrderId != "amount_desc") CrimsonPink else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
                     }
-                )
+
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false }
+                    ) {
+                        sortDropdownItems.forEach { item ->
+                            val isSelected = sortOrderId == item.id
+                            DropdownMenuItem(
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = item.icon ?: Icons.AutoMirrored.Filled.Sort,
+                                        contentDescription = null,
+                                        tint = if (isSelected) CrimsonPink else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                text = {
+                                    Text(
+                                        text = item.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) CrimsonPink else MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                trailingIcon = if (isSelected) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = CrimsonPink,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                } else null,
+                                onClick = {
+                                    showSortMenu = false
+                                    updateFilterState(LabelsFilterSpec.withSortOrderId(filterState, item.id))
+                                }
+                            )
+                        }
+                    }
+                }
             }
 
             // Summary Card
@@ -1125,10 +1250,7 @@ fun LabelsScreen(
             "INCOME" -> TransactionType.INCOME
             else -> null
         }
-        val dlgType = (state[LabelsFilterSpec.FIELD_TRANSACTION_TYPE] as? FilterValue.SingleSelect)?.selectedId?.let {
-            try { TransactionType.valueOf(it) } catch (_: Exception) { null }
-        }
-        val effType = dlgType ?: cTargetType
+        val effType = cTargetType
 
         val accIds = (state[LabelsFilterSpec.FIELD_ACCOUNTS] as? FilterValue.Select)?.selectedIds?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
         val catIds = (state[LabelsFilterSpec.FIELD_CATEGORIES] as? FilterValue.Select)?.selectedIds?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()

@@ -249,7 +249,8 @@ object ItemsFilterSpec {
                         FilterCondition(MODE_EXPENSE, "Expenses", "ব্যয়", icon = Icons.AutoMirrored.Filled.TrendingDown, group = "type_mode"),
                         FilterCondition(MODE_ALL, "All", "সকল", icon = Icons.Default.FilterList, group = "type_mode"),
                         FilterCondition(MODE_INCOME, "Income", "আয়", icon = Icons.AutoMirrored.Filled.TrendingUp, group = "type_mode")
-                    )
+                    ),
+                    defaultConditionIds = setOf(MODE_ALL)
                 ),
                 FilterField.DateField(
                     id = FIELD_DATE,
@@ -409,7 +410,11 @@ object ItemsFilterSpec {
     fun withTypeMode(state: FilterState, mode: String): FilterState {
         val normalized = mode.lowercase()
         val validMode = if (normalized in listOf(MODE_EXPENSE, MODE_ALL, MODE_INCOME)) normalized else MODE_ALL
-        return state + (FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(validMode)))
+        return if (validMode == MODE_ALL) {
+            state - FIELD_TYPE_MODE
+        } else {
+            state + (FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(validMode)))
+        }
     }
 
     fun withSearchQuery(state: FilterState, query: String): FilterState {
@@ -461,7 +466,11 @@ object ItemsFilterSpec {
     }
 
     fun withDatePreset(state: FilterState, presetId: String): FilterState {
-        return state + (FIELD_DATE to FilterValue.Date(presetId = presetId))
+        return if (presetId == "this_month") {
+            state - FIELD_DATE
+        } else {
+            state + (FIELD_DATE to FilterValue.Date(presetId = presetId))
+        }
     }
 
     fun withCustomDates(state: FilterState, startMs: Long, endMs: Long): FilterState {

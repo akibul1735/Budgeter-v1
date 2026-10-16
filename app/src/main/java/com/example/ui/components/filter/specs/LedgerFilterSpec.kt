@@ -248,7 +248,8 @@ object LedgerFilterSpec {
                 titleEn = "Transaction Type",
                 titleBn = "লেনদেনের ধরন",
                 icon = Icons.Default.SwapHoriz,
-                conditions = TYPE_CONDITIONS
+                conditions = TYPE_CONDITIONS,
+                defaultConditionIds = setOf(TYPE_ALL)
             )
         )
 
@@ -395,7 +396,8 @@ object LedgerFilterSpec {
                 titleEn = "Row Display Style",
                 titleBn = "তালিকার ডিসপ্লে ধরন",
                 icon = Icons.Default.TableRows,
-                conditions = ROW_STYLE_CONDITIONS
+                conditions = ROW_STYLE_CONDITIONS,
+                defaultConditionIds = setOf(STYLE_STANDARD)
             )
         )
 
@@ -529,16 +531,22 @@ object LedgerFilterSpec {
     }
 
     fun withType(state: FilterState, type: TransactionType?): FilterState {
-        val id = when (type) {
-            TransactionType.EXPENSE -> TYPE_EXPENSE
-            TransactionType.INCOME -> TYPE_INCOME
-            TransactionType.TRANSFER -> TYPE_TRANSFER
-            null -> TYPE_ALL
+        return if (type == null) {
+            state - FIELD_TYPE
+        } else {
+            val id = when (type) {
+                TransactionType.EXPENSE -> TYPE_EXPENSE
+                TransactionType.INCOME -> TYPE_INCOME
+                TransactionType.TRANSFER -> TYPE_TRANSFER
+            }
+            state + (FIELD_TYPE to FilterValue.ToggleGroup(setOf(id)))
         }
-        return state + (FIELD_TYPE to FilterValue.ToggleGroup(setOf(id)))
     }
 
     fun withDatePreset(state: FilterState, preset: LedgerDatePreset): FilterState {
+        if (preset == LedgerDatePreset.LAST_12_MONTHS) {
+            return state - FIELD_DATE
+        }
         val id = when (preset) {
             LedgerDatePreset.THIS_MONTH -> PRESET_THIS_MONTH
             LedgerDatePreset.LAST_MONTH -> PRESET_LAST_MONTH
@@ -578,15 +586,20 @@ object LedgerFilterSpec {
     }
 
     fun withSortOrder(state: FilterState, sortId: String): FilterState {
-        return state + (FIELD_SORT to FilterValue.Sort(sortId))
+        return if (sortId == SORT_NEWEST_FIRST) state - FIELD_SORT
+        else state + (FIELD_SORT to FilterValue.Sort(sortId))
     }
 
     fun withRowStyle(state: FilterState, style: LedgerRowStyle): FilterState {
-        val id = when (style) {
-            LedgerRowStyle.COMPACT -> STYLE_COMPACT
-            LedgerRowStyle.DETAILED -> STYLE_DETAILED
-            LedgerRowStyle.STANDARD -> STYLE_STANDARD
+        return if (style == LedgerRowStyle.STANDARD) {
+            state - FIELD_ROW_STYLE
+        } else {
+            val id = when (style) {
+                LedgerRowStyle.COMPACT -> STYLE_COMPACT
+                LedgerRowStyle.DETAILED -> STYLE_DETAILED
+                LedgerRowStyle.STANDARD -> STYLE_STANDARD
+            }
+            state + (FIELD_ROW_STYLE to FilterValue.ToggleGroup(setOf(id)))
         }
-        return state + (FIELD_ROW_STYLE to FilterValue.ToggleGroup(setOf(id)))
     }
 }

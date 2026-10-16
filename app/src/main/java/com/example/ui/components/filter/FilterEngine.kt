@@ -154,8 +154,10 @@ object FilterEngine {
 
                 is FilterField.DateField<T> -> {
                     if (value is FilterValue.Date) {
-                        if (value.presetId != null && value.presetId != field.defaultPresetId) {
-                            count++
+                        if (value.presetId != null && value.presetId != "custom") {
+                            if (value.presetId != field.defaultPresetId) {
+                                count++
+                            }
                         } else if (value.startMs != null || value.endMs != null) {
                             count++
                         }
@@ -164,7 +166,7 @@ object FilterEngine {
 
                 is FilterField.ToggleGroupField<T> -> {
                     if (value is FilterValue.ToggleGroup) {
-                        count += value.activeIds.size
+                        count += value.activeIds.filter { it !in field.defaultConditionIds }.size
                     }
                 }
 
@@ -263,7 +265,14 @@ object FilterEngine {
         chipId: String
     ): FilterState {
         if (chipId.startsWith("toggle_")) {
-            // toggle_{fieldId}_{conditionId}
+            val matchingField = spec.fields.filterIsInstance<FilterField.ToggleGroupField<*>>()
+                .firstOrNull { chipId.startsWith("toggle_${it.id}_") }
+            if (matchingField != null) {
+                val condId = chipId.removePrefix("toggle_${matchingField.id}_")
+                val current = state[matchingField.id] as? FilterValue.ToggleGroup ?: return state
+                val remaining = current.activeIds - condId
+                return if (remaining.isEmpty()) state - matchingField.id else state + (matchingField.id to FilterValue.ToggleGroup(remaining))
+            }
             val parts = chipId.removePrefix("toggle_").split("_", limit = 2)
             if (parts.size == 2) {
                 val fieldId = parts[0]
@@ -371,17 +380,19 @@ object FilterEngine {
 
                 is FilterField.DateField<T> -> {
                     if (value is FilterValue.Date) {
-                        val preset = field.presets.firstOrNull { it.id == value.presetId }
-                        if (preset != null && preset.id != field.defaultPresetId) {
-                            chips.add(
-                                UnifiedFilterChipItem(
-                                    id = "field_${field.id}",
-                                    fieldId = field.id,
-                                    label = if (isBangla) preset.titleBn else preset.titleEn,
-                                    icon = field.icon,
-                                    color = spec.accentColor
+                        if (value.presetId != null && value.presetId != "custom") {
+                            val preset = field.presets.firstOrNull { it.id == value.presetId }
+                            if (preset != null && preset.id != field.defaultPresetId) {
+                                chips.add(
+                                    UnifiedFilterChipItem(
+                                        id = "field_${field.id}",
+                                        fieldId = field.id,
+                                        label = if (isBangla) preset.titleBn else preset.titleEn,
+                                        icon = field.icon,
+                                        color = spec.accentColor
+                                    )
                                 )
-                            )
+                            }
                         } else if (value.startMs != null || value.endMs != null) {
                             // Custom Date Range chip
                             val startStr = value.startMs?.let { DateUtils.formatDate(it, languageMode) } ?: ""
@@ -407,6 +418,7 @@ object FilterEngine {
                 is FilterField.ToggleGroupField<T> -> {
                     if (value is FilterValue.ToggleGroup) {
                         for (condId in value.activeIds) {
+                            if (condId in field.defaultConditionIds) continue
                             val cond = field.conditions.firstOrNull { it.id == condId }
                             if (cond != null) {
                                 chips.add(

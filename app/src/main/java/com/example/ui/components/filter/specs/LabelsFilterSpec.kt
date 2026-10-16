@@ -246,7 +246,8 @@ object LabelsFilterSpec {
                         FilterCondition(SEGMENT_PAYEES, "Payees", "প্রাপক / ব্যক্তি", icon = Icons.Default.Person, group = "segment"),
                         FilterCondition(SEGMENT_UNTAGGED, "Unlabeled", "লেবেলহীন", icon = Icons.Default.LabelOff, group = "segment"),
                         FilterCondition(SEGMENT_ALL, "All", "সকল (All)", icon = Icons.Default.Label, group = "segment")
-                    )
+                    ),
+                    defaultConditionIds = setOf(SEGMENT_HASHTAGS)
                 ),
                 FilterField.ToggleGroupField(
                     id = FIELD_TYPE_MODE,
@@ -257,7 +258,8 @@ object LabelsFilterSpec {
                         FilterCondition(MODE_EXPENSE, "Expenses", "ব্যয়", icon = Icons.AutoMirrored.Filled.TrendingDown, group = "type_mode"),
                         FilterCondition(MODE_ALL, "All", "সকল", icon = Icons.Default.FilterList, group = "type_mode"),
                         FilterCondition(MODE_INCOME, "Income", "আয়", icon = Icons.AutoMirrored.Filled.TrendingUp, group = "type_mode")
-                    )
+                    ),
+                    defaultConditionIds = setOf(MODE_ALL)
                 ),
                 FilterField.DateField(
                     id = FIELD_DATE,
@@ -267,18 +269,6 @@ object LabelsFilterSpec {
                     presets = datePresets,
                     defaultPresetId = "this_month",
                     allowCustom = true
-                ),
-                FilterField.SelectField(
-                    id = FIELD_TRANSACTION_TYPE,
-                    titleEn = "Specific Flow",
-                    titleBn = "নির্দিষ্ট প্রবাহ",
-                    icon = Icons.Default.Payments,
-                    isMultiSelect = false,
-                    items = listOf(
-                        SelectItemOption("EXPENSE", "Expense", "ব্যয়"),
-                        SelectItemOption("INCOME", "Income", "আয়"),
-                        SelectItemOption("TRANSFER", "Transfer", "স্থানান্তর")
-                    )
                 ),
                 FilterField.SelectField(
                     id = FIELD_ACCOUNTS,
@@ -438,17 +428,28 @@ object LabelsFilterSpec {
     }
 
     fun withSegment(state: FilterState, segmentId: String): FilterState {
-        return state + (FIELD_SEGMENT to FilterValue.ToggleGroup(setOf(segmentId)))
+        return if (segmentId == SEGMENT_HASHTAGS) {
+            state - FIELD_SEGMENT
+        } else {
+            state + (FIELD_SEGMENT to FilterValue.ToggleGroup(setOf(segmentId)))
+        }
     }
 
     fun withTypeMode(state: FilterState, mode: String): FilterState {
         val normalized = mode.lowercase()
-        val validMode = if (normalized in listOf(MODE_EXPENSE, MODE_ALL, MODE_INCOME)) normalized else MODE_ALL
-        return state + (FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(validMode)))
+        return if (normalized == MODE_ALL || normalized !in listOf(MODE_EXPENSE, MODE_ALL, MODE_INCOME)) {
+            state - FIELD_TYPE_MODE
+        } else {
+            state + (FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(normalized)))
+        }
     }
 
     fun withSortOrderId(state: FilterState, sortId: String): FilterState {
-        return state + (FIELD_SORT to FilterValue.Sort(sortId))
+        return if (sortId == "amount_desc") {
+            state - FIELD_SORT
+        } else {
+            state + (FIELD_SORT to FilterValue.Sort(sortId))
+        }
     }
 
     fun withTransactionType(state: FilterState, type: TransactionType?): FilterState {
@@ -472,7 +473,11 @@ object LabelsFilterSpec {
     }
 
     fun withDatePreset(state: FilterState, presetId: String): FilterState {
-        return state + (FIELD_DATE to FilterValue.Date(presetId = presetId))
+        return if (presetId == "this_month") {
+            state - FIELD_DATE
+        } else {
+            state + (FIELD_DATE to FilterValue.Date(presetId = presetId))
+        }
     }
 
     fun withCustomDates(state: FilterState, startMs: Long, endMs: Long): FilterState {
@@ -493,8 +498,7 @@ object LabelsFilterSpec {
         if (getSelectedSegmentId(state) != SEGMENT_HASHTAGS) count++
         if (getTypeModeId(state) != MODE_ALL) count++
         val dateVal = state[FIELD_DATE] as? FilterValue.Date
-        if (dateVal?.presetId != null && dateVal.presetId != "this_month" || dateVal?.startMs != null) count++
-        if (getTransactionType(state) != null) count++
+        if ((dateVal?.presetId != null && dateVal.presetId != "this_month") || dateVal?.startMs != null) count++
         if (getSelectedAccountIds(state).isNotEmpty()) count++
         if (getSelectedCategoryIds(state).isNotEmpty()) count++
         if (getSelectedStatusNames(state).isNotEmpty()) count++
