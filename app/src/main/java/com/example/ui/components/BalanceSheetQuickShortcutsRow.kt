@@ -11,18 +11,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -30,11 +31,11 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,14 +50,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
+import com.example.ui.components.filter.FilterSpec
 import com.example.ui.components.filter.FilterState
-import com.example.ui.components.filter.FilterValue
+import com.example.ui.components.filter.UnifiedFilterChipItem
+import com.example.ui.components.filter.activeChips
+import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.clear
+import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.removeActiveChip
 import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -65,10 +73,10 @@ import com.example.util.BalanceSheetComparisonPreset
 import com.example.util.BalanceSheetSortOrder
 
 /**
- * Fast-access toolbar for the Balance Sheet tab.
- * Placed beneath the comparison date card / summary, matching the unified filter pattern
- * established across the app (Section toggle, Timeline preset dropdown, Sort menu, Zero balance toggle,
- * and calculation mode trigger).
+ * Unified, single-bar filter and shortcut toolbar for Balance Sheet.
+ * Combines quick 1-tap shortcuts (Section, Timeline preset, Sort, ৳0 toggle, Calc, Expand)
+ * and active filter state (active filter indicator badge, 1-tap reset, active chips with individual dismissal)
+ * into a single compact, horizontally scrollable row without spawning a second bar.
  */
 @Composable
 fun BalanceSheetQuickShortcutsRow(
@@ -80,7 +88,9 @@ fun BalanceSheetQuickShortcutsRow(
     onToggleExpandAll: (Boolean) -> Unit,
     onOpenFilterDialog: () -> Unit,
     languageMode: LanguageMode,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    spec: FilterSpec<*>? = null,
+    onClearAll: (() -> Unit)? = null
 ) {
     val isBn = languageMode == LanguageMode.BANGLA
     var showSectionMenu by remember { mutableStateOf(false) }
@@ -92,6 +102,12 @@ fun BalanceSheetQuickShortcutsRow(
     val sortOrder = BalanceSheetFilterSpec.getSortOrder(filterState)
     val excludeZero = BalanceSheetFilterSpec.getExcludeZero(filterState)
     val withoutGroups = BalanceSheetFilterSpec.getShowWithoutGroups(filterState)
+
+    val isFilterActive = spec?.isActive(filterState) ?: (BalanceSheetFilterSpec.activeFilterCount(filterState) > 0)
+    val activeCount = spec?.activeFilterCount(filterState) ?: BalanceSheetFilterSpec.activeFilterCount(filterState)
+    val activeChips = remember(spec, filterState, languageMode) {
+        spec?.activeChips(filterState, languageMode) ?: emptyList()
+    }
 
     val consumeHorizontalScroll = remember {
         object : NestedScrollConnection {
@@ -112,6 +128,66 @@ fun BalanceSheetQuickShortcutsRow(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // ---------------------------------------------------------------------
+        // 0. Unified Filter Trigger & Active Status Controls
+        // ---------------------------------------------------------------------
+        if (isFilterActive) {
+            // Emphasized Active Filter Badge with count
+            CompactToolbarPill(
+                icon = Icons.Default.FilterAlt,
+                label = if (isBn) "ফিল্টার ($activeCount)" else "Filter ($activeCount)",
+                hasDropdown = false,
+                isActive = true,
+                isEmphasized = true,
+                activeColor = SolidPrimary,
+                modifier = Modifier.testTag("active_filter_badge"),
+                onClick = onOpenFilterDialog
+            )
+
+            // Fast Reset / Clear All Pill
+            CompactToolbarPill(
+                icon = Icons.Default.RestartAlt,
+                label = if (isBn) "রিসেট" else "Reset",
+                hasDropdown = false,
+                isActive = false,
+                modifier = Modifier.testTag("filter_reset_btn"),
+                onClick = {
+                    if (onClearAll != null) onClearAll()
+                    else if (spec != null) onFilterChange(spec.clear(filterState))
+                    else onFilterChange(emptyMap())
+                }
+            )
+
+            // Active Filter Chips (if any custom dialog criteria like accounts, status, search, options)
+            activeChips.forEach { chip ->
+                CompactActiveFilterChip(
+                    chip = chip,
+                    accentColor = SolidPrimary,
+                    onRemove = {
+                        val newState = spec?.removeActiveChip(filterState, chip.id) ?: filterState
+                        onFilterChange(newState)
+                    }
+                )
+            }
+
+            VerticalDivider(
+                modifier = Modifier
+                    .height(16.dp)
+                    .padding(horizontal = 2.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+        } else {
+            // Inactive Filter Dialog Trigger
+            CompactToolbarPill(
+                icon = Icons.Default.FilterAlt,
+                label = if (isBn) "ফিল্টার" else "Filter",
+                hasDropdown = false,
+                isActive = false,
+                modifier = Modifier.testTag("filter_dialog_trigger_btn"),
+                onClick = onOpenFilterDialog
+            )
+        }
+
         // ---------------------------------------------------------------------
         // 1. Balance Sheet Section Selector: All / Assets / Liabilities
         // ---------------------------------------------------------------------
@@ -351,7 +427,7 @@ fun BalanceSheetQuickShortcutsRow(
             icon = if (excludeZero) Icons.Default.VisibilityOff else Icons.Default.Visibility,
             label = if (excludeZero) (if (isBn) "শূন্য লুকানো" else "Hide ৳0") else (if (isBn) "সকল ব্যালেন্স" else "Show ৳0"),
             hasDropdown = false,
-            isActive = !excludeZero, // Active highlight if user chooses to inspect zero balances
+            isActive = !excludeZero,
             activeColor = SolidPrimary,
             onClick = {
                 onFilterChange(BalanceSheetFilterSpec.withExcludeZero(filterState, !excludeZero))
@@ -389,17 +465,6 @@ fun BalanceSheetQuickShortcutsRow(
             activeColor = SolidPrimary,
             onClick = onToggleCalcMode
         )
-
-        // ---------------------------------------------------------------------
-        // 7. Full Filter Dialog Trigger
-        // ---------------------------------------------------------------------
-        CompactToolbarPill(
-            icon = Icons.Default.FilterAlt,
-            label = if (isBn) "ফিল্টার" else "Filter",
-            hasDropdown = false,
-            isActive = false,
-            onClick = onOpenFilterDialog
-        )
     }
 }
 
@@ -409,18 +474,32 @@ private fun CompactToolbarPill(
     label: String,
     hasDropdown: Boolean = false,
     isActive: Boolean = false,
+    isEmphasized: Boolean = false,
     activeColor: Color = SolidPrimary,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val bgColor = if (isActive) activeColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-    val borderColor = if (isActive) activeColor.copy(alpha = 0.65f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-    val contentColor = if (isActive) activeColor else MaterialTheme.colorScheme.onSurface
+    val bgColor = when {
+        isEmphasized -> activeColor
+        isActive -> activeColor.copy(alpha = 0.18f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    }
+    val borderColor = when {
+        isEmphasized -> activeColor
+        isActive -> activeColor.copy(alpha = 0.65f)
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    }
+    val contentColor = when {
+        isEmphasized -> Color.White
+        isActive -> activeColor
+        else -> MaterialTheme.colorScheme.onSurface
+    }
 
     Surface(
         shape = RoundedCornerShape(7.dp),
         color = bgColor,
         border = BorderStroke(0.8.dp, borderColor),
-        modifier = Modifier
+        modifier = modifier
             .height(25.dp)
             .clip(RoundedCornerShape(7.dp))
             .clickable(onClick = onClick)
@@ -439,7 +518,7 @@ private fun CompactToolbarPill(
             Text(
                 text = label,
                 fontSize = 10.sp,
-                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                fontWeight = if (isActive || isEmphasized) FontWeight.Bold else FontWeight.Medium,
                 color = contentColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -450,6 +529,59 @@ private fun CompactToolbarPill(
                     contentDescription = null,
                     tint = contentColor.copy(alpha = 0.7f),
                     modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactActiveFilterChip(
+    chip: UnifiedFilterChipItem,
+    accentColor: Color,
+    onRemove: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(7.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.7.dp, accentColor.copy(alpha = 0.5f)),
+        modifier = Modifier
+            .height(25.dp)
+            .clip(RoundedCornerShape(7.dp))
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 6.dp, end = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            if (chip.icon != null) {
+                Icon(
+                    imageVector = chip.icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(11.dp)
+                )
+            }
+            Text(
+                text = chip.label,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Remove",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(9.5.dp)
                 )
             }
         }

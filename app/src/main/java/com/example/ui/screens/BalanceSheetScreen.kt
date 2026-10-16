@@ -118,9 +118,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.ui.components.filter.FilterState
-import com.example.ui.components.filter.UnifiedActiveFilterBar
 import com.example.ui.components.filter.UnifiedFilterDialog
 import com.example.ui.components.filter.activeFilterCount
+import com.example.ui.components.filter.clear
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
 import com.example.ui.dialogs.BalanceSheetFilterDialog
@@ -429,15 +429,20 @@ fun BalanceSheetScreen(
                 )
             }
 
-            // Quick Shortcuts Toolbar (Fast 1-tap presets, view toggle, sort, and zero-balance filter)
+            // Single compact filter bar for Balance Sheet (handles both shortcuts and active filters)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 2.dp)
             ) {
                 BalanceSheetQuickShortcutsRow(
+                    spec = balanceSheetSpec,
                     filterState = filterState,
                     onFilterChange = { updateFilterState(it) },
+                    onClearAll = {
+                        val resetState = balanceSheetSpec.clear(filterState)
+                        updateFilterState(resetState)
+                    },
                     isCalcMode = isCalcMode,
                     onToggleCalcMode = { isCalcMode = !isCalcMode },
                     allGroupsExpanded = allGroupsExpanded,
@@ -450,21 +455,6 @@ fun BalanceSheetScreen(
                     },
                     onOpenFilterDialog = { showFilterDialog = true },
                     languageMode = languageMode
-                )
-            }
-
-            // Active Filter Bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 2.dp)
-            ) {
-                UnifiedActiveFilterBar(
-                    spec = balanceSheetSpec,
-                    state = filterState,
-                    onFilterChange = { updateFilterState(it) },
-                    languageMode = languageMode,
-                    onOpenFilterDialog = { showFilterDialog = true }
                 )
             }
 
