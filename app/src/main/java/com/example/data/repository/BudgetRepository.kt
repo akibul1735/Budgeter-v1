@@ -9,6 +9,7 @@ import com.example.data.local.RecurringBillDao
 import com.example.data.local.SavingsGoalDao
 import com.example.data.local.TransactionDao
 import com.example.data.local.WishlistDao
+import com.example.data.local.TransactionLabelDao
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.BillStatus
@@ -18,6 +19,7 @@ import com.example.data.model.CategoryType
 import com.example.data.model.GoalAllocation
 import com.example.data.model.GoalAllocationWithAccount
 import com.example.data.model.ItemImageCache
+import com.example.data.model.TransactionLabel
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
@@ -81,7 +83,8 @@ class BudgetRepository(
     val budgetAdjustmentDao: BudgetAdjustmentDao,
     val savingsGoalDao: SavingsGoalDao,
     val wishlistDao: WishlistDao,
-    val itemImageCacheDao: ItemImageCacheDao
+    val itemImageCacheDao: ItemImageCacheDao,
+    val transactionLabelDao: TransactionLabelDao
 ) {
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
@@ -94,6 +97,7 @@ class BudgetRepository(
     val allWishlistItems: Flow<List<WishlistItem>> = wishlistDao.getAllWishlistItems()
     val activeWishlistItems: Flow<List<WishlistItem>> = wishlistDao.getActiveWishlistItems()
     val allItemImageCaches: Flow<List<ItemImageCache>> = itemImageCacheDao.getAllCachedItemsFlow()
+    val allLabels: Flow<List<TransactionLabel>> = transactionLabelDao.getAllLabelsFlow()
 
     val wishlistWithDetails: Flow<List<WishlistItemWithCategory>> = combine(
         wishlistDao.getAllWishlistItems(),
@@ -1082,12 +1086,111 @@ class BudgetRepository(
         }
     }
 
-    suspend fun insertTransaction(transaction: Transaction): Long = transactionDao.insertTransaction(transaction)
-    suspend fun updateTransaction(transaction: Transaction) = transactionDao.updateTransaction(transaction)
-    suspend fun updateTransactions(transactions: List<Transaction>) = transactionDao.updateTransactions(transactions)
+    suspend fun insertTransaction(transaction: Transaction): Long {
+        ensureLabelsExist(transaction.referenceNo)
+        return transactionDao.insertTransaction(transaction)
+    }
+
+    suspend fun updateTransaction(transaction: Transaction) {
+        ensureLabelsExist(transaction.referenceNo)
+        transactionDao.updateTransaction(transaction)
+    }
+
+    suspend fun updateTransactions(transactions: List<Transaction>) {
+        transactions.forEach { ensureLabelsExist(it.referenceNo) }
+        transactionDao.updateTransactions(transactions)
+    }
+
     suspend fun deleteTransaction(transaction: Transaction) = transactionDao.deleteTransaction(transaction)
     suspend fun deleteTransactions(transactions: List<Transaction>) = transactionDao.deleteTransactions(transactions)
     suspend fun deleteTransactionById(id: Long) = transactionDao.deleteTransactionById(id)
+
+    suspend fun saveLabel(label: TransactionLabel): Long = transactionLabelDao.insertOrUpdate(label)
+    suspend fun deleteLabel(label: TransactionLabel) = transactionLabelDao.delete(label)
+    suspend fun deleteLabelById(id: Long) = transactionLabelDao.deleteById(id)
+
+    suspend fun updateLabel(oldName: String, newName: String, iconName: String, colorHex: String) {
+        val oldTrimmed = oldName.trim()
+        val newTrimmed = newName.trim()
+        val existing = transactionLabelDao.getByNormalizedName(oldTrimmed.lowercase())
+        val updated = (existing ?: TransactionLabel(name = newTrimmed)).copy(
+            name = newTrimmed,
+            normalizedName = newTrimmed.lowercase(),
+            iconName = iconName,
+            colorHex = colorHex,
+            updatedAt = System.currentTimeMillis()
+        )
+        if (existing != null && existing.normalizedName != updated.normalizedName) {
+            transactionLabelDao.delete(existing)
+        }
+        transactionLabelDao.insertOrUpdate(updated)
+
+        // If name changed, rename in all transactions
+        if (oldTrimmed.isNotBlank() && !oldTrimmed.equals(newTrimmed, ignoreCase = true)) {
+            val allTxs = transactionDao.getAllTransactionsSnapshot()
+            val txsToUpdate = mutableListOf<Transaction>()
+            for (tx in allTxs) {
+                if (tx.referenceNo.contains(oldTrimmed, ignoreCase = true)) {
+                    val parts = tx.referenceNo.split(",").map { it.trim() }
+                    val newParts = parts.map { if (it.equals(oldTrimmed, ignoreCase = true)) newTrimmed else it }
+                    txsToUpdate.add(tx.copy(referenceNo = newParts.joinToString(", ")))
+                }
+            }
+            if (txsToUpdate.isNotEmpty()) {
+                transactionDao.updateTransactions(txsToUpdate)
+            }
+        }
+    }
+
+    suspend fun ensureLabelsExist(labelsStr: String) {
+        if (labelsStr.isBlank()) return
+        val parts = labelsStr.split(",").map { it.trim().removePrefix("#") }.filter { it.isNotBlank() }
+        for (part in parts) {
+            val norm = part.lowercase()
+            val existing = transactionLabelDao.getByNormalizedName(norm)
+            if (existing == null) {
+                val suggestedIcon = com.example.util.IconHelper.suggestIconForName(part)
+                transactionLabelDao.insertOrUpdate(
+                    TransactionLabel(
+                        name = part,
+                        normalizedName = norm,
+                        iconName = if (suggestedIcon != "Category") suggestedIcon else "Label",
+                        colorHex = "#10B981"
+                    )
+                )
+            }
+        }
+    }
+
+    suspend fun syncLabelsFromTransactions() {
+        val txs = transactionDao.getAllTransactionsSnapshot()
+        val existingLabels = transactionLabelDao.getAllLabels()
+        val existingMap = existingLabels.associateBy { it.normalizedName }
+        val toInsert = mutableListOf<TransactionLabel>()
+        for (tx in txs) {
+            val ref = tx.referenceNo.trim()
+            if (ref.isNotBlank()) {
+                val parts = ref.split(",").map { it.trim().removePrefix("#") }.filter { it.isNotBlank() }
+                for (part in parts) {
+                    val norm = part.lowercase()
+                    if (!existingMap.containsKey(norm) && toInsert.none { it.normalizedName == norm }) {
+                        val suggestedIcon = com.example.util.IconHelper.suggestIconForName(part)
+                        toInsert.add(
+                            TransactionLabel(
+                                name = part,
+                                normalizedName = norm,
+                                iconName = if (suggestedIcon != "Category") suggestedIcon else "Label",
+                                colorHex = "#10B981"
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        if (toInsert.isNotEmpty()) {
+            transactionLabelDao.insertIgnore(toInsert)
+        }
+    }
 
     suspend fun insertRecurringBill(bill: RecurringBill): Long = recurringBillDao.insertBill(bill)
     suspend fun updateRecurringBill(bill: RecurringBill) = recurringBillDao.updateBill(bill)

@@ -74,6 +74,7 @@ fun TransactionDetailViewDialog(
     allAccounts: List<Account> = emptyList(),
     allCategories: List<Category> = emptyList(),
     languageMode: LanguageMode,
+    labelMap: Map<String, com.example.data.model.TransactionLabel> = emptyMap(),
     onDismiss: () -> Unit,
     onEdit: (Transaction) -> Unit,
     onShowSimilar: (String) -> Unit,
@@ -547,10 +548,23 @@ fun TransactionDetailViewDialog(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         val hasLabels = tx.referenceNo.isNotBlank()
+                        val firstLabelName = remember(tx.referenceNo) {
+                            tx.referenceNo.split(",").firstOrNull()?.trim()?.removePrefix("#")?.lowercase()
+                        }
+                        val labelObj = firstLabelName?.let { labelMap[it] }
                         DetailGridCard(
                             title = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
                             value = labelsDisplay,
                             isMuted = !hasLabels,
+                            leadingIcon = if (hasLabels) {
+                                {
+                                    IconHelper.AppIcon(
+                                        iconName = labelObj?.iconName ?: "Label",
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
                             modifier = Modifier.weight(1f),
                             onClick = if (hasLabels) {
                                 {

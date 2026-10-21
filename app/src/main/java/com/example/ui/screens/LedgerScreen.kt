@@ -228,7 +228,8 @@ fun LedgerScreen(
     onDeleteTransactions: (List<Transaction>) -> Unit = {},
     onDeleteTransaction: (Transaction) -> Unit = {},
     onSaveItemImageCache: ((String, String) -> Unit)? = null,
-    onUpdateCategory: ((Category) -> Unit)? = null
+    onUpdateCategory: ((Category) -> Unit)? = null,
+    labelMap: Map<String, com.example.data.model.TransactionLabel> = emptyMap()
 ) {
     val context = LocalContext.current
     val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
@@ -1347,6 +1348,7 @@ fun LedgerScreen(
                                             item = item,
                                             languageMode = languageMode,
                                             itemImageCacheMap = itemImageCacheMap,
+                                            labelMap = labelMap,
                                             txConfig = txConfig,
                                             rowStyle = rowStyle,
                                             isSelected = isSelected,
@@ -1396,6 +1398,7 @@ fun LedgerScreen(
                                             item = item,
                                             languageMode = languageMode,
                                             itemImageCacheMap = itemImageCacheMap,
+                                            labelMap = labelMap,
                                             txConfig = txConfig,
                                             rowStyle = rowStyle,
                                             isSelected = isSelected,
@@ -1446,6 +1449,7 @@ fun LedgerScreen(
                                         item = item,
                                         languageMode = languageMode,
                                         itemImageCacheMap = itemImageCacheMap,
+                                        labelMap = labelMap,
                                         txConfig = txConfig,
                                         rowStyle = rowStyle,
                                         isSelected = isSelected,
@@ -1542,6 +1546,7 @@ fun LedgerScreen(
             allAccounts = allAccounts,
             allCategories = allCategories,
             languageMode = languageMode,
+            labelMap = labelMap,
             onDismiss = { viewingTransactionItem = null },
             onEdit = { tx ->
                 viewingTransactionItem = null
@@ -1966,6 +1971,7 @@ internal fun TransactionRowItem(
     item: TransactionWithDetails,
     languageMode: LanguageMode,
     itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
+    labelMap: Map<String, com.example.data.model.TransactionLabel> = emptyMap(),
     txConfig: com.example.util.TransactionConfig = com.example.util.TransactionConfig(),
     rowStyle: LedgerRowStyle = LedgerRowStyle.STANDARD,
     isSelected: Boolean = false,
@@ -2242,6 +2248,7 @@ internal fun TransactionRowItem(
                             val labelList = tx.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
                             if (txConfig.labelsDisplayMode == LabelsDisplayMode.CHIP_BADGE) {
                                 labelList.take(2).forEach { lbl ->
+                                    val labelObj = labelMap[lbl.lowercase()]
                                     Surface(
                                         shape = CircleShape,
                                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
@@ -2250,13 +2257,23 @@ internal fun TransactionRowItem(
                                             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                         )
                                     ) {
-                                        Text(
-                                            text = "#$lbl",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            IconHelper.AppIcon(
+                                                iconName = labelObj?.iconName ?: "Label",
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.size(9.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "#$lbl",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        }
                                     }
                                 }
                                 if (labelList.size > 2) {
@@ -2273,6 +2290,8 @@ internal fun TransactionRowItem(
                                     }
                                 }
                             } else if (txConfig.labelsDisplayMode == LabelsDisplayMode.ICON_ONLY) {
+                                val firstLabel = labelList.firstOrNull()
+                                val labelObj = firstLabel?.let { labelMap[it.lowercase()] }
                                 Surface(
                                     shape = CircleShape,
                                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
@@ -2281,9 +2300,8 @@ internal fun TransactionRowItem(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.Label,
-                                            contentDescription = "Labels",
+                                        IconHelper.AppIcon(
+                                            iconName = labelObj?.iconName ?: "Label",
                                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                             modifier = Modifier.size(10.dp)
                                         )

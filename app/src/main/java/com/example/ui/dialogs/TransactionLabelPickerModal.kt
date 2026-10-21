@@ -40,6 +40,7 @@ internal fun LabelPickerModalDialog(
     currentLabel: String,
     existingLabels: List<String>,
     languageMode: LanguageMode,
+    labelMap: Map<String, TransactionLabel> = emptyMap(),
     onLabelSelected: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -116,7 +117,7 @@ internal fun LabelPickerModalDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            val trimmed = inputQuery.trim()
+                            val trimmed = inputQuery.trim().removePrefix("#")
                             if (trimmed.isNotBlank()) {
                                 if (trimmed !in labelPool) {
                                     labelPool.add(0, trimmed)
@@ -153,6 +154,7 @@ internal fun LabelPickerModalDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         selectedLabels.forEach { label ->
+                            val labelObj = labelMap[label.lowercase()]
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
@@ -165,6 +167,12 @@ internal fun LabelPickerModalDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                                 ) {
+                                    IconHelper.AppIcon(
+                                        iconName = labelObj?.iconName ?: "Label",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Icon(
@@ -227,6 +235,7 @@ internal fun LabelPickerModalDialog(
                     ) {
                         filteredPool.forEach { label ->
                             val isSelected = label in selectedLabels
+                            val labelObj = labelMap[label.lowercase()]
                             FilterChip(
                                 selected = isSelected,
                                 onClick = {
@@ -241,7 +250,11 @@ internal fun LabelPickerModalDialog(
                                     if (isSelected) {
                                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
                                     } else {
-                                        Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        IconHelper.AppIcon(
+                                            iconName = labelObj?.iconName ?: "Label",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(14.dp)
+                                        )
                                     }
                                 },
                                 shape = RoundedCornerShape(8.dp)

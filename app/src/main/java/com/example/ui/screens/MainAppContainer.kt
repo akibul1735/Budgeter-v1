@@ -285,6 +285,8 @@ fun MainAppContainer(
     val showRestoreBanner by viewModel.showRestoreBanner.collectAsStateWithLifecycle()
     val firstLaunchCheckDialogVisible by viewModel.firstLaunchCheckDialogVisible.collectAsStateWithLifecycle()
     val itemImageCacheMap by viewModel.itemImageCacheMap.collectAsStateWithLifecycle()
+    val allLabels by viewModel.allLabels.collectAsStateWithLifecycle()
+    val labelMap by viewModel.labelMap.collectAsStateWithLifecycle()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -1361,6 +1363,7 @@ fun MainAppContainer(
             monthlyBudgets = allMonthlyBudgets,
             languageMode = languageMode,
             existingTransaction = editingTransaction,
+            labelMap = labelMap,
             defaultType = presetTxType,
             initialCategoryId = presetCategoryId,
             initialSubCategoryId = presetSubCategoryId,
@@ -1760,6 +1763,7 @@ private fun DrawerContent(
     val secondarySignedInAccount by viewModel.secondarySignedInGoogleAccount.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
     val activeWishlistCount by viewModel.activeWishlistCount.collectAsStateWithLifecycle()
+    val allLabels by viewModel.allLabels.collectAsStateWithLifecycle()
 
     // Determine active cloud drive account (prefer Drive 1, consider Drive 2 if Drive 1 is inactive)
     val drive1 = backupConfig.primaryAccount
@@ -2149,7 +2153,7 @@ private fun DrawerContent(
             mutableStateOf(
                 listOfNotNull(
                     if (currentView in listOf(AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE)) "accounts_sources" else null,
-                    if (currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER)) "categories_budget" else null,
+                    if (currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.LABELS)) "categories_budget" else null,
                     if (currentView in listOf(AppView.SAVINGS_GOALS, AppView.WISHLIST)) "goals_wishlist" else null,
                     if (currentView == AppView.TRASH) "rest" else null
                 )
@@ -2160,7 +2164,7 @@ private fun DrawerContent(
         LaunchedEffect(currentView) {
             val activeGroup = when (currentView) {
                 AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE -> "accounts_sources"
-                AppView.CATEGORIES, AppView.BUDGET_MAKER -> "categories_budget"
+                AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.LABELS -> "categories_budget"
                 AppView.SAVINGS_GOALS, AppView.WISHLIST -> "goals_wishlist"
                 else -> null
             }
@@ -2237,15 +2241,16 @@ private fun DrawerContent(
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // 3. Categories, Budget Maker (Categories & Budget)
-        val hasActiveCategories = currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER)
+        // 3. Categories, Budget Maker, Labels (Categories & Budget)
+        val hasActiveCategories = currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.LABELS)
+        val totalCategoriesBudgetBadge = "${categoriesCount + allLabels.size}"
         DrawerGroupHeader(
             title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও বাজেট" else "Categories & Budget",
             icon = Icons.Default.Category,
             iconTint = SolidExpense,
             isOpen = isCategoriesOpen,
             hasActiveChild = hasActiveCategories,
-            badge = "$categoriesCount",
+            badge = totalCategoriesBudgetBadge,
             onToggle = { toggleGroup("categories_budget") },
             testTag = "drawer_group_categories"
         )
@@ -2273,6 +2278,14 @@ private fun DrawerContent(
                     iconTint = MaterialTheme.colorScheme.primary,
                     isSelected = currentView == AppView.BUDGET_MAKER,
                     onClick = { onSelectView(AppView.BUDGET_MAKER) }
+                )
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("labels", languageMode).ifEmpty { "Labels" },
+                    icon = Icons.Default.Tag,
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    badge = if (allLabels.isNotEmpty()) "${allLabels.size}" else null,
+                    isSelected = currentView == AppView.LABELS,
+                    onClick = { onSelectView(AppView.LABELS) }
                 )
             }
         }
@@ -2708,6 +2721,9 @@ private fun ScreenRouter(
     openWishlistAddDialog: Boolean = false,
     onWishlistAddDialogOpened: () -> Unit = {}
 ) {
+    val allLabels = viewModel.allLabels.collectAsStateWithLifecycle().value
+    val labelMap = viewModel.labelMap.collectAsStateWithLifecycle().value
+
     when (currentView) {
         AppView.DASHBOARD -> DashboardScreen(
             overview = overview,
@@ -2763,6 +2779,7 @@ private fun ScreenRouter(
                 accountsWithBalances = accountsWithBalances,
                 itemImageCacheMap = itemImageCacheMap,
                 securityConfig = securityConfig,
+                labelMap = labelMap,
                 onOpenDrawer = onOpenDrawer,
                 onVerifyPin = { viewModel.verifySecurityPin(it) },
                 onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
@@ -3003,10 +3020,18 @@ private fun ScreenRouter(
             transactions = transactionsWithDetails,
             categories = allCategories,
             accounts = allAccounts,
+            labels = allLabels,
+            labelMap = labelMap,
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer,
             onTransactionClick = onEditTransaction,
-            onAddTransactionClick = onAddTransactionWithType
+            onAddTransactionClick = onAddTransactionWithType,
+            onSaveLabel = { label -> viewModel.saveLabel(label) },
+            onUpdateLabel = { oldName, newName, iconName, colorHex ->
+                viewModel.updateLabel(oldName, newName, iconName, colorHex)
+            },
+            onDeleteLabel = { label -> viewModel.deleteLabel(label) },
+            onNavigateToCategories = { onNavigate(AppView.CATEGORIES) }
         )
         AppView.ITEMS_SUMMARY -> ItemsScreen(
             transactions = transactionsWithDetails,
@@ -3108,7 +3133,8 @@ private fun ScreenRouter(
             },
             onDeleteCategories = { delList ->
                 viewModel.deleteCategories(delList)
-            }
+            },
+            onNavigateToLabels = { onNavigate(AppView.LABELS) }
         )
         AppView.EXPENSES -> CategoriesScreen(
             categories = allCategories,
@@ -3128,7 +3154,8 @@ private fun ScreenRouter(
             },
             onDeleteCategories = { delList ->
                 viewModel.deleteCategories(delList)
-            }
+            },
+            onNavigateToLabels = { onNavigate(AppView.LABELS) }
         )
         AppView.INCOME -> CategoriesScreen(
             categories = allCategories,
@@ -3148,7 +3175,8 @@ private fun ScreenRouter(
             },
             onDeleteCategories = { delList ->
                 viewModel.deleteCategories(delList)
-            }
+            },
+            onNavigateToLabels = { onNavigate(AppView.LABELS) }
         )
         AppView.BACKUP_SYNC -> BackupSyncSettingsScreen(
             viewModel = viewModel,

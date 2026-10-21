@@ -25,6 +25,7 @@ import com.example.data.model.SavingsSummary
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
+import com.example.data.model.TransactionLabel
 import com.example.data.model.WishlistItem
 import com.example.data.model.WishlistItemWithCategory
 import com.example.data.model.WishlistPriority
@@ -466,7 +467,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             budgetAdjustmentDao = db.budgetAdjustmentDao(),
             savingsGoalDao = db.savingsGoalDao(),
             wishlistDao = db.wishlistDao(),
-            itemImageCacheDao = db.itemImageCacheDao()
+            itemImageCacheDao = db.itemImageCacheDao(),
+            transactionLabelDao = db.transactionLabelDao()
         )
     }
 
@@ -476,6 +478,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             activeRepo.seedDefaultsIfEmpty()
+            activeRepo.syncLabelsFromTransactions()
         }
         viewModelScope.launch {
             DropboxAuthBridge.authCodes.collect { code ->
@@ -923,6 +926,54 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyMap()
         )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val allLabels: StateFlow<List<TransactionLabel>> = _activeRepository
+        .flatMapLatest { it.allLabels }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val labelMap: StateFlow<Map<String, TransactionLabel>> = allLabels
+        .map { list ->
+            val map = HashMap<String, TransactionLabel>()
+            for (item in list) {
+                map[item.normalizedName] = item
+                map[item.name.lowercase(java.util.Locale.ROOT)] = item
+            }
+            map
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+
+    fun saveLabel(label: TransactionLabel) {
+        viewModelScope.launch(Dispatchers.IO) {
+            activeRepo.saveLabel(label)
+        }
+    }
+
+    fun updateLabel(oldName: String, newName: String, iconName: String, colorHex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            activeRepo.updateLabel(oldName, newName, iconName, colorHex)
+        }
+    }
+
+    fun deleteLabel(label: TransactionLabel) {
+        viewModelScope.launch(Dispatchers.IO) {
+            activeRepo.deleteLabel(label)
+        }
+    }
+
+    fun deleteLabelById(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            activeRepo.deleteLabelById(id)
+        }
+    }
 
     fun saveWishlistItem(item: WishlistItem) {
         viewModelScope.launch {

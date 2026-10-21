@@ -250,7 +250,8 @@ fun AddEditTransactionSheet(
     onSaveSplit: ((splitGroupId: String, baseTx: Transaction, items: List<TransactionSplitItem>, existingTxs: List<Transaction>) -> Unit)? = null,
     onDelete: ((Transaction) -> Unit)? = null,
     onAddNewCategory: ((Category) -> Unit)? = null,
-    onAddNewAccount: ((Account) -> Unit)? = null
+    onAddNewAccount: ((Account) -> Unit)? = null,
+    labelMap: Map<String, com.example.data.model.TransactionLabel> = emptyMap()
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -3029,12 +3030,22 @@ fun AddEditTransactionSheet(
                             // Row E: Label / Tags
                             OptionRowItem(
                                 icon = {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Label,
-                                        contentDescription = "Label",
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    val firstLabel = labelTag.split(",").firstOrNull()?.trim()?.lowercase()
+                                    val labelObj = firstLabel?.let { labelMap[it] }
+                                    if (labelObj != null) {
+                                        IconHelper.AppIcon(
+                                            iconName = labelObj.iconName,
+                                            tint = SolidPrimary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Label,
+                                            contentDescription = "Label",
+                                            tint = if (labelTag.isNotBlank()) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 },
                                 title = if (labelTag.isNotBlank()) labelTag else LanguageHelper.getString("label", languageMode),
                                 onClick = { showLabelDialog = true }
@@ -3535,15 +3546,18 @@ fun AddEditTransactionSheet(
     }
 
     if (showLabelDialog) {
-        val existingLabels = remember(allTransactions) {
-            allTransactions.flatMap { tx ->
-                tx.transaction.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
-            }.distinct()
+        val existingLabels = remember(allTransactions, labelMap) {
+            val fromTxs = allTransactions.flatMap { tx ->
+                tx.transaction.referenceNo.split(",").map { it.trim().removePrefix("#") }.filter { it.isNotBlank() }
+            }
+            val fromMap = labelMap.values.map { it.name }
+            (fromMap + fromTxs).distinct()
         }
         LabelPickerModalDialog(
             currentLabel = labelTag,
             existingLabels = existingLabels,
             languageMode = languageMode,
+            labelMap = labelMap,
             onLabelSelected = {
                 labelTag = it
                 showLabelDialog = false
