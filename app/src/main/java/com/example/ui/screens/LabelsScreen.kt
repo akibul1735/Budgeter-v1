@@ -148,11 +148,7 @@ fun LabelsScreen(
     languageMode: LanguageMode,
     onOpenDrawer: () -> Unit = {},
     onTransactionClick: (Transaction) -> Unit,
-    onAddTransactionClick: ((TransactionType) -> Unit)? = null,
-    onSaveLabel: ((TransactionLabel) -> Unit)? = null,
-    onUpdateLabel: ((oldName: String, newName: String, iconName: String, colorHex: String) -> Unit)? = null,
-    onDeleteLabel: ((TransactionLabel) -> Unit)? = null,
-    onNavigateToCategories: (() -> Unit)? = null
+    onAddTransactionClick: ((TransactionType) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val filterStore = remember { FilterStore.getInstance(context) }
@@ -203,8 +199,6 @@ fun LabelsScreen(
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var selectedDrilldownLabel by remember { mutableStateOf<AggregatedLabel?>(null) }
-    var editingLabelObj by remember { mutableStateOf<TransactionLabel?>(null) }
-    var showAddLabelDialog by remember { mutableStateOf(false) }
 
     if (showTimelineScreen) {
         LabelsTimelineScreen(
@@ -555,74 +549,6 @@ fun LabelsScreen(
                     )
                 }
             )
-
-            // Categories & Labels Switcher Tab Row
-            if (onNavigateToCategories != null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clickable { onNavigateToCategories() }
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Category,
-                                contentDescription = null,
-                                modifier = Modifier.size(15.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = LanguageHelper.getString("categories", languageMode),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Tag,
-                                contentDescription = null,
-                                modifier = Modifier.size(15.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = LanguageHelper.getString("labels", languageMode).ifEmpty { "Labels" },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-            }
 
             // Unified Active Filter Bar strip
             UnifiedActiveFilterBar(
@@ -1040,8 +966,7 @@ fun LabelsScreen(
                                 label = label,
                                 labelMap = labelMap,
                                 languageMode = languageMode,
-                                onClick = { selectedDrilldownLabel = label },
-                                onEditLabel = { lblToEdit -> editingLabelObj = lblToEdit }
+                                onClick = { selectedDrilldownLabel = label }
                             )
                         }
                     }
@@ -1061,29 +986,13 @@ fun LabelsScreen(
                     .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Row with "New Label" button on Start, and "Add Transaction" FAB on End
-                Row(
+                // Add Transaction FAB on End
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    contentAlignment = Alignment.CenterEnd
                 ) {
-                    FilledTonalButton(
-                        onClick = { showAddLabelDialog = true },
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                        modifier = Modifier.testTag("create_label_button")
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "নতুন লেবেল" else "New Label",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
                     FloatingActionButton(
                         onClick = {
                             val targetType = if (activeTabMode == "INCOME") TransactionType.INCOME else TransactionType.EXPENSE
@@ -1268,20 +1177,6 @@ fun LabelsScreen(
                                 )
                             }
                         )
-                        val cleanLabelName = label.labelName.removePrefix("#").trim()
-                        val labelObjForEdit = labelMap[cleanLabelName.lowercase()] ?: labelMap[label.labelName.lowercase()]
-                        if (onUpdateLabel != null) {
-                            IconButton(onClick = {
-                                selectedDrilldownLabel = null
-                                editingLabelObj = labelObjForEdit ?: TransactionLabel(name = cleanLabelName)
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit Label",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
                         IconButton(onClick = { selectedDrilldownLabel = null }) {
                             Icon(Icons.Default.Close, contentDescription = "Close")
                         }
@@ -1351,44 +1246,6 @@ fun LabelsScreen(
                 TextButton(onClick = { selectedDrilldownLabel = null }) {
                     Text(LanguageHelper.getString("done", languageMode).ifEmpty { "Done" })
                 }
-            }
-        )
-    }
-
-    if (editingLabelObj != null) {
-        AddEditLabelDialog(
-            label = editingLabelObj,
-            initialName = editingLabelObj?.name ?: "",
-            languageMode = languageMode,
-            onDismiss = { editingLabelObj = null },
-            onSave = { name, iconName, colorHex ->
-                val oldName = editingLabelObj?.name ?: name
-                onUpdateLabel?.invoke(oldName, name, iconName, colorHex)
-                editingLabelObj = null
-            },
-            onDelete = if (editingLabelObj != null && editingLabelObj!!.id != 0L) {
-                {
-                    onDeleteLabel?.invoke(editingLabelObj!!)
-                    editingLabelObj = null
-                }
-            } else null
-        )
-    }
-
-    if (showAddLabelDialog) {
-        AddEditLabelDialog(
-            label = null,
-            languageMode = languageMode,
-            onDismiss = { showAddLabelDialog = false },
-            onSave = { name, iconName, colorHex ->
-                onSaveLabel?.invoke(
-                    TransactionLabel(
-                        name = name,
-                        iconName = iconName,
-                        colorHex = colorHex
-                    )
-                )
-                showAddLabelDialog = false
             }
         )
     }
@@ -1609,8 +1466,7 @@ private fun AggregatedLabelCard(
     label: AggregatedLabel,
     labelMap: Map<String, TransactionLabel> = emptyMap(),
     languageMode: LanguageMode,
-    onClick: () -> Unit,
-    onEditLabel: ((TransactionLabel) -> Unit)? = null
+    onClick: () -> Unit
 ) {
     val isExpense = label.totalExpense >= label.totalIncome
     val typeColor = if (isExpense) CrimsonPink else SolidIncome
@@ -1758,28 +1614,6 @@ private fun AggregatedLabelCard(
                             textAlign = TextAlign.End,
                             maxLines = 1
                         )
-                    }
-
-                    if (onEditLabel != null) {
-                        IconButton(
-                            onClick = {
-                                onEditLabel(
-                                    labelObj ?: TransactionLabel(
-                                        name = cleanName,
-                                        iconName = "Label",
-                                        colorHex = "#10B981"
-                                    )
-                                )
-                            },
-                            modifier = Modifier.size(30.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Label",
-                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
                     }
                 }
             }

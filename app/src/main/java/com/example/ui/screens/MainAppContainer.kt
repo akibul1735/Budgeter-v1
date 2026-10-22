@@ -207,6 +207,7 @@ enum class AppView {
     INCOME,
     REPORTS,
     LABELS,
+    MANAGE_LABELS,
     ITEMS_SUMMARY,
     RECURRING_BILLS,
     BACKUP_SYNC,
@@ -2153,7 +2154,7 @@ private fun DrawerContent(
             mutableStateOf(
                 listOfNotNull(
                     if (currentView in listOf(AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE)) "accounts_sources" else null,
-                    if (currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.LABELS)) "categories_budget" else null,
+                    if (currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.MANAGE_LABELS)) "categories_budget" else null,
                     if (currentView in listOf(AppView.SAVINGS_GOALS, AppView.WISHLIST)) "goals_wishlist" else null,
                     if (currentView == AppView.TRASH) "rest" else null
                 )
@@ -2164,7 +2165,7 @@ private fun DrawerContent(
         LaunchedEffect(currentView) {
             val activeGroup = when (currentView) {
                 AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE -> "accounts_sources"
-                AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.LABELS -> "categories_budget"
+                AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.MANAGE_LABELS -> "categories_budget"
                 AppView.SAVINGS_GOALS, AppView.WISHLIST -> "goals_wishlist"
                 else -> null
             }
@@ -2242,7 +2243,7 @@ private fun DrawerContent(
         Spacer(modifier = Modifier.height(2.dp))
 
         // 3. Categories, Budget Maker, Labels (Categories & Budget)
-        val hasActiveCategories = currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.LABELS)
+        val hasActiveCategories = currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER, AppView.MANAGE_LABELS)
         val totalCategoriesBudgetBadge = "${categoriesCount + allLabels.size}"
         DrawerGroupHeader(
             title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও বাজেট" else "Categories & Budget",
@@ -2284,8 +2285,8 @@ private fun DrawerContent(
                     icon = Icons.Default.Tag,
                     iconTint = MaterialTheme.colorScheme.tertiary,
                     badge = if (allLabels.isNotEmpty()) "${allLabels.size}" else null,
-                    isSelected = currentView == AppView.LABELS,
-                    onClick = { onSelectView(AppView.LABELS) }
+                    isSelected = currentView == AppView.MANAGE_LABELS,
+                    onClick = { onSelectView(AppView.MANAGE_LABELS) }
                 )
             }
         }
@@ -3025,13 +3026,20 @@ private fun ScreenRouter(
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer,
             onTransactionClick = onEditTransaction,
-            onAddTransactionClick = onAddTransactionWithType,
+            onAddTransactionClick = onAddTransactionWithType
+        )
+        AppView.MANAGE_LABELS -> ManageLabelsScreen(
+            allLabels = allLabels,
+            transactions = transactionsWithDetails,
+            languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
+            onBack = { onNavigate(AppView.CATEGORIES) },
+            onNavigateToCategories = { onNavigate(AppView.CATEGORIES) },
             onSaveLabel = { label -> viewModel.saveLabel(label) },
             onUpdateLabel = { oldName, newName, iconName, colorHex ->
                 viewModel.updateLabel(oldName, newName, iconName, colorHex)
             },
-            onDeleteLabel = { label -> viewModel.deleteLabel(label) },
-            onNavigateToCategories = { onNavigate(AppView.CATEGORIES) }
+            onDeleteLabel = { label -> viewModel.deleteLabel(label) }
         )
         AppView.ITEMS_SUMMARY -> ItemsScreen(
             transactions = transactionsWithDetails,
@@ -3134,7 +3142,7 @@ private fun ScreenRouter(
             onDeleteCategories = { delList ->
                 viewModel.deleteCategories(delList)
             },
-            onNavigateToLabels = { onNavigate(AppView.LABELS) }
+            onNavigateToLabels = { onNavigate(AppView.MANAGE_LABELS) }
         )
         AppView.EXPENSES -> CategoriesScreen(
             categories = allCategories,
@@ -3155,7 +3163,7 @@ private fun ScreenRouter(
             onDeleteCategories = { delList ->
                 viewModel.deleteCategories(delList)
             },
-            onNavigateToLabels = { onNavigate(AppView.LABELS) }
+            onNavigateToLabels = { onNavigate(AppView.MANAGE_LABELS) }
         )
         AppView.INCOME -> CategoriesScreen(
             categories = allCategories,
@@ -3176,7 +3184,7 @@ private fun ScreenRouter(
             onDeleteCategories = { delList ->
                 viewModel.deleteCategories(delList)
             },
-            onNavigateToLabels = { onNavigate(AppView.LABELS) }
+            onNavigateToLabels = { onNavigate(AppView.MANAGE_LABELS) }
         )
         AppView.BACKUP_SYNC -> BackupSyncSettingsScreen(
             viewModel = viewModel,
@@ -3230,6 +3238,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.CATEGORIES -> LanguageHelper.getString("categories", languageMode)
         AppView.REPORTS -> LanguageHelper.getString("net_earnings", languageMode)
         AppView.LABELS -> LanguageHelper.getString("labels", languageMode)
+        AppView.MANAGE_LABELS -> LanguageHelper.getString("labels", languageMode).ifEmpty { "Labels" }
         AppView.ITEMS_SUMMARY -> LanguageHelper.getString("items_summary", languageMode)
         AppView.RECURRING_BILLS -> LanguageHelper.getString("reminders", languageMode)
         AppView.ACCOUNTS -> LanguageHelper.getString("accounts", languageMode)
