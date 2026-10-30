@@ -133,7 +133,7 @@ fun AddEditLabelDialog(
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = parsedColor.copy(alpha = 0.16f),
-                            border = BorderStroke(1.2.dp, parsedColor.copy(alpha = 0.6f))
+                            border = BorderStroke(0.6.dp, parsedColor.copy(alpha = 0.5f))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -185,7 +185,7 @@ fun AddEditLabelDialog(
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { showIconPicker = true }
@@ -202,7 +202,11 @@ fun AddEditLabelDialog(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(parsedColor.copy(alpha = 0.15f)),
+                                        .background(parsedColor.copy(alpha = 0.15f))
+                                        .border(
+                                            BorderStroke(0.6.dp, parsedColor.copy(alpha = 0.35f)),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     IconHelper.AppIcon(

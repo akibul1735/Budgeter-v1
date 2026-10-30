@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,14 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,13 +27,13 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionLabel
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.AddEditLabelDialog
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.rememberFluidFlingBehavior
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageLabelsScreen(
     allLabels: List<TransactionLabel>,
@@ -53,7 +48,6 @@ fun ManageLabelsScreen(
 ) {
     val isBn = languageMode == LanguageMode.BANGLA
     var searchQuery by remember { mutableStateOf("") }
-    var isSearchActive by remember { mutableStateOf(false) }
     var editingLabel by remember { mutableStateOf<TransactionLabel?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
 
@@ -103,243 +97,22 @@ fun ManageLabelsScreen(
         else combinedLabels.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
-                shadowElevation = 1.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                ) {
-                    // Header Bar
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = {
-                                if (onBack != null) onBack() else onOpenDrawer()
-                            },
-                            modifier = Modifier.testTag("manage_labels_back_or_drawer")
-                        ) {
-                            Icon(
-                                imageVector = if (onBack != null) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Menu,
-                                contentDescription = if (onBack != null) "Back" else "Open Drawer"
-                            )
-                        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("manage_labels_screen")
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTabHeader(
+                title = LanguageHelper.getString("labels", languageMode).ifEmpty { if (isBn) "লেবেল" else "Labels" },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                searchPlaceholder = if (isBn) "লেবেল অনুসন্ধান..." else "Search labels...",
+                showSearchButton = true,
+                onOpenDrawer = onOpenDrawer,
+                onBack = onBack
+            )
 
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(horizontal = 6.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (isBn) "লেবেল ব্যবস্থাপনা" else "Labels",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                                ) {
-                                    Text(
-                                        text = "${filteredLabels.size}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                            Text(
-                                text = if (isBn) "নাম ও আইকন পরিবর্তন করুন" else "Change name and icons",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { isSearchActive = !isSearchActive },
-                            modifier = Modifier.testTag("manage_labels_search_toggle")
-                        ) {
-                            Icon(
-                                imageVector = if (isSearchActive) Icons.Default.Clear else Icons.Default.Search,
-                                contentDescription = "Search Labels"
-                            )
-                        }
-
-                        FilledTonalButton(
-                            onClick = { showAddDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            modifier = Modifier
-                                .padding(end = 6.dp)
-                                .testTag("manage_labels_add_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (isBn) "নতুন" else "Add",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    // Optional Search Field
-                    if (isSearchActive) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = {
-                                Text(
-                                    if (isBn) "লেবেল অনুসন্ধান..." else "Search labels...",
-                                    fontSize = 13.sp
-                                )
-                            },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Search,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(
-                                            Icons.Default.Clear,
-                                            contentDescription = "Clear",
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    }
-
-                    // Categories & Labels Switcher Tab Row
-                    if (onNavigateToCategories != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                border = BorderStroke(
-                                    0.8.dp,
-                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(34.dp)
-                                    .clickable { onNavigateToCategories() }
-                                    .testTag("manage_labels_tab_categories")
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Category,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = LanguageHelper.getString("categories", languageMode),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                border = BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(34.dp)
-                                    .testTag("manage_labels_tab_labels")
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Tag,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = LanguageHelper.getString("labels", languageMode).ifEmpty { "Labels" },
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-            }
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier
-                    .padding(bottom = 16.dp)
-                    .testTag("manage_labels_fab")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = if (isBn) "নতুন লেবেল" else "Add Label"
-                )
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
             if (filteredLabels.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -367,21 +140,12 @@ fun ManageLabelsScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = if (isBn) "লেনদেন ফর্ম থেকে নতুন লেবেল যোগ করুন বা এখানে নতুন লেবেল তৈরি করুন"
-                            else "Add labels from the transaction form or create one here to change its icon and color",
+                            text = if (isBn) "লেনদেন ফর্ম থেকে নতুন লেবেল যোগ করুন বা নিচের + বাটনে ট্যাপ করুন"
+                            else "Add labels from the transaction form or tap + below to create one",
                             fontSize = 12.5.sp,
                             color = MaterialTheme.colorScheme.outline,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        FilledTonalButton(
-                            onClick = { showAddDialog = true },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isBn) "প্রথম লেবেল যোগ করুন" else "Create First Label")
-                        }
                     }
                 }
             } else {
@@ -401,10 +165,27 @@ fun ManageLabelsScreen(
                         )
                     }
                     item {
-                        Spacer(modifier = Modifier.height(80.dp))
+                        Spacer(modifier = Modifier.height(88.dp))
                     }
                 }
             }
+        }
+
+        // Floating Action Button for adding labels
+        FloatingActionButton(
+            onClick = { showAddDialog = true },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .testTag("manage_labels_fab")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = if (isBn) "নতুন লেবেল" else "Add Label"
+            )
         }
     }
 
@@ -468,8 +249,8 @@ private fun ManageLabelItemCard(
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -482,12 +263,16 @@ private fun ManageLabelItemCard(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Label Icon Badge
+            // Label Icon Badge with Slim Border
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(labelColor.copy(alpha = 0.16f)),
+                    .background(labelColor.copy(alpha = 0.14f))
+                    .border(
+                        BorderStroke(0.6.dp, labelColor.copy(alpha = 0.35f)),
+                        shape = RoundedCornerShape(10.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 if (label.iconName.isNotBlank() && label.iconName != "Label" && label.iconName != "Tag") {

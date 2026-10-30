@@ -682,8 +682,8 @@ fun IconPickerModal(
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                         .border(
-                                            width = 1.dp,
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                            width = 0.6.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                             shape = RoundedCornerShape(12.dp)
                                         )
                                         .clickable {
@@ -913,8 +913,8 @@ fun IconPickerModal(
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(cardBg)
                                         .border(
-                                            width = 1.dp,
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                            width = 0.6.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                             shape = RoundedCornerShape(12.dp)
                                         )
                                         .clickable(enabled = !isDownloading) {
@@ -1254,8 +1254,8 @@ fun IconPickerModal(
                                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                             )
                                             .border(
-                                                width = if (isSelected) 2.dp else 1.dp,
-                                                color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                                width = if (isSelected) 1.dp else 0.6.dp,
+                                                color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
                                                 shape = RoundedCornerShape(12.dp)
                                             )
                                             .clickable {
@@ -1349,7 +1349,7 @@ fun IconPickerModal(
                                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                                             )
                                             .border(
-                                                width = if (isSelected) 2.dp else 0.dp,
+                                                width = if (isSelected) 1.dp else 0.dp,
                                                 color = if (isSelected) SolidPrimary else Color.Transparent,
                                                 shape = RoundedCornerShape(12.dp)
                                             )
