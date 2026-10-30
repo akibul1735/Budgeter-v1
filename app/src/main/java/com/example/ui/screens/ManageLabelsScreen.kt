@@ -263,31 +263,55 @@ private fun ManageLabelItemCard(
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Label Icon Badge with Slim Border
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(labelColor.copy(alpha = 0.14f))
-                    .border(
-                        BorderStroke(0.6.dp, labelColor.copy(alpha = 0.35f)),
-                        shape = RoundedCornerShape(10.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                if (label.iconName.isNotBlank() && label.iconName != "Label" && label.iconName != "Tag") {
+            // Label Icon Badge: custom images fill the badge with a slim outline; vector icons have generous size
+            val isCustomImage = remember(label.iconName) {
+                IconHelper.isCustomIcon(label.iconName) || IconHelper.isDrawableIcon(label.iconName)
+            }
+            if (isCustomImage) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .border(
+                            BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
                     IconHelper.AppIcon(
                         iconName = label.iconName,
                         tint = labelColor,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(10.dp))
                     )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Tag,
-                        contentDescription = null,
-                        tint = labelColor,
-                        modifier = Modifier.size(22.dp)
-                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(labelColor.copy(alpha = 0.12f))
+                        .border(
+                            BorderStroke(0.5.dp, labelColor.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (label.iconName.isNotBlank() && label.iconName != "Label" && label.iconName != "Tag") {
+                        IconHelper.AppIcon(
+                            iconName = label.iconName,
+                            tint = labelColor,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Tag,
+                            contentDescription = null,
+                            tint = labelColor,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
                 }
             }
 

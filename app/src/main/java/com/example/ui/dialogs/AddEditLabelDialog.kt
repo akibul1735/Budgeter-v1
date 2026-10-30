@@ -139,10 +139,13 @@ fun AddEditLabelDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                             ) {
+                                val isCustomPreviewImg = remember(selectedIconName) {
+                                    IconHelper.isCustomIcon(selectedIconName) || IconHelper.isDrawableIcon(selectedIconName)
+                                }
                                 IconHelper.AppIcon(
                                     iconName = selectedIconName,
                                     tint = parsedColor,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = if (isCustomPreviewImg) Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)) else Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -198,22 +201,46 @@ fun AddEditLabelDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(parsedColor.copy(alpha = 0.15f))
-                                        .border(
-                                            BorderStroke(0.6.dp, parsedColor.copy(alpha = 0.35f)),
-                                            shape = RoundedCornerShape(8.dp)
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    IconHelper.AppIcon(
-                                        iconName = selectedIconName,
-                                        tint = parsedColor,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                val isCustomImage = remember(selectedIconName) {
+                                    IconHelper.isCustomIcon(selectedIconName) || IconHelper.isDrawableIcon(selectedIconName)
+                                }
+                                if (isCustomImage) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .border(
+                                                BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        IconHelper.AppIcon(
+                                            iconName = selectedIconName,
+                                            tint = parsedColor,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(8.dp))
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(parsedColor.copy(alpha = 0.15f))
+                                            .border(
+                                                BorderStroke(0.5.dp, parsedColor.copy(alpha = 0.35f)),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        IconHelper.AppIcon(
+                                            iconName = selectedIconName,
+                                            tint = parsedColor,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {

@@ -1530,17 +1530,18 @@ private fun AggregatedLabelCard(
                     contentAlignment = Alignment.Center
                 ) {
                     if (labelObj != null && labelObj.iconName.isNotBlank() && labelObj.iconName != "Tag" && labelObj.iconName != "Label") {
+                        val isCustomImg = IconHelper.isCustomIcon(labelObj.iconName) || IconHelper.isDrawableIcon(labelObj.iconName)
                         IconHelper.AppIcon(
                             iconName = labelObj.iconName,
                             tint = badgeTint,
-                            modifier = Modifier.size(19.dp)
+                            modifier = if (isCustomImg) Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)) else Modifier.size(20.dp)
                         )
                     } else {
                         Icon(
                             imageVector = iconVector,
                             contentDescription = null,
                             tint = badgeTint,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }

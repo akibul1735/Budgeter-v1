@@ -167,10 +167,13 @@ internal fun LabelPickerModalDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                                 ) {
+                                    val isCustomImg = remember(labelObj?.iconName) {
+                                        IconHelper.isCustomIcon(labelObj?.iconName) || IconHelper.isDrawableIcon(labelObj?.iconName)
+                                    }
                                     IconHelper.AppIcon(
                                         iconName = labelObj?.iconName ?: "Label",
                                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(13.dp)
+                                        modifier = if (isCustomImg) Modifier.size(18.dp).clip(RoundedCornerShape(3.dp)) else Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -250,10 +253,13 @@ internal fun LabelPickerModalDialog(
                                     if (isSelected) {
                                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
                                     } else {
+                                        val isCustomImg = remember(labelObj?.iconName) {
+                                            IconHelper.isCustomIcon(labelObj?.iconName) || IconHelper.isDrawableIcon(labelObj?.iconName)
+                                        }
                                         IconHelper.AppIcon(
                                             iconName = labelObj?.iconName ?: "Label",
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(14.dp)
+                                            modifier = if (isCustomImg) Modifier.size(18.dp).clip(RoundedCornerShape(3.dp)) else Modifier.size(14.dp)
                                         )
                                     }
                                 },

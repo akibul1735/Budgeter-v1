@@ -1268,7 +1268,10 @@ fun IconPickerModal(
                                             AsyncImage(
                                                 model = file,
                                                 contentDescription = "Custom Icon",
-                                                modifier = Modifier.size(38.dp),
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(3.dp)
+                                                    .clip(RoundedCornerShape(9.dp)),
                                                 contentScale = ContentScale.Fit
                                             )
                                         } else {
