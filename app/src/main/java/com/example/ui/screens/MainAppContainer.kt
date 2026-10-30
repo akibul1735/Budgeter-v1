@@ -304,6 +304,20 @@ fun MainAppContainer(
         }
     }
 
+    var isSplashVisible by rememberSaveable { mutableStateOf(true) }
+    val isInitialDataReady = remember(allAccounts, allCategories) {
+        allAccounts.isNotEmpty() || allCategories.isNotEmpty() || true
+    }
+
+    if (isSplashVisible && isAppLocked && securityConfig.isAppLockEnabled && securityConfig.hasPin) {
+        com.example.ui.components.AppSplashScreen(
+            isDataReady = isInitialDataReady,
+            languageMode = languageMode,
+            onFinished = { isSplashVisible = false }
+        )
+        return
+    }
+
     if (isAppLocked && securityConfig.isAppLockEnabled && securityConfig.hasPin) {
         AppLockScreen(
             securityConfig = securityConfig,
@@ -578,7 +592,8 @@ fun MainAppContainer(
         LocalHeaderScrollState provides headerScrollState,
         LocalSetTimelineActive provides { active -> isTimelineActive = active }
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val windowSizeClass = when {
                 maxWidth < 600.dp -> WindowSizeClassType.COMPACT
                 maxWidth < 840.dp -> WindowSizeClassType.MEDIUM
@@ -1554,7 +1569,16 @@ fun MainAppContainer(
                 onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
             )
         }
+
+        if (isSplashVisible) {
+            com.example.ui.components.AppSplashScreen(
+                isDataReady = isInitialDataReady,
+                languageMode = languageMode,
+                onFinished = { isSplashVisible = false }
+            )
+        }
     }
+}
 
     if (firstLaunchCheckDialogVisible && detectedBackups.isNotEmpty()) {
         DetectedBackupsListDialog(
