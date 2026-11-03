@@ -152,7 +152,6 @@ import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.PopupCalculatorDialog
-import com.example.ui.components.filter.ActiveBudgetMakerFilterBar
 import com.example.ui.components.filter.BudgetMakerDashboardFilter
 import com.example.ui.components.filter.BudgetMakerFilterDialog
 import com.example.ui.components.filter.BudgetMakerTabFilter
@@ -1967,52 +1966,6 @@ fun BudgetScreen(
                             }
                         }
                     }
-
-                    // Active Filters Summary Indicator Strip for current tab
-                    AnimatedVisibility(visible = isCurrentTabFilterActive) {
-                        val tabName = when (selectedTab) {
-                            0 -> if (languageMode == LanguageMode.BANGLA) "ড্যাশবোর্ড" else "Dashboard"
-                            1 -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expenses"
-                            2 -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Incomes"
-                            3 -> if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Assets"
-                            4 -> if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities"
-                            else -> "Tab"
-                        }
-                        val tabColor = when (selectedTab) {
-                            0 -> MaterialTheme.colorScheme.primary
-                            1 -> SolidExpense
-                            2 -> SolidIncome
-                            3 -> SolidPrimary
-                            4 -> AmberGold
-                            else -> MaterialTheme.colorScheme.primary
-                        }
-
-                        ActiveBudgetMakerFilterBar(
-                            tabIndex = selectedTab,
-                            tabName = tabName,
-                            tabFilter = currentTabFilter,
-                            dashboardFilter = dashboardFilter,
-                            categories = allCategories,
-                            accounts = allAccounts,
-                            selectedYear = selectedYear,
-                            selectedMonth = selectedMonth,
-                            onTabFilterChange = { newFilter ->
-                                when (selectedTab) {
-                                    1 -> updateExpenseFilter(newFilter)
-                                    2 -> updateIncomeFilter(newFilter)
-                                    3 -> updateAssetFilter(newFilter)
-                                    4 -> updateLiabilityFilter(newFilter)
-                                }
-                            },
-                            onDashboardFilterChange = { newDashFilter ->
-                                updateDashboardFilter(newDashFilter)
-                            },
-                            onOpenFilterDialog = { showFilterDialog = true },
-                            accentColor = tabColor,
-                            languageMode = languageMode,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
-                        )
-                    }
                 }
             }
 
@@ -3176,11 +3129,6 @@ private fun CategoriesBudgetEntryView(
     // Build Enhanced items with pre-calculated insights, actuals, and suggestions
     val enhancedItems = remember(items, monthlyBudgets, allTransactions, accountsWithBalances, firstDayBalanceMap, selectedYear, selectedMonth, threeMonthsAgoMs) {
         items.map { item ->
-            val saved = budgetMap["${item.itemType}_${item.id}"]
-            val rawAmt = saved?.budgetedAmount ?: item.defaultLimit
-            val currentAmt = if (item.itemType == "LIABILITY") kotlin.math.abs(rawAmt) else rawAmt
-            val isEnabled = saved?.isEnabled ?: false
-
             val isAssetOrLiability = item.itemType == "ASSET" || item.itemType == "LIABILITY"
             val actualAmt: Double
             val firstDayBal: Double
@@ -3204,6 +3152,21 @@ private fun CategoriesBudgetEntryView(
                 actualAmt = currentMonthTxs.sumOf { it.transaction.amount }
                 txCount = itemTxs.size
             }
+
+            val saved = budgetMap["${item.itemType}_${item.id}"]
+            val isEnabled = saved?.isEnabled ?: false
+            val rawAmt = when {
+                saved != null && saved.budgetedAmount != 0.0 -> {
+                    if (item.itemType == "LIABILITY") kotlin.math.abs(saved.budgetedAmount) else saved.budgetedAmount
+                }
+                isAssetOrLiability -> {
+                    val absActual = kotlin.math.abs(actualAmt)
+                    val absFirstDay = kotlin.math.abs(firstDayBal)
+                    if (absActual > 0.0) absActual else if (absFirstDay > 0.0) absFirstDay else 0.0
+                }
+                else -> item.defaultLimit
+            }
+            val currentAmt = if (item.itemType == "LIABILITY") kotlin.math.abs(rawAmt) else rawAmt
 
             // Check transactions in last 3 months
             val has3MonthsTx = allTransactions.any {
@@ -3297,9 +3260,9 @@ private fun CategoriesBudgetEntryView(
         val isBudgeted = BudgetFilterOption.BUDGETED_ONLY in selectedFilters || tabFilter.onlyWithBudgetOrTarget
         val isUnbudgeted = BudgetFilterOption.UNBUDGETED in selectedFilters || tabFilter.onlyWithoutBudgetOrTarget
         if (isBudgeted && !isUnbudgeted) {
-            list = list.filter { it.currentBudget > 0.0 }
+            list = list.filter { it.isEnabled && it.currentBudget > 0.0 }
         } else if (isUnbudgeted && !isBudgeted) {
-            list = list.filter { it.currentBudget <= 0.0 }
+            list = list.filter { !it.isEnabled || it.currentBudget <= 0.0 }
         }
 
         // 5. Activity Condition (Harmonized non-conflicting logic)
@@ -3378,8 +3341,8 @@ private fun CategoriesBudgetEntryView(
         // 6. Sorting
         when (selectedSort) {
             BudgetSortOption.DEFAULT -> list.sortedWith(compareBy({ it.item.groupName.lowercase() }, { it.item.nameEn.lowercase() }))
-            BudgetSortOption.BUDGET_DESC -> list.sortedByDescending { it.currentBudget }
-            BudgetSortOption.BUDGET_ASC -> list.sortedBy { it.currentBudget }
+            BudgetSortOption.BUDGET_DESC -> list.sortedByDescending { if (it.isEnabled) it.currentBudget else 0.0 }
+            BudgetSortOption.BUDGET_ASC -> list.sortedBy { if (it.isEnabled) it.currentBudget else 0.0 }
             BudgetSortOption.ACTUAL_DESC -> list.sortedByDescending { it.actualSpent }
             BudgetSortOption.FREQUENCY_DESC -> list.sortedByDescending { it.txCount }
             BudgetSortOption.NAME_ASC -> list.sortedBy { it.item.nameEn.lowercase() }
@@ -4003,6 +3966,7 @@ private fun BudgetItemRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    val absCurrentAmt = kotlin.math.abs(displayedCurrentAmt)
                     // Clickable Active Amount
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -4012,7 +3976,7 @@ private fun BudgetItemRow(
                             .clickable { showPopupCalculator = true }
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
-                        if (displayedCurrentAmt > 0) {
+                        if (absCurrentAmt > 0) {
                             Icon(
                                 imageVector = Icons.Default.AccountBalanceWallet,
                                 contentDescription = null,
@@ -4020,7 +3984,7 @@ private fun BudgetItemRow(
                                 modifier = Modifier.size(15.dp)
                             )
                             Text(
-                                text = formatCompactCurrency(displayedCurrentAmt, languageMode),
+                                text = formatCompactCurrency(absCurrentAmt, languageMode),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = BrandBlue
@@ -4038,7 +4002,13 @@ private fun BudgetItemRow(
                     Checkbox(
                         checked = isEnabled,
                         onCheckedChange = { newState ->
-                            onSaveBudget(currentMonthlyAmt, newState)
+                            val amountToSave = if (newState && kotlin.math.abs(currentMonthlyAmt) <= 0.0) {
+                                val firstPositiveSugg = suggestions.firstOrNull { it.amountMonthly > 0.0 }?.amountMonthly
+                                firstPositiveSugg ?: manualBaseline.takeIf { it > 0.0 } ?: kotlin.math.abs(actualSpent).takeIf { it > 0.0 } ?: 0.0
+                            } else {
+                                kotlin.math.abs(currentMonthlyAmt)
+                            }
+                            onSaveBudget(amountToSave, newState)
                         },
                         colors = CheckboxDefaults.colors(
                             checkedColor = if (item.itemType == "EXPENSE") SolidExpense else sectionColor,

@@ -197,6 +197,13 @@ jobs:
         id: prepare-artifacts
         run: |
           mkdir -p build_output
+          # Extract dynamic version from app/build.gradle.kts
+          APP_VERSION_NAME=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2 || echo "4.15")
+          APP_VERSION_CODE=$(grep -o 'versionCode = [0-9]*' app/build.gradle.kts | awk '{print $3}' || echo "127")
+          echo "APP_VERSION_NAME=$APP_VERSION_NAME" >> $GITHUB_ENV
+          echo "APP_VERSION_CODE=$APP_VERSION_CODE" >> $GITHUB_ENV
+          echo "Version: $APP_VERSION_NAME (Code: $APP_VERSION_CODE)"
+
           # Locate release apk and rename to Budgeter-release.apk
           RELEASE_APK=$(find app/build/outputs/apk -name "*release*.apk" | head -n 1)
           if [ -z "$RELEASE_APK" ]; then
@@ -245,7 +252,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v3.6.{0}', github.run_number) }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}.{1}', env.APP_VERSION_NAME, github.run_number) }}
           name: "Budgeter-release"
           files: |
             build_output/Budgeter-release.apk
@@ -258,6 +265,7 @@ jobs:
 
       - name: Prune Old Releases (Keep Latest 5)
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         uses: dev-drprasad/delete-older-releases@v0.3.3
         with:
           keep_latest: 5
