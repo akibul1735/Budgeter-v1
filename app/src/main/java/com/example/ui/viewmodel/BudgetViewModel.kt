@@ -648,13 +648,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun saveMonthlyBudget(itemType: String, itemId: Long, amount: Double, isEnabled: Boolean = true) {
+        val safeAmount = if (itemType == "LIABILITY") kotlin.math.abs(amount) else amount
         viewModelScope.launch {
             val budget = MonthlyBudget(
                 year = _selectedBudgetYear.value,
                 month = _selectedBudgetMonth.value,
                 itemType = itemType,
                 itemId = itemId,
-                budgetedAmount = amount,
+                budgetedAmount = safeAmount,
                 isEnabled = isEnabled,
                 updatedAt = System.currentTimeMillis()
             )
@@ -670,13 +671,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         note: String = "",
         initialOriginalBudget: Double = 0.0
     ) {
+        val safeAmount = if (itemType == "LIABILITY") kotlin.math.abs(newAmount) else newAmount
         viewModelScope.launch {
             activeRepo.saveBudgetAdjustment(
                 year = _selectedBudgetYear.value,
                 month = _selectedBudgetMonth.value,
                 itemType = itemType,
                 itemId = itemId,
-                newAmount = newAmount,
+                newAmount = safeAmount,
                 isEnabled = isEnabled,
                 note = note,
                 initialOriginalBudget = initialOriginalBudget
@@ -697,7 +699,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun saveMultipleMonthlyBudgets(budgets: List<MonthlyBudget>) {
         viewModelScope.launch {
-            budgets.forEach { activeRepo.saveMonthlyBudget(it) }
+            budgets.forEach { b ->
+                val safe = if (b.itemType == "LIABILITY") b.copy(budgetedAmount = kotlin.math.abs(b.budgetedAmount)) else b
+                activeRepo.saveMonthlyBudget(safe)
+            }
         }
     }
 

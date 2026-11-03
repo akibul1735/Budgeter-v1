@@ -392,7 +392,9 @@ class BudgetRepository(
         val previous = monthlyBudgetDao.getBudgetsForMonthSnapshot(fromYear, fromMonth)
         if (previous.isNotEmpty()) {
             val copied = previous.map {
-                it.copy(id = 0, year = toYear, month = toMonth, previousAmount = it.budgetedAmount, updatedAt = System.currentTimeMillis())
+                val safeAmt = if (it.itemType == "LIABILITY") kotlin.math.abs(it.budgetedAmount) else it.budgetedAmount
+                val safePrev = if (it.itemType == "LIABILITY") kotlin.math.abs(it.budgetedAmount) else it.budgetedAmount
+                it.copy(id = 0, year = toYear, month = toMonth, budgetedAmount = safeAmt, previousAmount = safePrev, updatedAt = System.currentTimeMillis())
             }
             monthlyBudgetDao.upsertBudgets(copied)
         }

@@ -723,7 +723,7 @@ fun BudgetScreen(
         return items.sumOf { item ->
             val saved = budgetMap["${item.itemType}_${item.id}"]
             if (saved != null && saved.isEnabled) {
-                saved.budgetedAmount
+                if (item.itemType == "LIABILITY") kotlin.math.abs(saved.budgetedAmount) else saved.budgetedAmount
             } else {
                 0.0
             }
@@ -731,7 +731,7 @@ fun BudgetScreen(
     }
 
     val totalExpensesBudget = remember(expenseItems, budgetMap) { calculateBudgetTotal(expenseItems) }
-    val totalLiabilitiesBudget = remember(liabilityItems, budgetMap) { calculateBudgetTotal(liabilityItems) }
+    val totalLiabilitiesBudget = remember(liabilityItems, budgetMap) { kotlin.math.abs(calculateBudgetTotal(liabilityItems)) }
     val totalOutflowsBudget = totalExpensesBudget + totalLiabilitiesBudget
 
     val totalIncomesBudget = remember(incomeItems, budgetMap) { calculateBudgetTotal(incomeItems) }
@@ -2396,10 +2396,11 @@ fun BudgetScreen(
                             },
                             onItemClick = handleBudgetItemClick,
                             onSaveBudget = { item, amount, enabled ->
+                                val safeAmount = if (item.itemType == "LIABILITY") kotlin.math.abs(amount) else amount
                                 viewModel.saveMonthlyBudget(
                                     itemType = item.itemType,
                                     itemId = item.id,
-                                    amount = amount,
+                                    amount = safeAmount,
                                     isEnabled = enabled
                                 )
                             },
@@ -3176,7 +3177,8 @@ private fun CategoriesBudgetEntryView(
     val enhancedItems = remember(items, monthlyBudgets, allTransactions, accountsWithBalances, firstDayBalanceMap, selectedYear, selectedMonth, threeMonthsAgoMs) {
         items.map { item ->
             val saved = budgetMap["${item.itemType}_${item.id}"]
-            val currentAmt = saved?.budgetedAmount ?: item.defaultLimit
+            val rawAmt = saved?.budgetedAmount ?: item.defaultLimit
+            val currentAmt = if (item.itemType == "LIABILITY") kotlin.math.abs(rawAmt) else rawAmt
             val isEnabled = saved?.isEnabled ?: false
 
             val isAssetOrLiability = item.itemType == "ASSET" || item.itemType == "LIABILITY"
@@ -4077,12 +4079,15 @@ private fun BudgetItemRow(
                     }
                 }
                 "LIABILITY" -> buildString {
-                    append("Actual= ${formatCompactCurrency(actualSpent, languageMode)}")
-                    if (enhancedItem.firstDayBalance != 0.0) {
-                        append(" • 1st Day= ${formatCompactCurrency(enhancedItem.firstDayBalance, languageMode)}")
+                    val displayActual = kotlin.math.abs(actualSpent)
+                    val displayFirstDay = kotlin.math.abs(enhancedItem.firstDayBalance)
+                    val displayTarget = kotlin.math.abs(currentMonthlyAmt)
+                    append("Actual= ${formatCompactCurrency(displayActual, languageMode)}")
+                    if (displayFirstDay != 0.0) {
+                        append(" • 1st Day= ${formatCompactCurrency(displayFirstDay, languageMode)}")
                     }
-                    if (currentMonthlyAmt > 0) {
-                        append(" • Target= ${formatCompactCurrency(currentMonthlyAmt, languageMode)}")
+                    if (displayTarget > 0) {
+                        append(" • Target= ${formatCompactCurrency(displayTarget, languageMode)}")
                     }
                 }
                 else -> buildString {
@@ -4266,7 +4271,7 @@ private fun BudgetItemRow(
                 val monthlyToSave = if (isPeriodicFlow) {
                     itemFrequency.toMonthly(enteredAmt)
                 } else {
-                    enteredAmt
+                    if (item.itemType == "LIABILITY") kotlin.math.abs(enteredAmt) else enteredAmt
                 }
                 onSaveBudget(monthlyToSave, true)
                 showPopupCalculator = false
@@ -4545,11 +4550,13 @@ internal fun calculateSuggestionsForItem(
 
     if (itemType == "ASSET" || itemType == "LIABILITY") {
         // ASSETS & LIABILITIES: Show Actual Amount and 1st Day balance from balance sheet as suggestions
-        if (balanceSheetBalance != 0.0) {
-            list.add(BudgetSuggestionOption(nextIndex++, balanceSheetBalance, "Actual", "Actual"))
+        val bal = if (itemType == "LIABILITY") kotlin.math.abs(balanceSheetBalance) else balanceSheetBalance
+        val firstDay = if (itemType == "LIABILITY") kotlin.math.abs(firstDayBalance) else firstDayBalance
+        if (bal != 0.0) {
+            list.add(BudgetSuggestionOption(nextIndex++, bal, "Actual", "Actual"))
         }
-        if (firstDayBalance != 0.0 && firstDayBalance != balanceSheetBalance) {
-            list.add(BudgetSuggestionOption(nextIndex++, firstDayBalance, "1st Day", "1st Day"))
+        if (firstDay != 0.0 && firstDay != bal) {
+            list.add(BudgetSuggestionOption(nextIndex++, firstDay, "1st Day", "1st Day"))
         }
         return list
     }
@@ -4632,7 +4639,8 @@ private fun BudgetDashboardView(
     var includeRunningExpendable by rememberSaveable { mutableStateOf(false) }
 
     // Formula: assets + incomes - expenses - liabilities (+ expendable if toggled on)
-    val baseSurplus = (totalAssets + totalIncomes) - (totalExpenses + totalLiabilities)
+    val normLiabilities = kotlin.math.abs(totalLiabilities)
+    val baseSurplus = (totalAssets + totalIncomes) - (totalExpenses + normLiabilities)
     val finalSurplus = if (includeRunningExpendable) baseSurplus + runningExpendable else baseSurplus
     val isSurplus = finalSurplus >= 0
 
@@ -4757,9 +4765,9 @@ private fun BudgetDashboardView(
                     ) {
                         Text(
                             text = if (includeRunningExpendable) {
-                                "Assets (${LanguageHelper.formatCurrency(totalAssets, languageMode)}) + Incomes (${LanguageHelper.formatCurrency(totalIncomes, languageMode)}) − Expenses (${LanguageHelper.formatCurrency(totalExpenses, languageMode)}) − Liabilities (${LanguageHelper.formatCurrency(totalLiabilities, languageMode)}) + Expendable (${LanguageHelper.formatCurrency(runningExpendable, languageMode)})"
+                                "Assets (${LanguageHelper.formatCurrency(totalAssets, languageMode)}) + Incomes (${LanguageHelper.formatCurrency(totalIncomes, languageMode)}) − Expenses (${LanguageHelper.formatCurrency(totalExpenses, languageMode)}) − Liabilities (${LanguageHelper.formatCurrency(normLiabilities, languageMode)}) + Expendable (${LanguageHelper.formatCurrency(runningExpendable, languageMode)})"
                             } else {
-                                "Assets (${LanguageHelper.formatCurrency(totalAssets, languageMode)}) + Incomes (${LanguageHelper.formatCurrency(totalIncomes, languageMode)}) − Expenses (${LanguageHelper.formatCurrency(totalExpenses, languageMode)}) − Liabilities (${LanguageHelper.formatCurrency(totalLiabilities, languageMode)})"
+                                "Assets (${LanguageHelper.formatCurrency(totalAssets, languageMode)}) + Incomes (${LanguageHelper.formatCurrency(totalIncomes, languageMode)}) − Expenses (${LanguageHelper.formatCurrency(totalExpenses, languageMode)}) − Liabilities (${LanguageHelper.formatCurrency(normLiabilities, languageMode)})"
                             },
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium,
@@ -4981,7 +4989,7 @@ private fun BudgetDashboardView(
                 // Liabilities Card (Tab 4)
                 CategorySummaryCard(
                     title = if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities",
-                    amount = totalLiabilities,
+                    amount = normLiabilities,
                     color = AmberGold,
                     icon = Icons.Default.CreditCard,
                     modifier = Modifier.weight(1f),
