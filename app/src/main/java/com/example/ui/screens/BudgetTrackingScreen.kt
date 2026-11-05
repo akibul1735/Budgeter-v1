@@ -133,7 +133,6 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
-import com.example.ui.components.ActiveBudgetFilterBar
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.BudgetFilterDialog
@@ -462,13 +461,10 @@ fun BudgetTrackingScreen(
                     val matchesSearch = searchQuery.isEmpty() ||
                             item.category.nameEn.contains(searchQuery, ignoreCase = true) ||
                             item.category.nameBn.contains(searchQuery, ignoreCase = true)
-                    val isBudgetMode = filterState.filterOnlyBudgeted || filterState.sortOrder == BudgetSortOrder.BUDGET_DESC || filterState.sortOrder == BudgetSortOrder.BUDGET_ASC || filterState.sortOrder == BudgetSortOrder.UTILIZATION_DESC
-                    val matchesBudgeted = !isBudgetMode || (item.hasBudget && item.budgetLimit > 0.001)
+                    val matchesBudgeted = !filterState.filterOnlyBudgeted || (item.hasBudget && item.budgetLimit > 0.001)
                     val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
-                    val isRemainingMode = filterState.showOnlyRemainingBalance || filterState.sortOrder == BudgetSortOrder.REMAINING_DESC || filterState.sortOrder == BudgetSortOrder.REMAINING_ASC
-                    val matchesRemaining = !isRemainingMode || (item.hasBudget && item.remainingAmount > 0.001)
-                    val isActualMode = filterState.showOnlyActual || filterState.sortOrder == BudgetSortOrder.SPENT_DESC || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.AMOUNT_ASC
-                    val matchesActual = !isActualMode || (item.spentAmount > 0.001)
+                    val matchesRemaining = !filterState.showOnlyRemainingBalance || (item.hasBudget && item.remainingAmount > 0.001)
+                    val matchesActual = !filterState.showOnlyActual || (item.spentAmount > 0.001)
                     val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(item.category.id) || item.hasBudget || item.spentAmount > 0.0)
                     val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() ||
                             filterState.selectedCategoryIds.contains(item.category.id) ||
@@ -633,13 +629,10 @@ fun BudgetTrackingScreen(
                 val matchesSearch = searchQuery.isEmpty() ||
                         item.category.nameEn.contains(searchQuery, ignoreCase = true) ||
                         item.category.nameBn.contains(searchQuery, ignoreCase = true)
-                val isBudgetMode = filterState.filterOnlyBudgeted || filterState.sortOrder == BudgetSortOrder.BUDGET_DESC || filterState.sortOrder == BudgetSortOrder.BUDGET_ASC || filterState.sortOrder == BudgetSortOrder.UTILIZATION_DESC
-                val matchesBudgeted = !isBudgetMode || (item.hasBudget && item.budgetLimit > 0.001)
+                val matchesBudgeted = !filterState.filterOnlyBudgeted || (item.hasBudget && item.budgetLimit > 0.001)
                 val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
-                val isRemainingMode = filterState.showOnlyRemainingBalance || filterState.sortOrder == BudgetSortOrder.REMAINING_DESC || filterState.sortOrder == BudgetSortOrder.REMAINING_ASC
-                val matchesRemaining = !isRemainingMode || (item.hasBudget && item.remainingAmount > 0.001)
-                val isActualMode = filterState.showOnlyActual || filterState.sortOrder == BudgetSortOrder.SPENT_DESC || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.AMOUNT_ASC
-                val matchesActual = !isActualMode || (item.spentAmount > 0.001)
+                val matchesRemaining = !filterState.showOnlyRemainingBalance || (item.hasBudget && item.remainingAmount > 0.001)
+                val matchesActual = !filterState.showOnlyActual || (item.spentAmount > 0.001)
                 val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(item.category.id) || item.hasBudget || item.spentAmount > 0.0)
                 val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() ||
                         filterState.selectedCategoryIds.contains(item.category.id) ||
@@ -1494,14 +1487,6 @@ fun BudgetTrackingScreen(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
             )
 
-            // Active Filters Bar
-            ActiveBudgetFilterBar(
-                filterState = filterState,
-                onFilterChange = { filterState = it },
-                onOpenFilterDialog = { showFilterDialog = true },
-                languageMode = languageMode,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp)
-            )
 
             // Comparison Column Labels (When Comparison is Active)
             if (filterState.comparisonEnabled && baseRange != null) {

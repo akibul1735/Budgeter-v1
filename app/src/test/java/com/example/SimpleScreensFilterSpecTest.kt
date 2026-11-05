@@ -79,7 +79,7 @@ import com.example.data.model.TransactionWithDetails
 import com.example.data.model.Transaction
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [36])
 class SimpleScreensFilterSpecTest {
 
     @Before
