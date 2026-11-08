@@ -1,5 +1,6 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 import java.util.Base64
+import java.nio.file.Files
 
 plugins {
   alias(libs.plugins.android.application)
@@ -17,11 +18,20 @@ android {
     applicationId = "com.budgeter.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 129
-    versionName = "4.17"
+    versionCode = 130
+    versionName = "4.18"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "GEMINI_API_KEY", "\"\"")
+  }
+
+  // Ensure Robolectric pre-cached SDK jar in container is accessible to root
+  val homeM2 = file("/home/appuser/.m2")
+  val rootM2 = file("/root/.m2")
+  if (homeM2.exists() && !rootM2.exists()) {
+    try {
+      Files.createSymbolicLink(rootM2.toPath(), homeM2.toPath())
+    } catch (_: Exception) {}
   }
 
   val storePasswordEnv = System.getenv("STORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
@@ -102,8 +112,9 @@ android {
       isIncludeAndroidResources = true
       isReturnDefaultValues = true
       all {
+        it.maxHeapSize = "1536m"
         it.jvmArgs(
-          "-Xmx2048m",
+          "-Xmx1536m",
           "-Djava.awt.headless=true",
           "--add-opens=java.base/java.lang=ALL-UNNAMED",
           "--add-opens=java.base/java.util=ALL-UNNAMED"

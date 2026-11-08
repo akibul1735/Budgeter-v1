@@ -116,10 +116,30 @@ jobs:
             rm -f release.keystore release.keystore.base64
           fi
 
+      - name: Cache Robolectric Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ runner.os }}-robolectric-16-13921718
+          restore-keys: |
+            ${{ runner.os }}-robolectric-
+
+      - name: Pre-fetch Robolectric Android SDK Jar
+        run: |
+          ROBO_DIR="$HOME/.m2/repository/org/robolectric/android-all-instrumented/16-robolectric-13921718-i7"
+          if [ ! -s "$ROBO_DIR/android-all-instrumented-16-robolectric-13921718-i7.jar" ]; then
+            mkdir -p "$ROBO_DIR"
+            echo "Pre-fetching Robolectric SDK 36 instrumented jar..."
+            curl -sSL --retry 3 --retry-delay 2 -o "$ROBO_DIR/android-all-instrumented-16-robolectric-13921718-i7.jar" \
+              "https://repo1.maven.org/maven2/org/robolectric/android-all-instrumented/16-robolectric-13921718-i7/android-all-instrumented-16-robolectric-13921718-i7.jar" || true
+          else
+            echo "Robolectric SDK 36 jar already cached."
+          fi
+
       - name: Run Unit & Robolectric Tests
         id: unit-tests
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:+UseParallelGC -XX:MaxMetaspaceSize=1024m -Dkotlin.daemon.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8 -Djava.awt.headless=true"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -XX:+UseParallelGC -XX:MaxMetaspaceSize=768m -Dkotlin.daemon.jvmargs=-Xmx1536m -Dfile.encoding=UTF-8 -Djava.awt.headless=true"
         run: |
           mkdir -p build_logs
           set +e
@@ -130,6 +150,14 @@ jobs:
           else
             gradle :app:testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
             TEST_EXIT_CODE=$?
+          fi
+
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo "::warning::Unit tests initial run exit code $TEST_EXIT_CODE. Retrying..."
+            if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+              ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit_retry.log
+              TEST_EXIT_CODE=$?
+            fi
           fi
 
           if [ $TEST_EXIT_CODE -ne 0 ]; then
