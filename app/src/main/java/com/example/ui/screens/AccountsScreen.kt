@@ -106,6 +106,10 @@ import com.example.ui.components.filter.UnifiedFilterDialog
 import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.AccountsFilterSpec
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.ui.components.AccountInclusionToggleBar
+import com.example.util.AccountInclusionViewMode
+import com.example.util.AccountCalculationPreferences
 import com.example.util.AccountCalcConfig
 import com.example.util.FilterStore
 import com.example.util.IconHelper
@@ -170,6 +174,14 @@ fun AccountsScreen(
         isEditMode = false
     }
     val context = LocalContext.current
+    val calcPrefs = remember { AccountCalculationPreferences.getInstance(context) }
+    var inclusionViewMode by rememberSaveable { mutableStateOf<AccountInclusionViewMode>(calcPrefs.getInclusionViewMode()) }
+    val isAllActiveView = inclusionViewMode == AccountInclusionViewMode.ALL_ACTIVE
+
+    val activeViewConfig = remember(inclusionViewMode, accountCalcConfig) {
+        if (isAllActiveView) AccountCalcConfig() else accountCalcConfig
+    }
+
     val filterStore = remember { FilterStore.getInstance(context) }
     var filterState by remember {
         val loaded = filterStore.loadFilterState(AccountsFilterSpec.SPEC_KEY)
@@ -231,14 +243,14 @@ fun AccountsScreen(
 
     // Helper to compute effective balance for a sub-account
     fun computeEffectiveSubBalance(subItem: AccountWithBalance): Double {
-        val setting = accountCalcConfig.getSetting(subItem.account.id)
+        val setting = activeViewConfig.getSetting(subItem.account.id)
         if (!setting.isIncluded) return 0.0
         return subItem.currentBalance + setting.adjustmentAmount
     }
 
     // Helper to compute effective balance for a group
     fun computeEffectiveGroupBalance(groupItem: AccountWithBalance): Double {
-        val groupSetting = accountCalcConfig.getSetting(groupItem.account.id)
+        val groupSetting = activeViewConfig.getSetting(groupItem.account.id)
         if (!groupSetting.isIncluded) return 0.0
 
         if (groupItem.subAccounts.isEmpty()) {
@@ -402,7 +414,7 @@ fun AccountsScreen(
         sortFilter,
         statusFilter,
         excludeZeroBalance,
-        accountCalcConfig,
+        activeViewConfig,
         allTransactions,
         searchQuery,
         languageMode
@@ -506,7 +518,7 @@ fun AccountsScreen(
         sortFilter,
         statusFilter,
         excludeZeroBalance,
-        accountCalcConfig,
+        activeViewConfig,
         allTransactions,
         searchQuery,
         languageMode
@@ -795,6 +807,31 @@ fun AccountsScreen(
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts..."
             )
 
+            // Two options: All Active view vs All Included view
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 2.dp)
+            ) {
+                AccountInclusionToggleBar(
+                    selectedMode = inclusionViewMode,
+                    onModeSelected = { newMode ->
+                        inclusionViewMode = newMode
+                        calcPrefs.setInclusionViewMode(newMode)
+                    },
+                    languageMode = languageMode,
+                    activeCount = activeAccounts.size,
+                    includedCount = activeAccounts.count { 
+                        accountCalcConfig.isIncluded(it.account.id) &&
+                        (it.subAccounts.isEmpty() || it.subAccounts.any { sub -> sub.account.isActive && accountCalcConfig.isIncluded(sub.account.id) })
+                    }
+                )
+            }
+
+            val displayedNetWorth = if (isAllActiveView) actualNetWorth else calculatedNetWorth
+            val displayedAssets = if (isAllActiveView) actualTotalAssets else calculatedTotalAssets
+            val displayedLiabilities = if (isAllActiveView) actualTotalLiabilities else calculatedTotalLiabilities
+
             LazyColumn(
                 state = listState,
                 flingBehavior = rememberFluidFlingBehavior(),
@@ -826,7 +863,8 @@ fun AccountsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
+                                        text = if (isAllActiveView) (if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (সকল সক্রিয়)" else "Net Worth (All Active)")
+                                        else if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
                                         else LanguageHelper.getString("net_worth", languageMode),
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                         fontSize = 12.sp,
@@ -834,12 +872,12 @@ fun AccountsScreen(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = LanguageHelper.formatCurrency(calculatedNetWorth, languageMode),
+                                        text = LanguageHelper.formatCurrency(displayedNetWorth, languageMode),
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontSize = 24.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     )
-                                    if (hasCustomizations) {
+                                    if (!isAllActiveView && hasCustomizations) {
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -968,7 +1006,8 @@ fun AccountsScreen(
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
-                                            text = if (hasCustomizations) LanguageHelper.getString("calculated_assets", languageMode)
+                                            text = if (isAllActiveView) LanguageHelper.getString("assets", languageMode)
+                                            else if (hasCustomizations) LanguageHelper.getString("calculated_assets", languageMode)
                                             else LanguageHelper.getString("assets", languageMode),
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                             fontSize = 11.sp,
@@ -977,12 +1016,12 @@ fun AccountsScreen(
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = LanguageHelper.formatCurrency(calculatedTotalAssets, languageMode),
+                                        text = LanguageHelper.formatCurrency(displayedAssets, languageMode),
                                         color = SolidIncome,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    if (hasCustomizations && calculatedTotalAssets != actualTotalAssets) {
+                                    if (!isAllActiveView && hasCustomizations && calculatedTotalAssets != actualTotalAssets) {
                                         Text(
                                             text = "Orig: ${LanguageHelper.formatCurrency(actualTotalAssets, languageMode)}",
                                             fontSize = 9.sp,
@@ -1012,7 +1051,8 @@ fun AccountsScreen(
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
+                                            text = if (isAllActiveView) LanguageHelper.getString("liabilities", languageMode)
+                                            else if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
                                             else LanguageHelper.getString("liabilities", languageMode),
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                             fontSize = 11.sp,
@@ -1028,12 +1068,12 @@ fun AccountsScreen(
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = LanguageHelper.formatCurrency(calculatedTotalLiabilities, languageMode),
+                                        text = LanguageHelper.formatCurrency(displayedLiabilities, languageMode),
                                         color = SolidExpense,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    if (hasCustomizations && calculatedTotalLiabilities != actualTotalLiabilities) {
+                                    if (!isAllActiveView && hasCustomizations && calculatedTotalLiabilities != actualTotalLiabilities) {
                                         Text(
                                             text = "Orig: ${LanguageHelper.formatCurrency(actualTotalLiabilities, languageMode)}",
                                             fontSize = 9.sp,
@@ -1428,7 +1468,7 @@ fun AccountsScreen(
                         items(flattenedActiveAccounts, key = { "flat_${it.accountWithBalance.account.id}" }) { flatItem ->
                             SingleAccountCard(
                                 item = flatItem,
-                                accountCalcConfig = accountCalcConfig,
+                                accountCalcConfig = activeViewConfig,
                                 isEditMode = isEditMode,
                                 languageMode = languageMode,
                                 onEditAccount = onEditAccountClick,
@@ -1446,7 +1486,7 @@ fun AccountsScreen(
                             items(flattenedInactiveAccounts, key = { "flat_inactive_${it.accountWithBalance.account.id}" }) { flatItem ->
                                 SingleAccountCard(
                                     item = flatItem,
-                                    accountCalcConfig = accountCalcConfig,
+                                    accountCalcConfig = activeViewConfig,
                                     isEditMode = isEditMode,
                                     isInactiveSection = true,
                                     languageMode = languageMode,
@@ -1474,7 +1514,7 @@ fun AccountsScreen(
                             }
                             AccountGroupCard(
                                 groupItem = sortedGroupItem,
-                                accountCalcConfig = accountCalcConfig,
+                                accountCalcConfig = activeViewConfig,
                                 effectiveBalance = computeEffectiveGroupBalance(groupItem),
                                 isEditMode = isEditMode,
                                 isExpanded = expandedMap[groupItem.account.id] ?: true,
@@ -1501,7 +1541,7 @@ fun AccountsScreen(
                                 }
                                 AccountGroupCard(
                                     groupItem = sortedInactiveGroup,
-                                    accountCalcConfig = accountCalcConfig,
+                                    accountCalcConfig = activeViewConfig,
                                     effectiveBalance = computeEffectiveGroupBalance(inactiveGroup),
                                     isEditMode = isEditMode,
                                     isExpanded = expandedMap[inactiveGroup.account.id] ?: false,

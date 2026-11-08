@@ -152,6 +152,10 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.ui.components.AccountInclusionToggleBar
+import com.example.util.AccountInclusionViewMode
+import com.example.util.AccountCalculationPreferences
 import com.example.util.AccountCalcConfig
 import com.example.util.BalanceSheetAccountRow
 import com.example.util.BalanceSheetComparisonData
@@ -217,6 +221,14 @@ fun BalanceSheetScreen(
     onResetAccountCalculation: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val calcPrefs = remember { AccountCalculationPreferences.getInstance(context) }
+    var inclusionViewMode by rememberSaveable { mutableStateOf<AccountInclusionViewMode>(calcPrefs.getInclusionViewMode()) }
+
+    val effectiveCalcConfig = remember(inclusionViewMode, accountCalcConfig) {
+        if (inclusionViewMode == AccountInclusionViewMode.ALL_ACTIVE) AccountCalcConfig()
+        else accountCalcConfig
+    }
+
     val filterStore = remember { FilterStore.getInstance(context) }
     var filterState by remember { mutableStateOf(filterStore.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)) }
     val updateFilterState: (FilterState) -> Unit = { newState ->
@@ -304,7 +316,7 @@ fun BalanceSheetScreen(
         filterNonZeroGroups,
         sortOrder,
         effectiveSearchQuery,
-        accountCalcConfig,
+        effectiveCalcConfig,
         showOnlyAccountsWithoutGroups,
         languageMode
     ) {
@@ -322,7 +334,7 @@ fun BalanceSheetScreen(
             filterNonZeroGroups = filterNonZeroGroups,
             sortOrder = sortOrder,
             searchQuery = effectiveSearchQuery,
-            accountCalcConfig = accountCalcConfig,
+            accountCalcConfig = effectiveCalcConfig,
             showOnlyAccountsWithoutGroups = showOnlyAccountsWithoutGroups,
             languageMode = languageMode
         )
@@ -390,11 +402,29 @@ fun BalanceSheetScreen(
                 }
             )
 
+            // Two options: All Active view vs All Included view
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp)
+            ) {
+                AccountInclusionToggleBar(
+                    selectedMode = inclusionViewMode,
+                    onModeSelected = { newMode ->
+                        inclusionViewMode = newMode
+                        calcPrefs.setInclusionViewMode(newMode)
+                    },
+                    languageMode = languageMode,
+                    activeCount = accounts.count { it.isActive },
+                    includedCount = accounts.count { it.isActive && accountCalcConfig.isIncluded(it.id) }
+                )
+            }
+
             // Fixed Timeline Control & Date Columns Card at top
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)
+                    .padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 4.dp)
             ) {
                 ComparisonDatesCard(
                     preset = selectedPreset,
@@ -523,7 +553,7 @@ fun BalanceSheetScreen(
                                 group = group,
                                 isExpanded = isExpanded,
                                 isCalcMode = isCalcMode,
-                                accountCalcConfig = accountCalcConfig,
+                                accountCalcConfig = effectiveCalcConfig,
                                 displayCurrency = true,
                                 displayCurrencySymbol = true,
                                 showOnlyCurrentBalance = showOnlyCurrentBalance,
@@ -577,7 +607,7 @@ fun BalanceSheetScreen(
                                 group = group,
                                 isExpanded = isExpanded,
                                 isCalcMode = isCalcMode,
-                                accountCalcConfig = accountCalcConfig,
+                                accountCalcConfig = effectiveCalcConfig,
                                 displayCurrency = true,
                                 displayCurrencySymbol = true,
                                 showOnlyCurrentBalance = showOnlyCurrentBalance,

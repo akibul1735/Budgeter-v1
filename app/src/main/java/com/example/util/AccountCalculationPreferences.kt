@@ -7,6 +7,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 
+enum class AccountInclusionViewMode(val titleEn: String, val titleBn: String) {
+    ALL_ACTIVE("All Active", "সকল সক্রিয়"),
+    ALL_INCLUDED("All Included", "সকল অন্তর্ভুক্ত")
+}
+
 data class AccountCalcSetting(
     val isIncluded: Boolean = true,
     val adjustmentAmount: Double = 0.0
@@ -42,6 +47,24 @@ class AccountCalculationPreferences private constructor(context: Context) {
 
     private val _config = MutableStateFlow(loadConfig())
     val config: StateFlow<AccountCalcConfig> = _config.asStateFlow()
+
+    private val _inclusionViewMode = MutableStateFlow(loadInclusionViewMode())
+    val inclusionViewMode: StateFlow<AccountInclusionViewMode> = _inclusionViewMode.asStateFlow()
+
+    fun getInclusionViewMode(): AccountInclusionViewMode {
+        return loadInclusionViewMode()
+    }
+
+    private fun loadInclusionViewMode(): AccountInclusionViewMode {
+        val modeStr = prefs.getString(KEY_INCLUSION_VIEW_MODE, null)
+        return if (modeStr == AccountInclusionViewMode.ALL_ACTIVE.name) AccountInclusionViewMode.ALL_ACTIVE
+        else AccountInclusionViewMode.ALL_INCLUDED
+    }
+
+    fun setInclusionViewMode(mode: AccountInclusionViewMode) {
+        prefs.edit().putString(KEY_INCLUSION_VIEW_MODE, mode.name).apply()
+        _inclusionViewMode.value = mode
+    }
 
     private fun loadConfig(): AccountCalcConfig {
         val jsonStr = prefs.getString(KEY_CALC_SETTINGS, null) ?: return AccountCalcConfig()
@@ -115,6 +138,7 @@ class AccountCalculationPreferences private constructor(context: Context) {
 
     companion object {
         private const val KEY_CALC_SETTINGS = "account_calc_settings_json"
+        private const val KEY_INCLUSION_VIEW_MODE = "account_inclusion_view_mode"
 
         @Volatile
         private var instance: AccountCalculationPreferences? = null
