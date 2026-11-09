@@ -956,14 +956,15 @@ object PaymentSourceCalculator {
                 }
             }
 
+            val actualCurrentAmt = Math.abs(currentBal)
             otherAccountAllocationsList.add(
                 com.example.data.model.OtherAccountAllocationAnalysis(
                     account = otherAcc,
                     currentBalance = currentBal,
-                    totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) effectiveBudget else totalRemaining,
-                    totalBudgeted = effectiveBudget,
+                    totalBudgetOrRequired = actualCurrentAmt,
+                    totalBudgeted = actualCurrentAmt,
                     totalActualSettled = totalActualSettled,
-                    totalRemaining = totalRemaining,
+                    totalRemaining = actualCurrentAmt,
                     accountSplits = accSplits.sortedByDescending { it.allocatedAmount },
                     isExpense = isExpense,
                     isActive = isOtherAccActive

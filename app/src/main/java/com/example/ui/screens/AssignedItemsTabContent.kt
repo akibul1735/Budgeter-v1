@@ -747,23 +747,12 @@ internal fun AssignedItemsTabContent(
                     items(sortedOtherAccounts, key = { "compact_other_${it.account.id}" }) { otherAccAlloc ->
                         val itemKey = "OTHER_ACC_${otherAccAlloc.account.id}"
                         val isSelected = selectedItemKeys.contains(itemKey)
-                        val split = if (selectedAccountId != null) otherAccAlloc.accountSplits.find { it.account.id == selectedAccountId } else null
-                        val isBudgetBasis = overview.calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT
-                        val effectiveDueAmt = if (otherAccAlloc.totalBudgeted > 0) otherAccAlloc.totalBudgeted else Math.abs(otherAccAlloc.currentBalance)
-                        val amt = if (selectedAccountId != null) {
-                            if (isBudgetBasis) (split?.allocatedAmount ?: effectiveDueAmt) else (split?.remaining ?: otherAccAlloc.totalRemaining)
+                        val actualCurrentAmt = Math.abs(otherAccAlloc.currentBalance)
+                        val amt = actualCurrentAmt
+                        val amtLabel = if (otherAccAlloc.isExpense) {
+                            if (languageMode == LanguageMode.BANGLA) "বর্তমান দেনা" else "Current Balance"
                         } else {
-                            if (isBudgetBasis) effectiveDueAmt else otherAccAlloc.totalRemaining
-                        }
-                        val amtLabel = if (isBudgetBasis) {
-                            if (otherAccAlloc.accountSplits.isNotEmpty()) {
-                                if (languageMode == LanguageMode.BANGLA) "বরাদ্দ বাজেট" else "Assigned Budget"
-                            } else {
-                                if (otherAccAlloc.isExpense) (if (languageMode == LanguageMode.BANGLA) "বকেয়া দেনা" else "Due Balance")
-                                else (if (languageMode == LanguageMode.BANGLA) "প্রাপ্য পাওনা" else "Receivable")
-                            }
-                        } else {
-                            if (languageMode == LanguageMode.BANGLA) "বরাদ্দ অবশিষ্ট" else "Assigned Remaining"
+                            if (languageMode == LanguageMode.BANGLA) "বর্তমান পাওনা" else "Current Balance"
                         }
                         CompactAssignedItemRow(
                             title = otherAccAlloc.account.localizedName(languageMode),
@@ -856,9 +845,9 @@ internal fun AssignedItemsTabContent(
                             if (isBudgetBasis) catAlloc.totalBudgeted else catAlloc.totalRemaining
                         }
                         val amtLabel = if (isBudgetBasis) {
-                            if (languageMode == LanguageMode.BANGLA) "বরাদ্দ বাজেট" else "Assigned Budget"
+                            if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"
                         } else {
-                            if (languageMode == LanguageMode.BANGLA) "বরাদ্দ অবশিষ্ট" else "Assigned Remaining"
+                            if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"
                         }
                         val catColor = try {
                             Color(android.graphics.Color.parseColor(catAlloc.category.colorHex))
@@ -916,6 +905,7 @@ internal fun AssignedItemsTabContent(
                                 allocation = catAlloc,
                                 isExpense = true,
                                 languageMode = languageMode,
+                                calculationBasis = overview.calculationBasis,
                                 onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
                                 onToggleActive = { active ->
                                     onToggleCategoryActive(catAlloc.category.id, active)
@@ -959,9 +949,9 @@ internal fun AssignedItemsTabContent(
                             if (isBudgetBasis) catAlloc.totalBudgeted else catAlloc.totalRemaining
                         }
                         val amtLabel = if (isBudgetBasis) {
-                            if (languageMode == LanguageMode.BANGLA) "প্রত্যাশিত আয়" else "Assigned Income"
+                            if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"
                         } else {
-                            if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট আয়" else "Remaining Income"
+                            if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"
                         }
                         val catColor = try {
                             Color(android.graphics.Color.parseColor(catAlloc.category.colorHex))
@@ -1019,6 +1009,7 @@ internal fun AssignedItemsTabContent(
                                 allocation = catAlloc,
                                 isExpense = false,
                                 languageMode = languageMode,
+                                calculationBasis = overview.calculationBasis,
                                 onOpenSplit = { onOpenCategorySplitDialog(catAlloc) },
                                 onToggleActive = { active ->
                                     onToggleCategoryActive(catAlloc.category.id, active)

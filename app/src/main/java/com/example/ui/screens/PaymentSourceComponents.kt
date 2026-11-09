@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import com.example.data.model.RequirementCalculationBasis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -185,7 +186,7 @@ internal fun OtherAccountAllocationCard(
             if (allocation.isExpense) SolidExpense else SolidIncome
         }
     }
-    val balanceAmt = if (allocation.currentBalance != 0.0) Math.abs(allocation.currentBalance) else allocation.totalBudgeted
+    val balanceAmt = Math.abs(allocation.currentBalance)
 
     Card(
         modifier = Modifier
@@ -304,9 +305,9 @@ internal fun OtherAccountAllocationCard(
                             }
                         }
                         val statusText = when {
-                            !allocation.isActive -> "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • (${if (languageMode == LanguageMode.BANGLA) "হিসেবে অন্তর্ভুক্ত নয়" else "Excluded from calc"})"
-                            allocation.isExpense -> "${if (languageMode == LanguageMode.BANGLA) "বকেয়া দায় / দেনা" else "Net Due / Payable"}: ${LanguageHelper.formatCurrency(balanceAmt, languageMode)}"
-                            else -> "${if (languageMode == LanguageMode.BANGLA) "প্রাপ্য / পাওনা" else "Receivable / Asset"}: ${LanguageHelper.formatCurrency(balanceAmt, languageMode)}"
+                            !allocation.isActive -> "${if (allocation.isExpense) (if (languageMode == LanguageMode.BANGLA) "বর্তমান দেনা" else "Current Balance") else (if (languageMode == LanguageMode.BANGLA) "বর্তমান পাওনা" else "Current Balance")}: ${LanguageHelper.formatCurrency(balanceAmt, languageMode)} • (${if (languageMode == LanguageMode.BANGLA) "হিসেবে অন্তর্ভুক্ত নয়" else "Excluded from calc"})"
+                            allocation.isExpense -> "${if (languageMode == LanguageMode.BANGLA) "বর্তমান দেনা" else "Current Balance"}: ${LanguageHelper.formatCurrency(balanceAmt, languageMode)}"
+                            else -> "${if (languageMode == LanguageMode.BANGLA) "বর্তমান পাওনা" else "Current Balance"}: ${LanguageHelper.formatCurrency(balanceAmt, languageMode)}"
                         }
                         Text(
                             text = statusText,
@@ -714,6 +715,7 @@ internal fun CategoryAllocationCard(
     allocation: CategoryAllocationAnalysis,
     isExpense: Boolean,
     languageMode: LanguageMode,
+    calculationBasis: RequirementCalculationBasis = RequirementCalculationBasis.BUDGET_AMOUNT,
     onOpenSplit: () -> Unit,
     onToggleActive: ((Boolean) -> Unit)? = null,
     isSelected: Boolean = false,
@@ -831,12 +833,21 @@ internal fun CategoryAllocationCard(
                                 )
                             }
                         }
+                        val isBudgetBasis = calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT
                         Text(
                             text = if (allocation.isActive) {
-                                if (isExpense) {
-                                    "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                                if (isBudgetBasis) {
+                                    if (isExpense) {
+                                        "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                                    } else {
+                                        "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                                    }
                                 } else {
-                                    "${if (languageMode == LanguageMode.BANGLA) "প্রত্যাশিত" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)}"
+                                    if (isExpense) {
+                                        "${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)}"
+                                    } else {
+                                        "${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(allocation.totalRemaining, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)}"
+                                    }
                                 }
                             } else {
                                 "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)} • (${if (languageMode == LanguageMode.BANGLA) "হিসেবে অন্তর্ভুক্ত নয়" else "Excluded from calc"})"
@@ -934,8 +945,9 @@ internal fun CategoryAllocationCard(
                                     }
                                 }
 
+                                val splitAmt = if (calculationBasis == RequirementCalculationBasis.REMAINING_AMOUNT) split.remaining else split.allocatedAmount
                                 Text(
-                                    text = LanguageHelper.formatCurrency(split.allocatedAmount, languageMode),
+                                    text = LanguageHelper.formatCurrency(splitAmt, languageMode),
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isExpense) SolidExpense else SolidIncome
