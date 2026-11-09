@@ -402,24 +402,6 @@ fun BalanceSheetScreen(
                 }
             )
 
-            // Two options: All Active view vs All Included view
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp)
-            ) {
-                AccountInclusionToggleBar(
-                    selectedMode = inclusionViewMode,
-                    onModeSelected = { newMode ->
-                        inclusionViewMode = newMode
-                        calcPrefs.setInclusionViewMode(newMode)
-                    },
-                    languageMode = languageMode,
-                    activeCount = accounts.count { it.isActive },
-                    includedCount = accounts.count { it.isActive && accountCalcConfig.isIncluded(it.id) }
-                )
-            }
-
             // Fixed Timeline Control & Date Columns Card at top
             Box(
                 modifier = Modifier
@@ -658,6 +640,28 @@ fun BalanceSheetScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.padding(bottom = 12.dp)
                     ) {
+                        // Option 0: Inclusion View Mode Toggle (All Active vs All Included)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            shadowElevation = 4.dp,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        ) {
+                            Box(modifier = Modifier.padding(6.dp)) {
+                                AccountInclusionToggleBar(
+                                    selectedMode = inclusionViewMode,
+                                    onModeSelected = { newMode ->
+                                        inclusionViewMode = newMode
+                                        calcPrefs.setInclusionViewMode(newMode)
+                                    },
+                                    languageMode = languageMode,
+                                    activeCount = accounts.count { it.isActive },
+                                    includedCount = accounts.count { it.isActive && accountCalcConfig.isIncluded(it.id) }
+                                )
+                            }
+                        }
+
                         // Option 1: Inactive Accounts
                         Row(
                             verticalAlignment = Alignment.CenterVertically,

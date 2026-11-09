@@ -807,27 +807,6 @@ fun AccountsScreen(
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts..."
             )
 
-            // Two options: All Active view vs All Included view
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 2.dp)
-            ) {
-                AccountInclusionToggleBar(
-                    selectedMode = inclusionViewMode,
-                    onModeSelected = { newMode ->
-                        inclusionViewMode = newMode
-                        calcPrefs.setInclusionViewMode(newMode)
-                    },
-                    languageMode = languageMode,
-                    activeCount = activeAccounts.size,
-                    includedCount = activeAccounts.count { 
-                        accountCalcConfig.isIncluded(it.account.id) &&
-                        (it.subAccounts.isEmpty() || it.subAccounts.any { sub -> sub.account.isActive && accountCalcConfig.isIncluded(sub.account.id) })
-                    }
-                )
-            }
-
             val displayedNetWorth = if (isAllActiveView) actualNetWorth else calculatedNetWorth
             val displayedAssets = if (isAllActiveView) actualTotalAssets else calculatedTotalAssets
             val displayedLiabilities = if (isAllActiveView) actualTotalLiabilities else calculatedTotalLiabilities
@@ -1343,6 +1322,25 @@ fun AccountsScreen(
                                     }
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Two options: All Active view vs All Included view at the bottom of the summary card
+                            AccountInclusionToggleBar(
+                                selectedMode = inclusionViewMode,
+                                onModeSelected = { newMode ->
+                                    inclusionViewMode = newMode
+                                    calcPrefs.setInclusionViewMode(newMode)
+                                },
+                                languageMode = languageMode,
+                                activeCount = activeAccounts.size,
+                                includedCount = activeAccounts.count { 
+                                    accountCalcConfig.isIncluded(it.account.id) &&
+                                    (it.subAccounts.isEmpty() || it.subAccounts.any { sub -> sub.account.isActive && accountCalcConfig.isIncluded(sub.account.id) })
+                                }
+                            )
                         }
                     }
                 }

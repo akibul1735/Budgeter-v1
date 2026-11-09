@@ -457,6 +457,8 @@ fun PaymentSourceScreen(
                         overview = analysisOverview,
                         languageMode = languageMode,
                         searchQuery = searchQuery,
+                        selectedMonthLabel = "${DateUtils.getMonthName(selectedMonth, languageMode).take(3)} $selectedYear",
+                        onMonthClick = onSetCurrentMonth,
                         calculationBasis = calculationBasis,
                         onCalculationBasisChange = { basis ->
                             val newMap = filterState.toMutableMap()
@@ -506,7 +508,14 @@ fun PaymentSourceScreen(
                         onAssignItem = { acc ->
                             showAssignItemChoiceDialogForAccount = acc
                         },
-                        onDeleteObligation = onDeleteAccountObligation
+                        onDeleteObligation = onDeleteAccountObligation,
+                        onNavigateToAssignedItems = {
+                            filterAccountIdForAssignedItems = null
+                            val newMap = filterState.toMutableMap()
+                            newMap[PaymentSourceFilterSpec.FIELD_MAIN_TAB] = FilterValue.ToggleGroup(setOf(PaymentSourceFilterSpec.TAB_ASSIGNED))
+                            newMap.remove(PaymentSourceFilterSpec.FIELD_ASSIGNED_SOURCE_ACCOUNT)
+                            updateFilterState(newMap)
+                        }
                     )
                 }
                 MainPaymentSourceTab.ASSIGNED_ITEMS -> {

@@ -3793,12 +3793,22 @@ private fun CategoriesBudgetEntryView(
                                             onCheckedChange = { _ ->
                                                 val newEnabledState = !allGroupEnabled
                                                 val updatedBudgets = catEnhancedList.map { item ->
+                                                    val amountToSave: Double = if (newEnabledState && item.currentBudget <= 0.0) {
+                                                        val firstSugg = item.suggestions.firstOrNull { it.amountMonthly > 0.0 }?.amountMonthly
+                                                        if (firstSugg != null) firstSugg
+                                                        else if (item.manualBaseline > 0.0) item.manualBaseline
+                                                        else if (item.item.defaultLimit > 0.0) item.item.defaultLimit
+                                                        else if (kotlin.math.abs(item.actualSpent) > 0.0) kotlin.math.abs(item.actualSpent)
+                                                        else 0.0
+                                                    } else {
+                                                        item.currentBudget
+                                                    }
                                                     MonthlyBudget(
                                                         year = selectedYear,
                                                         month = selectedMonth,
                                                         itemType = item.item.itemType,
                                                         itemId = item.item.id,
-                                                        budgetedAmount = item.currentBudget,
+                                                        budgetedAmount = amountToSave,
                                                         isEnabled = newEnabledState,
                                                         updatedAt = System.currentTimeMillis()
                                                     )
