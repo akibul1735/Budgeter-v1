@@ -81,38 +81,25 @@ internal fun AccountsPaymentSourceTabContent(
         }
     }
 
-    // Set of expanded account card IDs. Default: expand first account or shortfall accounts
-    val expandedAccountIds = remember(filteredAccounts) {
-        mutableStateMapOf<Long, Boolean>().apply {
-            filteredAccounts.forEachIndexed { idx, acc ->
-                this[acc.account.id] = (idx == 0 || acc.isShortfall)
-            }
-        }
-    }
+    // Set of expanded account card IDs. Default: collapsed by default, user taps to expand
+    val expandedAccountIds = remember { mutableStateMapOf<Long, Boolean>() }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .testTag("payment_source_tab_content"),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 1. Header Row: "Payment source" Title on left & "Nov 2026 ▾" Dropdown on right
+        // 1. Header Row: Month Dropdown on right
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স" else "Payment source",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
                 val monthText = if (selectedMonthLabel.isNotBlank()) selectedMonthLabel else "${DateUtils.getMonthName(overview.month, languageMode).take(3)} ${overview.year}"
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -231,37 +218,42 @@ internal fun AccountsPaymentSourceTabContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("payment_source_overview_card"),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    Text(
-                        text = kpiSubtitle,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = kpiSubtitle,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${if (languageMode == LanguageMode.BANGLA) "প্রয়োজনীয়" else "Req"} ${LanguageHelper.formatCurrency(overview.totalRequired, languageMode)} · ${if (languageMode == LanguageMode.BANGLA) "মজুদ" else "Avail"} ${LanguageHelper.formatCurrency(overview.totalAvailable, languageMode)}",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = formattedNet,
-                        fontSize = 30.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = netColor,
                         letterSpacing = (-0.5).sp
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "${if (languageMode == LanguageMode.BANGLA) "প্রয়োজনীয়" else "Required"} ${LanguageHelper.formatCurrency(overview.totalRequired, languageMode)} · ${if (languageMode == LanguageMode.BANGLA) "মজুদ" else "Available"} ${LanguageHelper.formatCurrency(overview.totalAvailable, languageMode)}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Full-width Progress Bar
                     val progress = if (overview.totalRequired <= 0.0) 1.0f
@@ -269,15 +261,15 @@ internal fun AccountsPaymentSourceTabContent(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(5.dp)
-                            .clip(RoundedCornerShape(3.dp))
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
                             .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .fillMaxWidth(if (isPositiveNet) 1f else progress)
-                                .clip(RoundedCornerShape(3.dp))
+                                .clip(RoundedCornerShape(2.dp))
                                 .background(netColor)
                         )
                     }
