@@ -66,7 +66,9 @@ internal fun ItemGroupHeader(
     title: String,
     count: Int,
     iconName: String,
-    color: Color
+    color: Color,
+    totalAmount: Double? = null,
+    languageMode: LanguageMode = LanguageMode.ENGLISH
 ) {
     Surface(
         modifier = Modifier
@@ -85,7 +87,8 @@ internal fun ItemGroupHeader(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f, fill = false)
             ) {
                 val isImg = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
                 Box(
@@ -107,21 +110,33 @@ internal fun ItemGroupHeader(
                     text = title,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = color.copy(alpha = 0.12f)
-            ) {
-                Text(
-                    text = "$count",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = color,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (totalAmount != null) {
+                    Text(
+                        text = LanguageHelper.formatCurrency(totalAmount, languageMode),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = color
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = color.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = "$count",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = color,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
         }
     }
@@ -132,7 +147,9 @@ internal fun SectionHeader(
     title: String,
     count: Int,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color
+    color: Color,
+    totalAmount: Double? = null,
+    languageMode: LanguageMode = LanguageMode.ENGLISH
 ) {
     Row(
         modifier = Modifier
@@ -141,26 +158,42 @@ internal fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(15.dp))
             Text(
                 text = title,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = color.copy(alpha = 0.12f)
-        ) {
-            Text(
-                text = "$count",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = color,
-                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-            )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (totalAmount != null) {
+                Text(
+                    text = LanguageHelper.formatCurrency(totalAmount, languageMode),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = color.copy(alpha = 0.12f)
+            ) {
+                Text(
+                    text = "$count",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = color,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                )
+            }
         }
     }
 }

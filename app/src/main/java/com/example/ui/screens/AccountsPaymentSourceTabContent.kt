@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -91,48 +92,7 @@ internal fun AccountsPaymentSourceTabContent(
         contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 1. Header Row: Month Dropdown on right
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 2.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val monthText = if (selectedMonthLabel.isNotBlank()) selectedMonthLabel else "${DateUtils.getMonthName(overview.month, languageMode).take(3)} ${overview.year}"
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onMonthClick() }
-                        .testTag("btn_payment_source_month")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = monthText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Change Month",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        // 2. Segmented Pill Buttons: [ Budget | Remaining ]
+        // 1. Segmented Pill Buttons: [ Budget | Remaining ]
         item {
             Surface(
                 modifier = Modifier
@@ -484,7 +444,7 @@ internal fun AccountsPaymentSourceTabContent(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .animateContentSize(animationSpec = tween(180))
+                        .animateContentSize(animationSpec = tween(150, easing = FastOutSlowInEasing))
                         .clip(RoundedCornerShape(14.dp))
                         .clickable {
                             expandedAccountIds[accAnalysis.account.id] = !isExpanded
@@ -546,8 +506,8 @@ internal fun AccountsPaymentSourceTabContent(
                         // Expanded Content: 2x2 Grid + Action Row
                         AnimatedVisibility(
                             visible = isExpanded,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
+                            enter = fadeIn(animationSpec = tween(120, easing = FastOutSlowInEasing)) + expandVertically(animationSpec = tween(140, easing = FastOutSlowInEasing)),
+                            exit = fadeOut(animationSpec = tween(100, easing = FastOutSlowInEasing)) + shrinkVertically(animationSpec = tween(120, easing = FastOutSlowInEasing))
                         ) {
                             Column(modifier = Modifier.padding(top = 10.dp)) {
                                 Surface(

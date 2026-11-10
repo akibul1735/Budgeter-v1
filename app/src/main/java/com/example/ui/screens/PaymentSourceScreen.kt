@@ -440,18 +440,6 @@ fun PaymentSourceScreen(
                 )
             }
 
-            // Unified Active Filter Bar (shown only on Assigned Items tab)
-            if (selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS) {
-                UnifiedActiveFilterBar(
-                    spec = psSpec,
-                    state = filterState,
-                    onFilterChange = updateFilterState,
-                    onOpenFilterDialog = { showFilterDialog = true },
-                    languageMode = languageMode,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-                )
-            }
-
             // Tab Content
             when (selectedTab) {
                 MainPaymentSourceTab.PAYMENT_SOURCES -> {
