@@ -656,6 +656,7 @@ fun BalanceSheetScreen(
                                         calcPrefs.setInclusionViewMode(newMode)
                                     },
                                     languageMode = languageMode,
+                                    normalCount = accounts.count { it.isActive },
                                     activeCount = accounts.count { it.isActive },
                                     includedCount = accounts.count { it.isActive && accountCalcConfig.isIncluded(it.id) }
                                 )

@@ -415,6 +415,7 @@ fun AccountsScreen(
         statusFilter,
         excludeZeroBalance,
         activeViewConfig,
+        inclusionViewMode,
         allTransactions,
         searchQuery,
         languageMode
@@ -427,7 +428,21 @@ fun AccountsScreen(
                 AccountType.LIABILITY -> activeAccounts.filter { !isGroupAssetSide(it) }
                 else -> activeAccounts
             }
-            val zeroFiltered = filterZeroBalanceGroups(base)
+            val inclusionFiltered = if (inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED) {
+                base.mapNotNull { group ->
+                    if (group.subAccounts.isEmpty()) {
+                        if (accountCalcConfig.isIncluded(group.account.id)) group else null
+                    } else {
+                        val includedSubs = group.subAccounts.filter { accountCalcConfig.isIncluded(it.account.id) }
+                        if (includedSubs.isNotEmpty() || accountCalcConfig.isIncluded(group.account.id)) {
+                            group.copy(subAccounts = includedSubs)
+                        } else null
+                    }
+                }
+            } else {
+                base
+            }
+            val zeroFiltered = filterZeroBalanceGroups(inclusionFiltered)
             val searchFiltered = if (searchQuery.isBlank()) zeroFiltered else zeroFiltered.mapNotNull { group ->
                 val groupMatches = group.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
                     group.account.nameEn.contains(searchQuery, ignoreCase = true) ||
@@ -519,6 +534,7 @@ fun AccountsScreen(
         statusFilter,
         excludeZeroBalance,
         activeViewConfig,
+        inclusionViewMode,
         allTransactions,
         searchQuery,
         languageMode
@@ -568,6 +584,9 @@ fun AccountsScreen(
                         }
                     }
                 }
+            }
+            if (inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED) {
+                items.retainAll { accountCalcConfig.isIncluded(it.accountWithBalance.account.id) }
             }
             val searchFiltered = if (searchQuery.isBlank()) items else items.filter {
                 it.accountWithBalance.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
@@ -842,9 +861,12 @@ fun AccountsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (isAllActiveView) (if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (সকল সক্রিয়)" else "Net Worth (All Active)")
-                                        else if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
-                                        else LanguageHelper.getString("net_worth", languageMode),
+                                        text = when (inclusionViewMode) {
+                                            AccountInclusionViewMode.ALL_ACTIVE -> if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (সকল সক্রিয়)" else "Net Worth (All Active)"
+                                            AccountInclusionViewMode.ALL_INCLUDED -> if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (অন্তর্ভুক্ত)" else "Net Worth (Included)"
+                                            AccountInclusionViewMode.NORMAL -> if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
+                                                else LanguageHelper.getString("net_worth", languageMode)
+                                        },
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -985,9 +1007,12 @@ fun AccountsScreen(
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
-                                            text = if (isAllActiveView) LanguageHelper.getString("assets", languageMode)
-                                            else if (hasCustomizations) LanguageHelper.getString("calculated_assets", languageMode)
-                                            else LanguageHelper.getString("assets", languageMode),
+                                            text = when (inclusionViewMode) {
+                                                AccountInclusionViewMode.ALL_ACTIVE -> LanguageHelper.getString("assets", languageMode)
+                                                AccountInclusionViewMode.ALL_INCLUDED -> if (languageMode == LanguageMode.BANGLA) "অন্তর্ভুক্ত সম্পদ" else "Included Assets"
+                                                AccountInclusionViewMode.NORMAL -> if (hasCustomizations) LanguageHelper.getString("calculated_assets", languageMode)
+                                                    else LanguageHelper.getString("assets", languageMode)
+                                            },
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
@@ -1030,9 +1055,12 @@ fun AccountsScreen(
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = if (isAllActiveView) LanguageHelper.getString("liabilities", languageMode)
-                                            else if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
-                                            else LanguageHelper.getString("liabilities", languageMode),
+                                            text = when (inclusionViewMode) {
+                                                AccountInclusionViewMode.ALL_ACTIVE -> LanguageHelper.getString("liabilities", languageMode)
+                                                AccountInclusionViewMode.ALL_INCLUDED -> if (languageMode == LanguageMode.BANGLA) "অন্তর্ভুক্ত দায়" else "Included Liabilities"
+                                                AccountInclusionViewMode.NORMAL -> if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
+                                                    else LanguageHelper.getString("liabilities", languageMode)
+                                            },
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
@@ -1327,7 +1355,7 @@ fun AccountsScreen(
                             HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // Two options: All Active view vs All Included view at the bottom of the summary card
+                            // Three options: Normal (Adjustable) vs All Active vs All Included
                             AccountInclusionToggleBar(
                                 selectedMode = inclusionViewMode,
                                 onModeSelected = { newMode ->
@@ -1335,6 +1363,7 @@ fun AccountsScreen(
                                     calcPrefs.setInclusionViewMode(newMode)
                                 },
                                 languageMode = languageMode,
+                                normalCount = activeAccounts.size,
                                 activeCount = activeAccounts.size,
                                 includedCount = activeAccounts.count { 
                                     accountCalcConfig.isIncluded(it.account.id) &&

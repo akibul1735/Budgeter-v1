@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 
 enum class AccountInclusionViewMode(val titleEn: String, val titleBn: String) {
+    NORMAL("Normal", "স্বাভাবিক"),
     ALL_ACTIVE("All Active", "সকল সক্রিয়"),
     ALL_INCLUDED("All Included", "সকল অন্তর্ভুক্ত")
 }
@@ -56,9 +57,12 @@ class AccountCalculationPreferences private constructor(context: Context) {
     }
 
     private fun loadInclusionViewMode(): AccountInclusionViewMode {
-        val modeStr = prefs.getString(KEY_INCLUSION_VIEW_MODE, null)
-        return if (modeStr == AccountInclusionViewMode.ALL_ACTIVE.name) AccountInclusionViewMode.ALL_ACTIVE
-        else AccountInclusionViewMode.ALL_INCLUDED
+        val modeStr = prefs.getString(KEY_INCLUSION_VIEW_MODE, null) ?: return AccountInclusionViewMode.NORMAL
+        return try {
+            AccountInclusionViewMode.valueOf(modeStr)
+        } catch (_: Exception) {
+            AccountInclusionViewMode.NORMAL
+        }
     }
 
     fun setInclusionViewMode(mode: AccountInclusionViewMode) {
