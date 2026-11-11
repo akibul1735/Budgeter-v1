@@ -9,6 +9,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +65,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -123,6 +126,15 @@ enum class AccountViewHierarchyFilter {
     ONLY_GROUPS,
     EXCLUDED,
     ONLY_ACCOUNTS
+}
+
+enum class AccountsViewTab {
+    ALL,
+    GROUPS,
+    ACCOUNTS,
+    EXCLUDED,
+    ALL_ACTIVE,
+    ALL_INCLUDED
 }
 
 enum class AccountSortFilter {
@@ -196,6 +208,7 @@ fun AccountsScreen(
     }
     var searchQuery by remember { mutableStateOf("") }
     var showFilterDialog by remember { mutableStateOf(false) }
+    var showSortFilterSheet by remember { mutableStateOf(false) }
 
     val updateFilterState: (FilterState) -> Unit = { newState ->
         filterState = newState
@@ -806,6 +819,28 @@ fun AccountsScreen(
         )
     }
 
+    if (showSortFilterSheet) {
+        AccountsSortFilterSheet(
+            sortFilter = sortFilter,
+            statusFilter = statusFilter,
+            excludeZeroBalance = excludeZeroBalance,
+            hasActiveFilters = accountsSpec.isActive(filterState),
+            languageMode = languageMode,
+            onSortChange = { updateFilterState(AccountsFilterSpec.withSort(filterState, it)) },
+            onStatusChange = { updateFilterState(AccountsFilterSpec.withStatus(filterState, it)) },
+            onExcludeZeroChange = { updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, it)) },
+            onMoreFilters = {
+                showSortFilterSheet = false
+                showFilterDialog = true
+            },
+            onClearFilters = {
+                updateFilterState(emptyMap())
+                showSortFilterSheet = false
+            },
+            onDismiss = { showSortFilterSheet = false }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -823,13 +858,57 @@ fun AccountsScreen(
                 showFilterButton = true,
                 isFilterActive = accountsSpec.isActive(filterState),
                 activeFilterCount = accountsSpec.activeFilterCount(filterState),
-                onFilterClick = { showFilterDialog = true },
+                onFilterClick = { showSortFilterSheet = true },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts..."
             )
 
             val displayedNetWorth = if (isAllActiveView) actualNetWorth else calculatedNetWorth
             val displayedAssets = if (isAllActiveView) actualTotalAssets else calculatedTotalAssets
             val displayedLiabilities = if (isAllActiveView) actualTotalLiabilities else calculatedTotalLiabilities
+
+            val currentTab = when {
+                inclusionViewMode == AccountInclusionViewMode.ALL_ACTIVE -> AccountsViewTab.ALL_ACTIVE
+                inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED -> AccountsViewTab.ALL_INCLUDED
+                hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS -> AccountsViewTab.GROUPS
+                hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS -> AccountsViewTab.ACCOUNTS
+                hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED -> AccountsViewTab.EXCLUDED
+                else -> AccountsViewTab.ALL
+            }
+
+            val onSelectTab: (AccountsViewTab) -> Unit = { tab ->
+                when (tab) {
+                    AccountsViewTab.ALL -> {
+                        inclusionViewMode = AccountInclusionViewMode.NORMAL
+                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL))
+                    }
+                    AccountsViewTab.GROUPS -> {
+                        inclusionViewMode = AccountInclusionViewMode.NORMAL
+                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_GROUPS))
+                    }
+                    AccountsViewTab.ACCOUNTS -> {
+                        inclusionViewMode = AccountInclusionViewMode.NORMAL
+                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_ACCOUNTS))
+                    }
+                    AccountsViewTab.EXCLUDED -> {
+                        inclusionViewMode = AccountInclusionViewMode.NORMAL
+                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.EXCLUDED))
+                    }
+                    AccountsViewTab.ALL_ACTIVE -> {
+                        inclusionViewMode = AccountInclusionViewMode.ALL_ACTIVE
+                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.ALL_ACTIVE)
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL))
+                    }
+                    AccountsViewTab.ALL_INCLUDED -> {
+                        inclusionViewMode = AccountInclusionViewMode.ALL_INCLUDED
+                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.ALL_INCLUDED)
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL))
+                    }
+                }
+            }
 
             LazyColumn(
                 state = listState,
@@ -841,207 +920,160 @@ fun AccountsScreen(
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // --- 1. Net Worth Card (with Status Button, View Scope Toggle, & Mini Filter) ---
+                // --- 1. Net Worth Summary Card (Forest Green New Layout) ---
                 item {
+                    val isBn = languageMode == LanguageMode.BANGLA
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("net_worth_card"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0C5A3E)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp)
+                            modifier = Modifier.padding(20.dp)
                         ) {
-                            // Top Row: Net Worth & Status Action Button
+                            // Top Row: Title + Adjusted badge
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (hasCustomizations) {
+                                        if (isBn) "মোট সম্পদ (হিসাবকৃত)" else "Net worth (calculated)"
+                                    } else {
+                                        if (isBn) "মোট সম্পদ" else "Net worth"
+                                    },
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                if (hasCustomizations) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF1B6B4C),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { showResetAllConfirmDialog = true }
+                                            .testTag("net_worth_adjusted_badge")
+                                    ) {
+                                        Text(
+                                            text = if (isBn) "সমন্বিত" else "Adjusted",
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                } else {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.White.copy(alpha = 0.12f),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { isEditMode = !isEditMode }
+                                            .testTag("net_worth_status_btn")
+                                    ) {
+                                        Text(
+                                            text = if (isEditMode) (if (isBn) "সম্পন্ন" else "Done") else (if (isBn) "স্ট্যাটাস" else "Status"),
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Main Net Worth amount
+                            Text(
+                                text = LanguageHelper.formatCurrency(displayedNetWorth, languageMode),
+                                color = Color.White,
+                                fontSize = 34.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Original amount sub-caption
+                            if (hasCustomizations && displayedNetWorth != actualNetWorth) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${if (isBn) "আসল" else "Original"}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Proportional split bar: Mint green for Assets, Coral red for Liabilities
+                            val safeAssets = displayedAssets.coerceAtLeast(0.0)
+                            val safeLiabilities = displayedLiabilities.coerceAtLeast(0.0)
+                            val totalVol = safeAssets + safeLiabilities
+                            val assetFraction = if (totalVol > 0.001) {
+                                (safeAssets / totalVol).toFloat().coerceIn(0.04f, 0.96f)
+                            } else {
+                                1f
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFFCA5A5))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(fraction = assetFraction)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF72D5A3))
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Bottom row: Assets and Liabilities
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.Top
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = when (inclusionViewMode) {
-                                            AccountInclusionViewMode.ALL_ACTIVE -> if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (সকল সক্রিয়)" else "Net Worth (All Active)"
-                                            AccountInclusionViewMode.ALL_INCLUDED -> if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (অন্তর্ভুক্ত)" else "Net Worth (Included)"
-                                            AccountInclusionViewMode.NORMAL -> if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
-                                                else LanguageHelper.getString("net_worth", languageMode)
-                                        },
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(displayedNetWorth, languageMode),
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    if (!isAllActiveView && hasCustomizations) {
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                        ) {
-                                            Text(
-                                                text = "${LanguageHelper.getString("actual_net_worth", languageMode)}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                                            )
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
-                                            ) {
-                                                Text(
-                                                    text = LanguageHelper.getString("calculation_adjusted", languageMode),
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Right Side: Status Mode Button and Reset Calculation Button below it
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    // Status Mode Button
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                                        border = BorderStroke(1.dp, if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { isEditMode = !isEditMode }
-                                            .testTag("net_worth_status_btn")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Tune,
-                                                contentDescription = "Status",
-                                                tint = if (isEditMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                            Text(
-                                                text = if (isEditMode) (if (languageMode == LanguageMode.BANGLA) "সম্পন্ন" else "Done")
-                                                else (if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status"),
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isEditMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                    }
-
-                                    // Reset calculation button placed directly below Status button
-                                    if (hasCustomizations && onResetAllCalculations != null) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable { showResetAllConfirmDialog = true }
-                                                .testTag("net_worth_reset_all_btn")
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.RestartAlt,
-                                                    contentDescription = "Reset Calculations",
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(12.dp)
-                                                )
-                                                Text(
-                                                    text = LanguageHelper.getString("reset_calculation", languageMode),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Middle Solid Row: Assets vs Liabilities
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                    .padding(10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
                                 // Assets
                                 Column(
+                                    horizontalAlignment = Alignment.Start,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
                                         .clickable {
                                             val nextType = if (selectedTypeFilter == AccountType.ASSET) null else AccountType.ASSET
                                             updateFilterState(AccountsFilterSpec.withType(filterState, nextType))
                                         }
-                                        .padding(4.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(SolidIncome)
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text(
-                                            text = when (inclusionViewMode) {
-                                                AccountInclusionViewMode.ALL_ACTIVE -> LanguageHelper.getString("assets", languageMode)
-                                                AccountInclusionViewMode.ALL_INCLUDED -> if (languageMode == LanguageMode.BANGLA) "অন্তর্ভুক্ত সম্পদ" else "Included Assets"
-                                                AccountInclusionViewMode.NORMAL -> if (hasCustomizations) LanguageHelper.getString("calculated_assets", languageMode)
-                                                    else LanguageHelper.getString("assets", languageMode)
-                                            },
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
+                                    Text(
+                                        text = if (isBn) "সম্পদ" else "Assets",
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 13.sp
+                                    )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(displayedAssets, languageMode),
-                                        color = SolidIncome,
-                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    if (!isAllActiveView && hasCustomizations && calculatedTotalAssets != actualTotalAssets) {
+                                    if (hasCustomizations && calculatedTotalAssets != actualTotalAssets) {
                                         Text(
-                                            text = "Orig: ${LanguageHelper.formatCurrency(actualTotalAssets, languageMode)}",
-                                            fontSize = 9.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            text = "${if (isBn) "ছিল" else "was"} ${LanguageHelper.formatCurrency(actualTotalAssets, languageMode)}",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 11.5.sp
                                         )
                                     }
                                 }
-
-                                // Divider
-                                Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .height(30.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                )
 
                                 // Liabilities
                                 Column(
@@ -1052,175 +1084,170 @@ fun AccountsScreen(
                                             val nextType = if (selectedTypeFilter == AccountType.LIABILITY) null else AccountType.LIABILITY
                                             updateFilterState(AccountsFilterSpec.withType(filterState, nextType))
                                         }
-                                        .padding(4.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = when (inclusionViewMode) {
-                                                AccountInclusionViewMode.ALL_ACTIVE -> LanguageHelper.getString("liabilities", languageMode)
-                                                AccountInclusionViewMode.ALL_INCLUDED -> if (languageMode == LanguageMode.BANGLA) "অন্তর্ভুক্ত দায়" else "Included Liabilities"
-                                                AccountInclusionViewMode.NORMAL -> if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
-                                                    else LanguageHelper.getString("liabilities", languageMode)
-                                            },
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(SolidExpense)
-                                        )
-                                    }
+                                    Text(
+                                        text = if (isBn) "দায়" else "Liabilities",
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 13.sp
+                                    )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(displayedLiabilities, languageMode),
-                                        color = SolidExpense,
-                                        fontSize = 14.sp,
+                                        color = Color(0xFFFCA5A5),
+                                        fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    if (!isAllActiveView && hasCustomizations && calculatedTotalLiabilities != actualTotalLiabilities) {
+                                    if (hasCustomizations && calculatedTotalLiabilities != actualTotalLiabilities) {
                                         Text(
-                                            text = "Orig: ${LanguageHelper.formatCurrency(actualTotalLiabilities, languageMode)}",
-                                            fontSize = 9.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            text = "${if (isBn) "ছিল" else "was"} ${LanguageHelper.formatCurrency(actualTotalLiabilities, languageMode)}",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 11.5.sp
                                         )
                                     }
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Bottom Controls in Net Worth Card: View Mode (All / Only Groups / Only Accounts) & Mini Filter Button
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // View Scope Selector (All | Only Groups | Excluded | Only Accounts)
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                        .padding(2.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    ViewScopePill(
-                                        selected = hierarchyFilter == AccountViewHierarchyFilter.ALL,
-                                        label = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
-                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL)) }
-                                    )
-                                    ViewScopePill(
-                                        selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS,
-                                        label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র গ্রুপ" else "Only Groups",
-                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_GROUPS)) }
-                                    )
-                                    ViewScopePill(
-                                        selected = hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED,
-                                        label = if (languageMode == LanguageMode.BANGLA) "বর্জিত" else "Excluded",
-                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.EXCLUDED)) }
-                                    )
-                                    ViewScopePill(
-                                        selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS,
-                                        label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র অ্যাকাউন্ট" else "Only Accounts",
-                                        onClick = { updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_ACCOUNTS)) }
-                                    )
-                                }
-
-                                // Mini Filter Button with Dropdown
-                                Box {
-                                    var showFilterMenu by remember { mutableStateOf(false) }
-                                    val hasActiveFilters = sortFilter != AccountSortFilter.DEFAULT ||
-                                        statusFilter != AccountActiveStatusFilter.ALL ||
-                                        excludeZeroBalance
-
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (hasActiveFilters) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { showFilterMenu = true }
-                                            .testTag("net_worth_mini_filter_btn")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.FilterList,
-                                                contentDescription = "Filter",
-                                                tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                            Text(
-                                                text = getFilterButtonLabel(sortFilter, statusFilter, excludeZeroBalance, languageMode),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                    }
-
-                                    if (showFilterMenu) {
-                                        AccountsSortFilterSheet(
-                                            sortFilter = sortFilter,
-                                            statusFilter = statusFilter,
-                                            excludeZeroBalance = excludeZeroBalance,
-                                            hasActiveFilters = hasActiveFilters,
-                                            languageMode = languageMode,
-                                            onSortChange = { updateFilterState(AccountsFilterSpec.withSort(filterState, it)) },
-                                            onStatusChange = { updateFilterState(AccountsFilterSpec.withStatus(filterState, it)) },
-                                            onExcludeZeroChange = { updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, it)) },
-                                            onMoreFilters = {
-                                                showFilterMenu = false
-                                                showFilterDialog = true
-                                            },
-                                            onClearFilters = {
-                                                updateFilterState(emptyMap())
-                                                showFilterMenu = false
-                                            },
-                                            onDismiss = { showFilterMenu = false }
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Three options: Normal (Adjustable) vs All Active vs All Included
-                            AccountInclusionToggleBar(
-                                selectedMode = inclusionViewMode,
-                                onModeSelected = { newMode ->
-                                    inclusionViewMode = newMode
-                                    calcPrefs.setInclusionViewMode(newMode)
-                                },
-                                languageMode = languageMode,
-                                normalCount = activeAccounts.size,
-                                activeCount = activeAccounts.size,
-                                includedCount = activeAccounts.count { 
-                                    accountCalcConfig.isIncluded(it.account.id) &&
-                                    (it.subAccounts.isEmpty() || it.subAccounts.any { sub -> sub.account.isActive && accountCalcConfig.isIncluded(sub.account.id) })
-                                }
-                            )
                         }
                     }
                 }
 
-                // Unified Active Filter Bar
+                // --- 2. Pills Row: All, Groups, Accounts, Excluded, All Active, All Included ---
                 item {
-                    UnifiedActiveFilterBar(
-                        spec = accountsSpec,
-                        state = filterState,
-                        onFilterChange = { updateFilterState(it) },
-                        languageMode = languageMode,
-                        onOpenFilterDialog = { showFilterDialog = true }
-                    )
+                    val isBn = languageMode == LanguageMode.BANGLA
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AccountsSummaryPill(
+                            selected = currentTab == AccountsViewTab.ALL,
+                            label = if (isBn) "সব" else "All",
+                            tag = "pill_all",
+                            onClick = { onSelectTab(AccountsViewTab.ALL) }
+                        )
+                        AccountsSummaryPill(
+                            selected = currentTab == AccountsViewTab.GROUPS,
+                            label = if (isBn) "গ্রুপ" else "Groups",
+                            tag = "pill_groups",
+                            onClick = { onSelectTab(AccountsViewTab.GROUPS) }
+                        )
+                        AccountsSummaryPill(
+                            selected = currentTab == AccountsViewTab.ACCOUNTS,
+                            label = if (isBn) "অ্যাকাউন্ট" else "Accounts",
+                            tag = "pill_accounts",
+                            onClick = { onSelectTab(AccountsViewTab.ACCOUNTS) }
+                        )
+                        AccountsSummaryPill(
+                            selected = currentTab == AccountsViewTab.EXCLUDED,
+                            label = if (isBn) "বর্জিত" else "Excluded",
+                            tag = "pill_excluded",
+                            onClick = { onSelectTab(AccountsViewTab.EXCLUDED) }
+                        )
+                        AccountsSummaryPill(
+                            selected = currentTab == AccountsViewTab.ALL_ACTIVE,
+                            label = if (isBn) "সকল সক্রিয়" else "All Active",
+                            tag = "pill_all_active",
+                            onClick = { onSelectTab(AccountsViewTab.ALL_ACTIVE) }
+                        )
+                        AccountsSummaryPill(
+                            selected = currentTab == AccountsViewTab.ALL_INCLUDED,
+                            label = if (isBn) "সকল অন্তর্ভুক্ত" else "All Included",
+                            tag = "pill_all_included",
+                            onClick = { onSelectTab(AccountsViewTab.ALL_INCLUDED) }
+                        )
+                    }
+                }
+
+                // --- 3. Active Filter / Sort row (from screenshot: [ Balance: High → Low  x ] ... Reset) ---
+                val hasSortFilter = sortFilter != AccountSortFilter.DEFAULT
+                val hasStatusFilter = statusFilter != AccountActiveStatusFilter.ALL
+                val hasTypeFilter = selectedTypeFilter != null
+                val hasActiveFilterBar = hasSortFilter || hasStatusFilter || excludeZeroBalance || hasTypeFilter
+
+                if (hasActiveFilterBar) {
+                    item {
+                        val isBn = languageMode == LanguageMode.BANGLA
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Active Sort chip
+                                if (hasSortFilter) {
+                                    val sortLabel = when (sortFilter) {
+                                        AccountSortFilter.AMOUNT_HIGH_TO_LOW -> if (isBn) "ব্যালেন্স: বেশি → কম" else "Balance: High → Low"
+                                        AccountSortFilter.AMOUNT_LOW_TO_HIGH -> if (isBn) "ব্যালেন্স: কম → বেশি" else "Balance: Low → High"
+                                        AccountSortFilter.MOST_USED -> if (isBn) "ব্যবহার: বেশি → কম" else "Usage: High → Low"
+                                        AccountSortFilter.LEAST_USED -> if (isBn) "ব্যবহার: কম → বেশি" else "Usage: Low → High"
+                                        AccountSortFilter.NAME_AZ -> if (isBn) "নাম: A → Z" else "Name: A → Z"
+                                        AccountSortFilter.NAME_ZA -> if (isBn) "নাম: Z → A" else "Name: Z → A"
+                                        else -> ""
+                                    }
+                                    ActiveFilterChip(
+                                        text = sortLabel,
+                                        onClear = { updateFilterState(AccountsFilterSpec.withSort(filterState, AccountSortFilter.DEFAULT)) }
+                                    )
+                                }
+
+                                // Active Status chip
+                                if (hasStatusFilter) {
+                                    val statusLabel = when (statusFilter) {
+                                        AccountActiveStatusFilter.ACTIVE_ONLY -> if (isBn) "সক্রিয়" else "Active"
+                                        AccountActiveStatusFilter.INACTIVE_ONLY -> if (isBn) "নিষ্ক্রিয়" else "Inactive"
+                                        else -> ""
+                                    }
+                                    ActiveFilterChip(
+                                        text = statusLabel,
+                                        onClear = { updateFilterState(AccountsFilterSpec.withStatus(filterState, AccountActiveStatusFilter.ALL)) }
+                                    )
+                                }
+
+                                // Exclude Zero Balance chip
+                                if (excludeZeroBalance) {
+                                    ActiveFilterChip(
+                                        text = if (isBn) "≠ ০ ব্যালেন্স" else "≠ 0 Balance",
+                                        onClear = { updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, false)) }
+                                    )
+                                }
+
+                                // Type chip
+                                if (hasTypeFilter) {
+                                    val typeLabel = if (selectedTypeFilter == AccountType.ASSET) {
+                                        if (isBn) "সম্পদ" else "Assets"
+                                    } else {
+                                        if (isBn) "দায়" else "Liabilities"
+                                    }
+                                    ActiveFilterChip(
+                                        text = typeLabel,
+                                        onClear = { updateFilterState(AccountsFilterSpec.withType(filterState, null)) }
+                                    )
+                                }
+                            }
+
+                            // Reset button on the right
+                            TextButton(
+                                onClick = { updateFilterState(emptyMap()) },
+                                modifier = Modifier.testTag("filter_reset_btn")
+                            ) {
+                                Text(
+                                    text = if (isBn) "রিসেট" else "Reset",
+                                    color = Color(0xFF0C5A3E),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // --- 2. Accounts List Based on Hierarchy Filter ---
@@ -1581,6 +1608,66 @@ fun AccountsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AccountsSummaryPill(
+    selected: Boolean,
+    label: String,
+    tag: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .testTag(tag),
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) Color(0xFF0C5A3E) else MaterialTheme.colorScheme.surface,
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp)
+        )
+    }
+}
+
+@Composable
+private fun ActiveFilterChip(
+    text: String,
+    onClear: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFE8F5E9),
+        border = BorderStroke(1.dp, Color(0xFF0C5A3E)),
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClear)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF0C5A3E)
+            )
+            Icon(
+                imageVector = Icons.Default.Clear,
+                contentDescription = "Remove",
+                tint = Color(0xFF0C5A3E),
+                modifier = Modifier.size(14.dp)
+            )
         }
     }
 }
