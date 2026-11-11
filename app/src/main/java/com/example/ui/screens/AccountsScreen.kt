@@ -108,6 +108,7 @@ import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.AccountsFilterSpec
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.ui.components.AccountInclusionToggleBar
+import com.example.ui.components.AccountsSortFilterSheet
 import com.example.util.AccountInclusionViewMode
 import com.example.util.AccountCalculationPreferences
 import com.example.util.AccountCalcConfig
@@ -1164,189 +1165,26 @@ fun AccountsScreen(
                                         }
                                     }
 
-                                    DropdownMenu(
-                                        expanded = showFilterMenu,
-                                        onDismissRequest = { showFilterMenu = false }
-                                    ) {
-                                        // 1. Exclude with 0 balance
-                                        DropdownMenuItem(
-                                            modifier = Modifier.testTag("filter_exclude_zero"),
-                                            text = {
-                                                Text(
-                                                    text = LanguageHelper.getString("exclude_zero_balance", languageMode),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (excludeZeroBalance) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (excludeZeroBalance) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                                                )
-                                            },
-                                            leadingIcon = {
-                                                if (excludeZeroBalance) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
-                                                } else {
-                                                    Spacer(modifier = Modifier.size(16.dp))
-                                                }
-                                            },
-                                            onClick = {
-                                                updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, !excludeZeroBalance))
-                                                showFilterMenu = false
-                                            }
-                                        )
-
-                                        // 2. Inactive only
-                                        DropdownMenuItem(
-                                            modifier = Modifier.testTag("filter_inactive_only"),
-                                            text = {
-                                                Text(
-                                                    text = LanguageHelper.getString("inactive_only", languageMode),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                                                )
-                                            },
-                                            leadingIcon = {
-                                                if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
-                                                } else {
-                                                    Spacer(modifier = Modifier.size(16.dp))
-                                                }
-                                            },
-                                            onClick = {
-                                                val next = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.INACTIVE_ONLY
-                                                updateFilterState(AccountsFilterSpec.withStatus(filterState, next))
-                                                showFilterMenu = false
-                                            }
-                                        )
-
-                                        // 3. Active only
-                                        DropdownMenuItem(
-                                            modifier = Modifier.testTag("filter_active_only"),
-                                            text = {
-                                                Text(
-                                                    text = LanguageHelper.getString("active_only", languageMode),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                                                )
-                                            },
-                                            leadingIcon = {
-                                                if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
-                                                } else {
-                                                    Spacer(modifier = Modifier.size(16.dp))
-                                                }
-                                            },
-                                            onClick = {
-                                                val next = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.ACTIVE_ONLY
-                                                updateFilterState(AccountsFilterSpec.withStatus(filterState, next))
-                                                showFilterMenu = false
-                                            }
-                                        )
-
-                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                                        // Sort options
-                                        AccountSortFilter.values().forEach { filter ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = AccountsFilterSpec.getSortMenuLabel(filter, languageMode),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = if (sortFilter == filter) FontWeight.Bold else FontWeight.Normal,
-                                                        color = if (sortFilter == filter) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    if (sortFilter == filter) {
-                                                        Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
-                                                    } else {
-                                                        Spacer(modifier = Modifier.size(16.dp))
-                                                    }
-                                                },
-                                                onClick = {
-                                                    updateFilterState(AccountsFilterSpec.withSort(filterState, filter))
-                                                    showFilterMenu = false
-                                                }
-                                            )
-                                        }
-
-                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                                        // Open Full Filter Dialog
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA) "আরও ফিল্টার..." else "More Filters...",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = SolidPrimary
-                                                )
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    imageVector = Icons.Default.Tune,
-                                                    contentDescription = null,
-                                                    tint = SolidPrimary,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            },
-                                            onClick = {
+                                    if (showFilterMenu) {
+                                        AccountsSortFilterSheet(
+                                            sortFilter = sortFilter,
+                                            statusFilter = statusFilter,
+                                            excludeZeroBalance = excludeZeroBalance,
+                                            hasActiveFilters = hasActiveFilters,
+                                            languageMode = languageMode,
+                                            onSortChange = { updateFilterState(AccountsFilterSpec.withSort(filterState, it)) },
+                                            onStatusChange = { updateFilterState(AccountsFilterSpec.withStatus(filterState, it)) },
+                                            onExcludeZeroChange = { updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, it)) },
+                                            onMoreFilters = {
                                                 showFilterMenu = false
                                                 showFilterDialog = true
-                                            }
+                                            },
+                                            onClearFilters = {
+                                                updateFilterState(emptyMap())
+                                                showFilterMenu = false
+                                            },
+                                            onDismiss = { showFilterMenu = false }
                                         )
-
-                                        if (hasActiveFilters) {
-                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                            DropdownMenuItem(
-                                                modifier = Modifier.testTag("filter_clear_all"),
-                                                text = {
-                                                    Text(
-                                                        text = LanguageHelper.getString("clear_filters", languageMode),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = SlateText
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Clear,
-                                                        contentDescription = null,
-                                                        tint = SlateText,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                },
-                                                onClick = {
-                                                    updateFilterState(emptyMap())
-                                                    showFilterMenu = false
-                                                }
-                                            )
-                                        }
-
-                                        if (hasCustomizations && onResetAllCalculations != null) {
-                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = LanguageHelper.getString("reset_calculation", languageMode),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MaterialTheme.colorScheme.error
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = Icons.Default.RestartAlt,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.error,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                },
-                                                onClick = {
-                                                    showFilterMenu = false
-                                                    showResetAllConfirmDialog = true
-                                                }
-                                            )
-                                        }
                                     }
                                 }
                             }
