@@ -15,9 +15,13 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -33,6 +37,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,9 +49,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
+import com.example.ui.components.filter.FilterState
+import com.example.ui.components.filter.specs.AccountsFilterSpec
 import com.example.ui.screens.AccountActiveStatusFilter
 import com.example.ui.screens.AccountSortFilter
+import com.example.ui.screens.AccountViewHierarchyFilter
 import com.example.ui.theme.SolidPrimary
 import com.example.util.LanguageHelper
 
@@ -304,7 +316,7 @@ private fun StatusSegment(
             .clickable(onClick = onClick)
             .testTag(tag),
         shape = RoundedCornerShape(20.dp),
-        color = if (selected) SolidPrimary else Color.Transparent
+        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -315,9 +327,291 @@ private fun StatusSegment(
                 text = label,
                 fontSize = 14.sp,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(vertical = 10.dp)
             )
+        }
+    }
+}
+
+/**
+ * "More filters" bottom sheet for the Accounts tab.
+ * Follows the exact design, typography, spacing, and day/night theme of AccountsSortFilterSheet.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun AccountsMoreFilterSheet(
+    filterState: FilterState,
+    languageMode: LanguageMode,
+    resultCount: Int? = null,
+    onApply: (FilterState) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isBn = languageMode == LanguageMode.BANGLA
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var draftState by remember { mutableStateOf(filterState) }
+
+    val sortFilter = AccountsFilterSpec.getSort(draftState)
+    val statusFilter = AccountsFilterSpec.getStatus(draftState)
+    val typeFilter = AccountsFilterSpec.getType(draftState)
+    val hierarchyFilter = AccountsFilterSpec.getHierarchy(draftState)
+    val excludeZeroBalance = AccountsFilterSpec.getExcludeZeroBalance(draftState)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp)
+                .testTag("accounts_more_filter_sheet")
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isBn) "সকল ফিল্টার ও সাজানো" else "All filters & sort",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (draftState.isNotEmpty()) {
+                    TextButton(
+                        onClick = { draftState = emptyMap() },
+                        modifier = Modifier.testTag("more_filter_reset_btn")
+                    ) {
+                        Text(
+                            text = if (isBn) "রিসেট" else "Reset",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+
+            // ---------- 1. Account Nature (Type) ----------
+            SheetSectionLabel(if (isBn) "অ্যাকাউন্টের প্রকৃতি" else "Account nature")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                StatusSegment(
+                    modifier = Modifier.weight(1f),
+                    selected = typeFilter == null,
+                    label = if (isBn) "সব" else "All",
+                    tag = "type_all",
+                    onClick = { draftState = AccountsFilterSpec.withType(draftState, null) }
+                )
+                StatusSegment(
+                    modifier = Modifier.weight(1f),
+                    selected = typeFilter == AccountType.ASSET,
+                    label = if (isBn) "সম্পদ" else "Assets",
+                    tag = "type_asset",
+                    onClick = { draftState = AccountsFilterSpec.withType(draftState, AccountType.ASSET) }
+                )
+                StatusSegment(
+                    modifier = Modifier.weight(1f),
+                    selected = typeFilter == AccountType.LIABILITY,
+                    label = if (isBn) "দায়" else "Liabilities",
+                    tag = "type_liability",
+                    onClick = { draftState = AccountsFilterSpec.withType(draftState, AccountType.LIABILITY) }
+                )
+            }
+
+            // ---------- 2. View Scope (Hierarchy) ----------
+            SheetSectionLabel(if (isBn) "প্রদর্শন পরিধি" else "View scope")
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SortChip(
+                    selected = hierarchyFilter == AccountViewHierarchyFilter.ALL,
+                    label = if (isBn) "সব প্রদর্শন" else "All view",
+                    tag = "hierarchy_all",
+                    onClick = { draftState = AccountsFilterSpec.withHierarchy(draftState, AccountViewHierarchyFilter.ALL) }
+                )
+                SortChip(
+                    selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS,
+                    label = if (isBn) "শুধুমাত্র গ্রুপ" else "Only groups",
+                    tag = "hierarchy_groups",
+                    onClick = { draftState = AccountsFilterSpec.withHierarchy(draftState, AccountViewHierarchyFilter.ONLY_GROUPS) }
+                )
+                SortChip(
+                    selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS,
+                    label = if (isBn) "শুধুমাত্র অ্যাকাউন্ট" else "Only accounts",
+                    tag = "hierarchy_accounts",
+                    onClick = { draftState = AccountsFilterSpec.withHierarchy(draftState, AccountViewHierarchyFilter.ONLY_ACCOUNTS) }
+                )
+                SortChip(
+                    selected = hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED,
+                    label = if (isBn) "বর্জিত" else "Excluded",
+                    tag = "hierarchy_excluded",
+                    onClick = { draftState = AccountsFilterSpec.withHierarchy(draftState, AccountViewHierarchyFilter.EXCLUDED) }
+                )
+            }
+
+            // ---------- 3. Account Status ----------
+            SheetSectionLabel(if (isBn) "অ্যাকাউন্টের অবস্থা" else "Account status")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                StatusSegment(
+                    modifier = Modifier.weight(1f),
+                    selected = statusFilter == AccountActiveStatusFilter.ALL,
+                    label = if (isBn) "সব" else "All",
+                    tag = "more_status_all",
+                    onClick = { draftState = AccountsFilterSpec.withStatus(draftState, AccountActiveStatusFilter.ALL) }
+                )
+                StatusSegment(
+                    modifier = Modifier.weight(1f),
+                    selected = statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY,
+                    label = if (isBn) "সক্রিয়" else "Active",
+                    tag = "more_status_active",
+                    onClick = { draftState = AccountsFilterSpec.withStatus(draftState, AccountActiveStatusFilter.ACTIVE_ONLY) }
+                )
+                StatusSegment(
+                    modifier = Modifier.weight(1f),
+                    selected = statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY,
+                    label = if (isBn) "নিষ্ক্রিয়" else "Inactive",
+                    tag = "more_status_inactive",
+                    onClick = { draftState = AccountsFilterSpec.withStatus(draftState, AccountActiveStatusFilter.INACTIVE_ONLY) }
+                )
+            }
+
+            // ---------- 4. Sort By ----------
+            SheetSectionLabel(if (isBn) "সাজান" else "Sort by")
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SortChip(
+                    selected = sortFilter == AccountSortFilter.DEFAULT,
+                    label = if (isBn) "ডিফল্ট" else "Default",
+                    tag = "more_sort_default",
+                    onClick = { draftState = AccountsFilterSpec.withSort(draftState, AccountSortFilter.DEFAULT) }
+                )
+                SortChip(
+                    selected = sortFilter == AccountSortFilter.AMOUNT_HIGH_TO_LOW,
+                    label = if (isBn) "ব্যালেন্স: বেশি → কম" else "Balance: High → Low",
+                    tag = "more_sort_amount_desc",
+                    onClick = { draftState = AccountsFilterSpec.withSort(draftState, AccountSortFilter.AMOUNT_HIGH_TO_LOW) }
+                )
+                SortChip(
+                    selected = sortFilter == AccountSortFilter.AMOUNT_LOW_TO_HIGH,
+                    label = if (isBn) "ব্যালেন্স: কম → বেশি" else "Balance: Low → High",
+                    tag = "more_sort_amount_asc",
+                    onClick = { draftState = AccountsFilterSpec.withSort(draftState, AccountSortFilter.AMOUNT_LOW_TO_HIGH) }
+                )
+                SortChip(
+                    selected = sortFilter == AccountSortFilter.MOST_USED,
+                    label = if (isBn) "সর্বাধিক ব্যবহৃত" else "Most used",
+                    tag = "more_sort_most_used",
+                    onClick = { draftState = AccountsFilterSpec.withSort(draftState, AccountSortFilter.MOST_USED) }
+                )
+                SortChip(
+                    selected = sortFilter == AccountSortFilter.LEAST_USED,
+                    label = if (isBn) "সর্বনিম্ন ব্যবহৃত" else "Least used",
+                    tag = "more_sort_least_used",
+                    onClick = { draftState = AccountsFilterSpec.withSort(draftState, AccountSortFilter.LEAST_USED) }
+                )
+                SortChip(
+                    selected = sortFilter == AccountSortFilter.NAME_AZ,
+                    label = if (isBn) "নাম: ক → য়" else "Name: A → Z",
+                    tag = "more_sort_name_az",
+                    onClick = { draftState = AccountsFilterSpec.withSort(draftState, AccountSortFilter.NAME_AZ) }
+                )
+                SortChip(
+                    selected = sortFilter == AccountSortFilter.NAME_ZA,
+                    label = if (isBn) "নাম: য় → ক" else "Name: Z → A",
+                    tag = "more_sort_name_za",
+                    onClick = { draftState = AccountsFilterSpec.withSort(draftState, AccountSortFilter.NAME_ZA) }
+                )
+            }
+
+            // ---------- 5. Zero Balance Switch ----------
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag("more_filter_exclude_zero"),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = LanguageHelper.getString("exclude_zero_balance", languageMode),
+                    modifier = Modifier.weight(1f),
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Switch(
+                    checked = excludeZeroBalance,
+                    onCheckedChange = { checked ->
+                        draftState = AccountsFilterSpec.withExcludeZero(draftState, checked)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = MaterialTheme.colorScheme.primary,
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+
+            // ---------- 6. Footer Buttons ----------
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                ) {
+                    Text(
+                        text = LanguageHelper.getString("cancel", languageMode),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Button(
+                    onClick = { onApply(draftState) },
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(48.dp)
+                        .testTag("more_filter_apply_btn"),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text(
+                        text = if (resultCount != null) {
+                            if (isBn) "প্রয়োগ করুন ($resultCount)" else "Apply ($resultCount)"
+                        } else {
+                            if (isBn) "প্রয়োগ করুন" else "Apply"
+                        },
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
         }
     }
 }

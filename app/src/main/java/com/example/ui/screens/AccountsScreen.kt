@@ -111,6 +111,7 @@ import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.AccountsFilterSpec
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.ui.components.AccountInclusionToggleBar
+import com.example.ui.components.AccountsMoreFilterSheet
 import com.example.ui.components.AccountsSortFilterSheet
 import com.example.util.AccountInclusionViewMode
 import com.example.util.AccountCalculationPreferences
@@ -790,32 +791,33 @@ fun AccountsScreen(
     }
 
     if (showFilterDialog) {
-        UnifiedFilterDialog(
-            spec = accountsSpec,
-            initialState = filterState,
+        val resultMatchCount = remember(filterState, accountsWithBalances, activeAccounts, inactiveAccounts) {
+            val type = AccountsFilterSpec.getType(filterState)
+            val st = AccountsFilterSpec.getStatus(filterState)
+            val ex0 = AccountsFilterSpec.getExcludeZeroBalance(filterState)
+
+            val base = when (st) {
+                AccountActiveStatusFilter.INACTIVE_ONLY -> inactiveAccounts
+                AccountActiveStatusFilter.ACTIVE_ONLY -> activeAccounts
+                else -> accountsWithBalances
+            }
+            val typeFiltered = when (type) {
+                AccountType.ASSET -> base.filter { isGroupAssetSide(it) }
+                AccountType.LIABILITY -> base.filter { !isGroupAssetSide(it) }
+                else -> base
+            }
+            if (ex0) filterZeroBalanceGroups(typeFiltered).size else typeFiltered.size
+        }
+
+        AccountsMoreFilterSheet(
+            filterState = filterState,
             languageMode = languageMode,
-            onDismiss = { showFilterDialog = false },
+            resultCount = resultMatchCount,
             onApply = { newFilter ->
                 updateFilterState(newFilter)
                 showFilterDialog = false
             },
-            countProvider = { state ->
-                val type = AccountsFilterSpec.getType(state)
-                val st = AccountsFilterSpec.getStatus(state)
-                val ex0 = AccountsFilterSpec.getExcludeZeroBalance(state)
-
-                val base = when (st) {
-                    AccountActiveStatusFilter.INACTIVE_ONLY -> inactiveAccounts
-                    AccountActiveStatusFilter.ACTIVE_ONLY -> activeAccounts
-                    else -> accountsWithBalances
-                }
-                val typeFiltered = when (type) {
-                    AccountType.ASSET -> base.filter { isGroupAssetSide(it) }
-                    AccountType.LIABILITY -> base.filter { !isGroupAssetSide(it) }
-                    else -> base
-                }
-                if (ex0) filterZeroBalanceGroups(typeFiltered).size else typeFiltered.size
-            }
+            onDismiss = { showFilterDialog = false }
         )
     }
 
@@ -920,7 +922,7 @@ fun AccountsScreen(
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // --- 1. Net Worth Summary Card (Forest Green New Layout) ---
+                // --- 1. Net Worth Summary Card (Themed for Day & Night) ---
                 item {
                     val isBn = languageMode == LanguageMode.BANGLA
                     Card(
@@ -928,7 +930,8 @@ fun AccountsScreen(
                             .fillMaxWidth()
                             .testTag("net_worth_card"),
                         shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0C5A3E)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column(
@@ -946,7 +949,7 @@ fun AccountsScreen(
                                     } else {
                                         if (isBn) "মোট সম্পদ" else "Net worth"
                                     },
-                                    color = Color.White.copy(alpha = 0.85f),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -954,7 +957,7 @@ fun AccountsScreen(
                                 if (hasCustomizations) {
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = Color(0xFF1B6B4C),
+                                        color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable { showResetAllConfirmDialog = true }
@@ -962,7 +965,7 @@ fun AccountsScreen(
                                     ) {
                                         Text(
                                             text = if (isBn) "সমন্বিত" else "Adjusted",
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onPrimary,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -971,7 +974,8 @@ fun AccountsScreen(
                                 } else {
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = Color.White.copy(alpha = 0.12f),
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable { isEditMode = !isEditMode }
@@ -979,7 +983,7 @@ fun AccountsScreen(
                                     ) {
                                         Text(
                                             text = if (isEditMode) (if (isBn) "সম্পন্ন" else "Done") else (if (isBn) "স্ট্যাটাস" else "Status"),
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -993,7 +997,7 @@ fun AccountsScreen(
                             // Main Net Worth amount
                             Text(
                                 text = LanguageHelper.formatCurrency(displayedNetWorth, languageMode),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontSize = 34.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1003,14 +1007,14 @@ fun AccountsScreen(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${if (isBn) "আসল" else "Original"}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
-                                    color = Color.White.copy(alpha = 0.75f),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f),
                                     fontSize = 13.sp
                                 )
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Proportional split bar: Mint green for Assets, Coral red for Liabilities
+                            // Proportional split bar: Assets portion & Liabilities portion
                             val safeAssets = displayedAssets.coerceAtLeast(0.0)
                             val safeLiabilities = displayedLiabilities.coerceAtLeast(0.0)
                             val totalVol = safeAssets + safeLiabilities
@@ -1025,14 +1029,14 @@ fun AccountsScreen(
                                     .fillMaxWidth()
                                     .height(7.dp)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFFCA5A5))
+                                    .background(SolidExpense.copy(alpha = 0.45f))
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth(fraction = assetFraction)
                                         .fillMaxHeight()
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF72D5A3))
+                                        .background(SolidIncome)
                                 )
                             }
 
@@ -1056,20 +1060,20 @@ fun AccountsScreen(
                                 ) {
                                     Text(
                                         text = if (isBn) "সম্পদ" else "Assets",
-                                        color = Color.White.copy(alpha = 0.85f),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                         fontSize = 13.sp
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(displayedAssets, languageMode),
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     if (hasCustomizations && calculatedTotalAssets != actualTotalAssets) {
                                         Text(
                                             text = "${if (isBn) "ছিল" else "was"} ${LanguageHelper.formatCurrency(actualTotalAssets, languageMode)}",
-                                            color = Color.White.copy(alpha = 0.7f),
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f),
                                             fontSize = 11.5.sp
                                         )
                                     }
@@ -1087,20 +1091,20 @@ fun AccountsScreen(
                                 ) {
                                     Text(
                                         text = if (isBn) "দায়" else "Liabilities",
-                                        color = Color.White.copy(alpha = 0.85f),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                         fontSize = 13.sp
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(displayedLiabilities, languageMode),
-                                        color = Color(0xFFFCA5A5),
+                                        color = SolidExpense,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     if (hasCustomizations && calculatedTotalLiabilities != actualTotalLiabilities) {
                                         Text(
                                             text = "${if (isBn) "ছিল" else "was"} ${LanguageHelper.formatCurrency(actualTotalLiabilities, languageMode)}",
-                                            color = Color.White.copy(alpha = 0.7f),
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f),
                                             fontSize = 11.5.sp
                                         )
                                     }
@@ -1156,97 +1160,6 @@ fun AccountsScreen(
                             tag = "pill_all_included",
                             onClick = { onSelectTab(AccountsViewTab.ALL_INCLUDED) }
                         )
-                    }
-                }
-
-                // --- 3. Active Filter / Sort row (from screenshot: [ Balance: High → Low  x ] ... Reset) ---
-                val hasSortFilter = sortFilter != AccountSortFilter.DEFAULT
-                val hasStatusFilter = statusFilter != AccountActiveStatusFilter.ALL
-                val hasTypeFilter = selectedTypeFilter != null
-                val hasActiveFilterBar = hasSortFilter || hasStatusFilter || excludeZeroBalance || hasTypeFilter
-
-                if (hasActiveFilterBar) {
-                    item {
-                        val isBn = languageMode == LanguageMode.BANGLA
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Active Sort chip
-                                if (hasSortFilter) {
-                                    val sortLabel = when (sortFilter) {
-                                        AccountSortFilter.AMOUNT_HIGH_TO_LOW -> if (isBn) "ব্যালেন্স: বেশি → কম" else "Balance: High → Low"
-                                        AccountSortFilter.AMOUNT_LOW_TO_HIGH -> if (isBn) "ব্যালেন্স: কম → বেশি" else "Balance: Low → High"
-                                        AccountSortFilter.MOST_USED -> if (isBn) "ব্যবহার: বেশি → কম" else "Usage: High → Low"
-                                        AccountSortFilter.LEAST_USED -> if (isBn) "ব্যবহার: কম → বেশি" else "Usage: Low → High"
-                                        AccountSortFilter.NAME_AZ -> if (isBn) "নাম: A → Z" else "Name: A → Z"
-                                        AccountSortFilter.NAME_ZA -> if (isBn) "নাম: Z → A" else "Name: Z → A"
-                                        else -> ""
-                                    }
-                                    ActiveFilterChip(
-                                        text = sortLabel,
-                                        onClear = { updateFilterState(AccountsFilterSpec.withSort(filterState, AccountSortFilter.DEFAULT)) }
-                                    )
-                                }
-
-                                // Active Status chip
-                                if (hasStatusFilter) {
-                                    val statusLabel = when (statusFilter) {
-                                        AccountActiveStatusFilter.ACTIVE_ONLY -> if (isBn) "সক্রিয়" else "Active"
-                                        AccountActiveStatusFilter.INACTIVE_ONLY -> if (isBn) "নিষ্ক্রিয়" else "Inactive"
-                                        else -> ""
-                                    }
-                                    ActiveFilterChip(
-                                        text = statusLabel,
-                                        onClear = { updateFilterState(AccountsFilterSpec.withStatus(filterState, AccountActiveStatusFilter.ALL)) }
-                                    )
-                                }
-
-                                // Exclude Zero Balance chip
-                                if (excludeZeroBalance) {
-                                    ActiveFilterChip(
-                                        text = if (isBn) "≠ ০ ব্যালেন্স" else "≠ 0 Balance",
-                                        onClear = { updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, false)) }
-                                    )
-                                }
-
-                                // Type chip
-                                if (hasTypeFilter) {
-                                    val typeLabel = if (selectedTypeFilter == AccountType.ASSET) {
-                                        if (isBn) "সম্পদ" else "Assets"
-                                    } else {
-                                        if (isBn) "দায়" else "Liabilities"
-                                    }
-                                    ActiveFilterChip(
-                                        text = typeLabel,
-                                        onClear = { updateFilterState(AccountsFilterSpec.withType(filterState, null)) }
-                                    )
-                                }
-                            }
-
-                            // Reset button on the right
-                            TextButton(
-                                onClick = { updateFilterState(emptyMap()) },
-                                modifier = Modifier.testTag("filter_reset_btn")
-                            ) {
-                                Text(
-                                    text = if (isBn) "রিসেট" else "Reset",
-                                    color = Color(0xFF0C5A3E),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
                     }
                 }
 
@@ -1625,50 +1538,16 @@ private fun AccountsSummaryPill(
             .clickable(onClick = onClick)
             .testTag(tag),
         shape = RoundedCornerShape(20.dp),
-        color = if (selected) Color(0xFF0C5A3E) else MaterialTheme.colorScheme.surface,
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
         border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
     ) {
         Text(
             text = label,
             fontSize = 14.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp)
         )
-    }
-}
-
-@Composable
-private fun ActiveFilterChip(
-    text: String,
-    onClear: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFE8F5E9),
-        border = BorderStroke(1.dp, Color(0xFF0C5A3E)),
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClear)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = text,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF0C5A3E)
-            )
-            Icon(
-                imageVector = Icons.Default.Clear,
-                contentDescription = "Remove",
-                tint = Color(0xFF0C5A3E),
-                modifier = Modifier.size(14.dp)
-            )
-        }
     }
 }
 
