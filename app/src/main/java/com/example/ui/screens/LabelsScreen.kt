@@ -550,17 +550,6 @@ fun LabelsScreen(
                 }
             )
 
-            // Unified Active Filter Bar strip
-            UnifiedActiveFilterBar(
-                spec = labelsSpec,
-                state = filterState,
-                onFilterChange = updateFilterState,
-                onOpenFilterDialog = { showFilterDialog = true },
-                accentColor = CrimsonPink,
-                languageMode = languageMode,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-
             // Segmented Filter Pills Row & On-screen Sort Button
             Row(
                 modifier = Modifier
@@ -867,6 +856,17 @@ fun LabelsScreen(
                     }
                 }
             }
+
+            // Unified Active Filter Bar strip (shown below the summary card)
+            UnifiedActiveFilterBar(
+                spec = labelsSpec,
+                state = filterState,
+                onFilterChange = updateFilterState,
+                onOpenFilterDialog = { showFilterDialog = true },
+                accentColor = CrimsonPink,
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            )
 
             // Main Content Area
             if (selectedSegment == LabelCategorySegment.UNTAGGED) {

@@ -610,17 +610,6 @@ fun ReportsScreen(
             }
         )
 
-        // Active Filter Bar (shown when filters are active)
-        if (netEarningsSpec.isActive(filterState)) {
-            UnifiedActiveFilterBar(
-                spec = netEarningsSpec,
-                state = filterState,
-                onFilterChange = { updateFilterState(it) },
-                languageMode = languageMode,
-                onOpenFilterDialog = { showFilterDialog = true }
-            )
-        }
-
         // 2. SCROLL-AWARE TOP FIXED SUMMARY CARD (Smooth animated hide and show)
         AnimatedVisibility(
             visible = !isScrolled,
@@ -989,6 +978,17 @@ fun ReportsScreen(
                     }
                 }
             }
+        }
+
+        // Active Filter Bar (shown below the top summary card when filters are active)
+        if (netEarningsSpec.isActive(filterState)) {
+            UnifiedActiveFilterBar(
+                spec = netEarningsSpec,
+                state = filterState,
+                onFilterChange = { updateFilterState(it) },
+                languageMode = languageMode,
+                onOpenFilterDialog = { showFilterDialog = true }
+            )
         }
 
         // 3. QUICK CONTROLS: HIERARCHY TOGGLE & SORT CHIPS
