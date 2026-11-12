@@ -49,6 +49,7 @@ import com.example.util.DecimalPrecision
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -107,6 +109,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -164,7 +167,10 @@ import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
 import com.example.util.TabFilterPreferences
 import androidx.compose.ui.platform.LocalContext
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 private val CrimsonPink = Color(0xFFE91E63)
@@ -250,6 +256,8 @@ fun BudgetTrackingScreen(
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
+    var showPrimaryPeriodDialog by remember { mutableStateOf(false) }
+    var showComparePeriodDialog by remember { mutableStateOf(false) }
     var showBaseMonthPicker by remember { mutableStateOf(false) }
     var showBaseDatePicker by remember { mutableStateOf(false) }
     var showBaseStartDatePicker by remember { mutableStateOf(false) }
@@ -861,105 +869,314 @@ fun BudgetTrackingScreen(
             val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.45f
 
             // 2. TOP MONTH NAVIGATION CAPSULE & COMPARE ROW
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Month Navigation Capsule: ‹ November 2026 ▾ ›
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                    modifier = Modifier.height(44.dp)
+            val isComparisonActive = filterState.comparisonEnabled && baseRange != null
+            if (!isComparisonActive) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 6.dp)
+                    // Month Navigation Capsule: ‹ November 2026 ▾ ›
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(42.dp)
                     ) {
-                        IconButton(
-                            onClick = { viewModel.prevBudgetMonth() },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Text(
-                                text = "‹",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { showMonthPicker = true }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp)
                         ) {
-                            Text(
-                                text = compareDateLabel,
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "Select Month",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            IconButton(
+                                onClick = {
+                                    if (filterState.datePreset == BudgetDateRangePreset.CUSTOM) {
+                                        val s = filterState.customStartDateMs ?: DateUtils.getStartOfMonth(selectedYear, selectedMonth)
+                                        val e = filterState.customEndDateMs ?: DateUtils.getEndOfMonth(selectedYear, selectedMonth)
+                                        val diff = e - s
+                                        filterState = filterState.copy(customStartDateMs = s - diff, customEndDateMs = s)
+                                    } else {
+                                        viewModel.prevBudgetMonth()
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text(
+                                    text = "‹",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
 
-                        IconButton(
-                            onClick = { viewModel.nextBudgetMonth() },
-                            modifier = Modifier.size(32.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { showPrimaryPeriodDialog = true }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = compareDateLabel,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Primary Period",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (filterState.datePreset == BudgetDateRangePreset.CUSTOM) {
+                                        val s = filterState.customStartDateMs ?: DateUtils.getStartOfMonth(selectedYear, selectedMonth)
+                                        val e = filterState.customEndDateMs ?: DateUtils.getEndOfMonth(selectedYear, selectedMonth)
+                                        val diff = e - s
+                                        filterState = filterState.copy(customStartDateMs = e, customEndDateMs = e + diff)
+                                    } else {
+                                        viewModel.nextBudgetMonth()
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text(
+                                    text = "›",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    // Compare Button (+ Compare)
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .height(42.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .clickable {
+                                val cal = Calendar.getInstance().apply {
+                                    set(Calendar.YEAR, selectedYear)
+                                    set(Calendar.MONTH, selectedMonth - 1)
+                                    add(Calendar.MONTH, -1)
+                                }
+                                val prevY = cal.get(Calendar.YEAR)
+                                val prevM = cal.get(Calendar.MONTH) + 1
+                                filterState = filterState.copy(
+                                    comparisonEnabled = true,
+                                    comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                                    customCompareStartMs = DateUtils.getStartOfMonth(prevY, prevM),
+                                    customCompareEndMs = DateUtils.getEndOfMonth(prevY, prevM)
+                                )
+                            }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp)
                         ) {
                             Text(
-                                text = "›",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                text = if (languageMode == LanguageMode.BANGLA) "+ তুলনা" else "+ Compare",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
                 }
-
-                // Compare Button (+ Compare)
-                val isComparisonActive = filterState.comparisonEnabled && baseRange != null
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = if (isComparisonActive) MaterialTheme.colorScheme.primary else Color.Transparent,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+            } else {
+                // Dual Comparison Navigation Bar: [ ‹ Primary Month ▾ › ] vs [ ‹ Compare Month ▾ › ] ✕
+                Row(
                     modifier = Modifier
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .clickable {
-                            if (isComparisonActive) {
-                                filterState = filterState.copy(comparisonEnabled = false)
-                            } else {
-                                filterState = filterState.copy(
-                                    comparisonEnabled = true,
-                                    comparisonPreset = BudgetComparisonPreset.LAST_MONTH
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Side 1: Primary Period Capsule
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (filterState.datePreset == BudgetDateRangePreset.CUSTOM) {
+                                        val s = filterState.customStartDateMs ?: DateUtils.getStartOfMonth(selectedYear, selectedMonth)
+                                        val e = filterState.customEndDateMs ?: DateUtils.getEndOfMonth(selectedYear, selectedMonth)
+                                        val diff = e - s
+                                        filterState = filterState.copy(customStartDateMs = s - diff, customEndDateMs = s)
+                                    } else {
+                                        viewModel.prevBudgetMonth()
+                                    }
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "‹", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showPrimaryPeriodDialog = true }
+                                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = compareDateLabel,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
+
+                            IconButton(
+                                onClick = {
+                                    if (filterState.datePreset == BudgetDateRangePreset.CUSTOM) {
+                                        val s = filterState.customStartDateMs ?: DateUtils.getStartOfMonth(selectedYear, selectedMonth)
+                                        val e = filterState.customEndDateMs ?: DateUtils.getEndOfMonth(selectedYear, selectedMonth)
+                                        val diff = e - s
+                                        filterState = filterState.copy(customStartDateMs = e, customEndDateMs = e + diff)
+                                    } else {
+                                        viewModel.nextBudgetMonth()
+                                    }
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
                         }
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                    }
+
+                    Text(
+                        text = "vs",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    // Side 2: Compare Period Capsule
+                    val compStartMs = baseRange?.first ?: (compareRange.first - 30L * 24 * 60 * 60 * 1000L)
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
                     ) {
-                        Text(
-                            text = if (isComparisonActive) {
-                                if (languageMode == LanguageMode.BANGLA) "তুলনা: চালু ✕" else "Compare: ON ✕"
-                            } else {
-                                if (languageMode == LanguageMode.BANGLA) "+ তুলনা" else "+ Compare"
-                            },
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isComparisonActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    val cal = Calendar.getInstance().apply {
+                                        timeInMillis = compStartMs
+                                        add(Calendar.MONTH, -1)
+                                    }
+                                    val y = cal.get(Calendar.YEAR)
+                                    val m = cal.get(Calendar.MONTH) + 1
+                                    filterState = filterState.copy(
+                                        comparisonEnabled = true,
+                                        comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                                        customCompareStartMs = DateUtils.getStartOfMonth(y, m),
+                                        customCompareEndMs = DateUtils.getEndOfMonth(y, m)
+                                    )
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "‹", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showComparePeriodDialog = true }
+                                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = baseDateLabel.ifBlank { if (languageMode == LanguageMode.BANGLA) "তুলনা" else "Compare" },
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    val cal = Calendar.getInstance().apply {
+                                        timeInMillis = compStartMs
+                                        add(Calendar.MONTH, 1)
+                                    }
+                                    val y = cal.get(Calendar.YEAR)
+                                    val m = cal.get(Calendar.MONTH) + 1
+                                    filterState = filterState.copy(
+                                        comparisonEnabled = true,
+                                        comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                                        customCompareStartMs = DateUtils.getStartOfMonth(y, m),
+                                        customCompareEndMs = DateUtils.getEndOfMonth(y, m)
+                                    )
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+
+                    // Exit Compare Button
+                    IconButton(
+                        onClick = { filterState = filterState.copy(comparisonEnabled = false) },
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close Comparison",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -971,15 +1188,17 @@ fun BudgetTrackingScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 2.dp)
                     .testTag("budget_hero_summary_card"),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ),
+                border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.40f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp)
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     // Top Row: Remaining · Under limit (or Over budget) and of ৳8,050.00
                     Row(
@@ -993,39 +1212,39 @@ fun BudgetTrackingScreen(
                             } else {
                                 if (isOverallOver) "Over budget · Over limit" else "Remaining · Under limit"
                             },
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "বাজেট " else "of ",
-                                fontSize = 14.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = formatBudgetAmount(totalFlowBudget, filterState, languageMode, false),
-                                fontSize = 16.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
-                    // Main Large Remaining Balance
+                    // Main Remaining Balance (Lighter font, more compact)
                     Text(
                         text = formatBudgetAmount(totalFlowRemaining, filterState, languageMode, false),
-                        fontSize = 35.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
                         letterSpacing = (-0.5).sp
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Progress Bar with TODAY Marker
                     BudgetHeroProgressBarWithTodayMarker(
@@ -1035,7 +1254,7 @@ fun BudgetTrackingScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Bottom Row: Spent, Used, Budgeted
                     Row(
@@ -1047,14 +1266,14 @@ fun BudgetTrackingScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "ব্যয় " else "Spent ",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.80f)
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = formatBudgetAmount(totalFlowSpent, filterState, languageMode, false),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = CrimsonPink
                             )
                         }
@@ -1063,15 +1282,15 @@ fun BudgetTrackingScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "ব্যবহৃত " else "Used ",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.80f)
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = "$overallPercentage%",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
@@ -1079,15 +1298,15 @@ fun BudgetTrackingScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "বাজেট " else "Budgeted ",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.80f)
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
                                 text = formatBudgetAmount(totalFlowBudget, filterState, languageMode, false),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -1098,7 +1317,7 @@ fun BudgetTrackingScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Horizontally scrollable row containing Segmented capsule and filter pills
@@ -1107,25 +1326,25 @@ fun BudgetTrackingScreen(
                         .weight(1f)
                         .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     // Segmented Capsule: [ All | Groups | Categories ]
                     Surface(
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
-                        modifier = Modifier.height(44.dp)
+                        modifier = Modifier.height(35.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(3.dp),
+                            modifier = Modifier.padding(2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Segment: All
                             val isAllActive = !filterState.showOnlyGroups && !filterState.showOnlyCategoriesWithoutGroups
                             Surface(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 color = if (isAllActive) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
+                                    .clip(RoundedCornerShape(16.dp))
                                     .clickable {
                                         filterState = filterState.copy(
                                             showOnlyGroups = false,
@@ -1135,20 +1354,20 @@ fun BudgetTrackingScreen(
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
-                                    fontSize = 13.5.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = if (isAllActive) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isAllActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
                             }
 
                             // Segment: Groups
                             val isGroupsActive = filterState.showOnlyGroups
                             Surface(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 color = if (isGroupsActive) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
+                                    .clip(RoundedCornerShape(16.dp))
                                     .clickable {
                                         filterState = filterState.copy(
                                             showOnlyGroups = true,
@@ -1158,20 +1377,20 @@ fun BudgetTrackingScreen(
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ" else "Groups",
-                                    fontSize = 13.5.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = if (isGroupsActive) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isGroupsActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
                             }
 
                             // Segment: Categories
                             val isCategoriesActive = filterState.showOnlyCategoriesWithoutGroups
                             Surface(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 color = if (isCategoriesActive) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
+                                    .clip(RoundedCornerShape(16.dp))
                                     .clickable {
                                         filterState = filterState.copy(
                                             showOnlyGroups = false,
@@ -1181,10 +1400,10 @@ fun BudgetTrackingScreen(
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
-                                    fontSize = 13.5.sp,
+                                    fontSize = 11.5.sp,
                                     fontWeight = if (isCategoriesActive) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isCategoriesActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
                             }
                         }
@@ -1193,23 +1412,23 @@ fun BudgetTrackingScreen(
                     // Filter Pill 1: Remaining
                     val isRemainingActive = filterState.showOnlyRemainingBalance
                     Surface(
-                        shape = RoundedCornerShape(22.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = if (isRemainingActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
                         border = if (isRemainingActive) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                         modifier = Modifier
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(22.dp))
+                            .height(35.dp)
+                            .clip(RoundedCornerShape(18.dp))
                             .clickable {
                                 filterState = filterState.copy(showOnlyRemainingBalance = !filterState.showOnlyRemainingBalance)
                             }
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp)
                         ) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining",
-                                fontSize = 13.5.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = if (isRemainingActive) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isRemainingActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
@@ -1219,23 +1438,23 @@ fun BudgetTrackingScreen(
                     // Filter Pill 2: Active
                     val isActiveActive = filterState.filterOnlyBudgeted
                     Surface(
-                        shape = RoundedCornerShape(22.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = if (isActiveActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
                         border = if (isActiveActive) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                         modifier = Modifier
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(22.dp))
+                            .height(35.dp)
+                            .clip(RoundedCornerShape(18.dp))
                             .clickable {
                                 filterState = filterState.copy(filterOnlyBudgeted = !filterState.filterOnlyBudgeted)
                             }
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp)
                         ) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "সক্রিয়" else "Active",
-                                fontSize = 13.5.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = if (isActiveActive) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isActiveActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
@@ -1245,23 +1464,23 @@ fun BudgetTrackingScreen(
                     // Filter Pill 3: Over Budget
                     val isOverBudgetActive = filterState.filterOnlyOverBudget
                     Surface(
-                        shape = RoundedCornerShape(22.dp),
+                        shape = RoundedCornerShape(18.dp),
                         color = if (isOverBudgetActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
                         border = if (isOverBudgetActive) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                         modifier = Modifier
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(22.dp))
+                            .height(35.dp)
+                            .clip(RoundedCornerShape(18.dp))
                             .clickable {
                                 filterState = filterState.copy(filterOnlyOverBudget = !filterState.filterOnlyOverBudget)
                             }
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp)
                         ) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Budget",
-                                fontSize = 13.5.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = if (isOverBudgetActive) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isOverBudgetActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                             )
@@ -1269,27 +1488,38 @@ fun BudgetTrackingScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
-                // Circular Sort Button on the far right
+                // Redesigned Sort Button on the far right
                 var showSortDropdown by remember { mutableStateOf(false) }
+                val isNonDefaultSort = filterState.sortOrder != BudgetSortOrder.DEFAULT
                 Box {
                     Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (isNonDefaultSort) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, if (isNonDefaultSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                         modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
+                            .height(35.dp)
+                            .clip(RoundedCornerShape(18.dp))
                             .clickable { showSortDropdown = true }
                             .testTag("budget_sort_button")
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.ArrowDownward,
+                                imageVector = Icons.AutoMirrored.Filled.Sort,
                                 contentDescription = "Sort",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                tint = if (isNonDefaultSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = if (isNonDefaultSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
@@ -1977,6 +2207,87 @@ fun BudgetTrackingScreen(
                     initialOriginalBudget = item.originalBudget
                 )
                 categoryForAdjustBudget = null
+            }
+        )
+    }
+
+    // PRIMARY PERIOD PICKER DIALOG (Select Month or Custom Range)
+    if (showPrimaryPeriodDialog) {
+        val isCustom = filterState.datePreset == BudgetDateRangePreset.CUSTOM
+        val startMs = filterState.customStartDateMs ?: DateUtils.getStartOfMonth(selectedYear, selectedMonth)
+        val endMs = filterState.customEndDateMs ?: DateUtils.getEndOfMonth(selectedYear, selectedMonth)
+        PeriodOrCustomPickerDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "চলতি সময়সীমা নির্বাচন করুন" else "Select Primary Period",
+            initialYear = selectedYear,
+            initialMonth = selectedMonth,
+            initialCustomStartMs = startMs,
+            initialCustomEndMs = endMs,
+            isCustomInitially = isCustom,
+            languageMode = languageMode,
+            onDismiss = { showPrimaryPeriodDialog = false },
+            onSelectMonth = { y, m ->
+                viewModel.setBudgetYearMonth(y, m)
+                filterState = filterState.copy(
+                    datePreset = BudgetDateRangePreset.THIS_MONTH,
+                    customStartDateMs = null,
+                    customEndDateMs = null
+                )
+                showPrimaryPeriodDialog = false
+            },
+            onSelectCustomRange = { s, e ->
+                filterState = filterState.copy(
+                    datePreset = BudgetDateRangePreset.CUSTOM,
+                    customStartDateMs = s,
+                    customEndDateMs = e
+                )
+                showPrimaryPeriodDialog = false
+            }
+        )
+    }
+
+    // COMPARE PERIOD PICKER DIALOG (Select Month or Custom Range)
+    if (showComparePeriodDialog) {
+        val compCal = Calendar.getInstance().apply {
+            if (baseRange != null) timeInMillis = baseRange.first
+            else {
+                set(Calendar.YEAR, selectedYear)
+                set(Calendar.MONTH, selectedMonth - 1)
+                add(Calendar.MONTH, -1)
+            }
+        }
+        val compYear = compCal.get(Calendar.YEAR)
+        val compMonth = compCal.get(Calendar.MONTH) + 1
+        val isCustom = filterState.comparisonPreset == BudgetComparisonPreset.CUSTOM &&
+                (filterState.customCompareStartMs != null && filterState.customCompareEndMs != null) &&
+                !(DateUtils.getStartOfMonth(compYear, compMonth) == filterState.customCompareStartMs &&
+                        DateUtils.getEndOfMonth(compYear, compMonth) == filterState.customCompareEndMs)
+
+        PeriodOrCustomPickerDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "তুলনা সময়সীমা নির্বাচন করুন" else "Select Compare Period",
+            initialYear = compYear,
+            initialMonth = compMonth,
+            initialCustomStartMs = filterState.customCompareStartMs ?: DateUtils.getStartOfMonth(compYear, compMonth),
+            initialCustomEndMs = filterState.customCompareEndMs ?: DateUtils.getEndOfMonth(compYear, compMonth),
+            isCustomInitially = isCustom,
+            languageMode = languageMode,
+            onDismiss = { showComparePeriodDialog = false },
+            onSelectMonth = { y, m ->
+                filterState = filterState.copy(
+                    comparisonEnabled = true,
+                    comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                    customCompareStartMs = DateUtils.getStartOfMonth(y, m),
+                    customCompareEndMs = DateUtils.getEndOfMonth(y, m)
+                )
+                showComparePeriodDialog = false
+            },
+            onSelectCustomRange = { s, e ->
+                filterState = filterState.copy(
+                    comparisonEnabled = true,
+                    comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                    customCompareStartMs = s,
+                    customCompareEndMs = e
+                )
+                showComparePeriodDialog = false
             }
         )
     }
@@ -3190,7 +3501,7 @@ private fun BudgetHeroProgressBarWithTodayMarker(
     modifier: Modifier = Modifier
 ) {
     val barColor = if (isOverBudget) CrimsonPink else MaterialTheme.colorScheme.primary
-    val trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.16f)
+    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
     val markerColor = MaterialTheme.colorScheme.primary
     val clampedProgress = progressRatio.coerceIn(0f, 1f)
 
@@ -3199,7 +3510,7 @@ private fun BudgetHeroProgressBarWithTodayMarker(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(20.dp)
+                .height(17.dp)
         ) {
             val totalWidth = maxWidth
             val markerFraction = todayPaceRatio.coerceIn(0.04f, 0.96f)
@@ -3212,17 +3523,16 @@ private fun BudgetHeroProgressBarWithTodayMarker(
             ) {
                 Text(
                     text = "TODAY",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = markerColor,
-                    letterSpacing = 0.6.sp,
+                    letterSpacing = 0.5.sp,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(1.dp))
                 Box(
                     modifier = Modifier
-                        .width(2.dp)
-                        .height(6.dp)
+                        .width(1.5.dp)
+                        .height(5.dp)
                         .background(markerColor, RoundedCornerShape(1.dp))
                 )
             }
@@ -3232,8 +3542,8 @@ private fun BudgetHeroProgressBarWithTodayMarker(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(7.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .height(5.dp)
+                .clip(RoundedCornerShape(3.dp))
                 .background(trackColor)
         ) {
             if (clampedProgress > 0f) {
@@ -3241,7 +3551,7 @@ private fun BudgetHeroProgressBarWithTodayMarker(
                     modifier = Modifier
                         .fillMaxWidth(clampedProgress)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(3.dp))
                         .background(barColor)
                 )
             }
@@ -3639,6 +3949,355 @@ private fun CategoryTransactionsDetailDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Month and Custom Date Range picker dialog for primary and comparison periods.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PeriodOrCustomPickerDialog(
+    title: String,
+    initialYear: Int,
+    initialMonth: Int,
+    initialCustomStartMs: Long?,
+    initialCustomEndMs: Long?,
+    isCustomInitially: Boolean,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSelectMonth: (year: Int, month: Int) -> Unit,
+    onSelectCustomRange: (startMs: Long, endMs: Long) -> Unit
+) {
+    var selectedTab by remember { mutableIntStateOf(if (isCustomInitially) 1 else 0) }
+    var year by remember { mutableIntStateOf(initialYear) }
+
+    val defaultStart = initialCustomStartMs ?: DateUtils.getStartOfMonth(initialYear, initialMonth)
+    val defaultEnd = initialCustomEndMs ?: DateUtils.getEndOfMonth(initialYear, initialMonth)
+    var customStartMs by remember { mutableLongStateOf(defaultStart) }
+    var customEndMs by remember { mutableLongStateOf(defaultEnd) }
+
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+
+    val sdf = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val months = listOf(
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // Tab Switcher: [ Month ] | [ Custom Range ]
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                ) {
+                    Row(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (selectedTab == 0) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { selectedTab = 0 }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "মাস" else "Month",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selectedTab == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (selectedTab == 1) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable { selectedTab = 1 }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "নির্দিষ্ট সীমা" else "Custom Range",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selectedTab == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (selectedTab == 0) {
+                    // Month Grid View
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { year-- }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev Year")
+                        }
+                        Text(
+                            text = "$year",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        IconButton(onClick = { year++ }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Year")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    for (row in 0 until 4) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            for (col in 0 until 3) {
+                                val monthIdx = row * 3 + col
+                                val monthNum = monthIdx + 1
+                                val isSelected = !isCustomInitially && year == initialYear && monthNum == initialMonth
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            onSelectMonth(year, monthNum)
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = months[monthIdx].take(3),
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Custom Date Range View
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Quick Presets Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val now = System.currentTimeMillis()
+                            val presets = listOf(
+                                (if (languageMode == LanguageMode.BANGLA) "গত ৭ দিন" else "Last 7 Days") to (now - 7L * 24 * 3600 * 1000L to now),
+                                (if (languageMode == LanguageMode.BANGLA) "গত ৩০ দিন" else "Last 30 Days") to (now - 30L * 24 * 3600 * 1000L to now),
+                                (if (languageMode == LanguageMode.BANGLA) "চলতি মাস" else "This Month") to (DateUtils.getStartOfMonth(initialYear, initialMonth) to DateUtils.getEndOfMonth(initialYear, initialMonth)),
+                                (if (languageMode == LanguageMode.BANGLA) "গত মাস" else "Last Month") to run {
+                                    val cal = Calendar.getInstance().apply { set(Calendar.YEAR, initialYear); set(Calendar.MONTH, initialMonth - 1); add(Calendar.MONTH, -1) }
+                                    val y = cal.get(Calendar.YEAR); val m = cal.get(Calendar.MONTH) + 1
+                                    DateUtils.getStartOfMonth(y, m) to DateUtils.getEndOfMonth(y, m)
+                                }
+                            )
+                            presets.forEach { (label, range) ->
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable {
+                                            customStartMs = range.first
+                                            customEndMs = range.second
+                                        }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Start Date Selector
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { showStartDatePicker = true }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "শুরুর তারিখ" else "Start Date",
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = sdf.format(Date(customStartMs)),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Icon(Icons.Default.DateRange, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        // End Date Selector
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { showEndDatePicker = true }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "শেষ তারিখ" else "End Date",
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = sdf.format(Date(customEndMs)),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Icon(Icons.Default.DateRange, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        // Apply Button
+                        Button(
+                            onClick = {
+                                val s = Math.min(customStartMs, customEndMs)
+                                val e = Math.max(customStartMs, customEndMs)
+                                onSelectCustomRange(s, e)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply Range",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showStartDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = customStartMs)
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { customStartMs = it }
+                    showStartDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showEndDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = customEndMs)
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { customEndMs = it }
+                    showEndDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

@@ -248,7 +248,17 @@ fun calculateBudgetFilterRanges(
         BudgetDateRangePreset.CUSTOM -> {
             val start = filterState.customStartDateMs ?: DateUtils.getStartOfMonth(year, month)
             val end = filterState.customEndDateMs ?: DateUtils.getEndOfMonth(year, month)
-            val label = "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+            val calS = Calendar.getInstance().apply { timeInMillis = start }
+            val calE = Calendar.getInstance().apply { timeInMillis = end }
+            val isFullMonth = calS.get(Calendar.DAY_OF_MONTH) == 1 &&
+                    calS.get(Calendar.YEAR) == calE.get(Calendar.YEAR) &&
+                    calS.get(Calendar.MONTH) == calE.get(Calendar.MONTH) &&
+                    calE.get(Calendar.DAY_OF_MONTH) >= calE.getActualMaximum(Calendar.DAY_OF_MONTH) - 1
+            val label = if (isFullMonth) {
+                DateUtils.formatMonthYear(calS.get(Calendar.YEAR), calS.get(Calendar.MONTH) + 1, languageMode)
+            } else {
+                "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+            }
             Triple(start, end, label)
         }
     }
@@ -332,7 +342,17 @@ fun calculateBudgetFilterRanges(
             BudgetComparisonPreset.CUSTOM -> {
                 val start = filterState.customCompareStartMs ?: (primaryStartMs - (30L * 24 * 60 * 60 * 1000L))
                 val end = filterState.customCompareEndMs ?: (primaryEndMs - (30L * 24 * 60 * 60 * 1000L))
-                val label = "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+                val calS = Calendar.getInstance().apply { timeInMillis = start }
+                val calE = Calendar.getInstance().apply { timeInMillis = end }
+                val isFullMonth = calS.get(Calendar.DAY_OF_MONTH) == 1 &&
+                        calS.get(Calendar.YEAR) == calE.get(Calendar.YEAR) &&
+                        calS.get(Calendar.MONTH) == calE.get(Calendar.MONTH) &&
+                        calE.get(Calendar.DAY_OF_MONTH) >= calE.getActualMaximum(Calendar.DAY_OF_MONTH) - 1
+                val label = if (isFullMonth) {
+                    DateUtils.formatMonthYear(calS.get(Calendar.YEAR), calS.get(Calendar.MONTH) + 1, languageMode)
+                } else {
+                    "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+                }
                 Pair(Pair(start, end), label)
             }
         }
