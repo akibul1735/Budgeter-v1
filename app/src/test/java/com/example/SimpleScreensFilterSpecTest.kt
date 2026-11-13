@@ -1702,11 +1702,21 @@ class SimpleScreensFilterSpecTest {
     fun testBalanceSheetSectionViewSortAndHideZero() {
         var state: FilterState = emptyMap()
 
-        // Default values
+        // Default values: Compare is OFF (showOnlyCurrent == true), This Month view
+        assertFalse(BalanceSheetFilterSpec.isComparisonEnabled(state))
+        assertTrue(BalanceSheetFilterSpec.getShowOnlyCurrent(state))
         assertEquals(BalanceSheetSectionFilter.ALL, BalanceSheetFilterSpec.getSectionFilter(state))
         assertEquals(BalanceSheetAmountView.AMOUNT, BalanceSheetFilterSpec.getAmountView(state))
         assertEquals(BalanceSheetSortOrder.AMOUNT_DESC, BalanceSheetFilterSpec.getSortOrder(state))
         assertTrue(BalanceSheetFilterSpec.getExcludeZero(state))
+
+        // Activate Compare and turn off Compare
+        state = BalanceSheetFilterSpec.withComparisonEnabled(state, true)
+        assertTrue(BalanceSheetFilterSpec.isComparisonEnabled(state))
+        assertFalse(BalanceSheetFilterSpec.getShowOnlyCurrent(state))
+        state = BalanceSheetFilterSpec.withComparisonEnabled(state, false)
+        assertFalse(BalanceSheetFilterSpec.isComparisonEnabled(state))
+        assertTrue(BalanceSheetFilterSpec.getShowOnlyCurrent(state))
 
         // Section cycling: All -> Groups -> Accounts -> All
         state = BalanceSheetFilterSpec.withSectionFilter(state, BalanceSheetSectionFilter.GROUPS)

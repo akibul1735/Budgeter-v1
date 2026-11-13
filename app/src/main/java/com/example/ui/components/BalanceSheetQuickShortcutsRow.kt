@@ -15,20 +15,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.UnfoldLess
-import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
@@ -69,7 +66,6 @@ import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.removeActiveChip
 import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
 import com.example.ui.theme.SolidPrimary
-import com.example.util.BalanceSheetAmountView
 import com.example.util.BalanceSheetSectionFilter
 import com.example.util.BalanceSheetSortOrder
 
@@ -77,18 +73,18 @@ import com.example.util.BalanceSheetSortOrder
  * Compact filter and sorting bar placed directly below the Balance Sheet summary card.
  * Features independent, simultaneous controls:
  * 1. Section cycling pill (All -> Groups -> Accounts -> All)
- * 2. View cycling pill (Amount -> Previous Amount -> Amount)
- * 3. Sort dropdown (Low to High, High to Low, A to Z, Z to A)
- * 4. Hide 0 toggle pill
- * Plus optional Expand/Collapse & active dialog filter chips.
+ * 2. Sort dropdown (Low to High, High to Low, A to Z, Z to A)
+ * 3. Hide 0 toggle pill
+ * 4. Calc mode toggle pill
+ * Plus active dialog filter chips.
  */
 @Composable
 fun BalanceSheetQuickShortcutsRow(
     filterState: FilterState,
     onFilterChange: (FilterState) -> Unit,
     onSectionChanged: (BalanceSheetSectionFilter) -> Unit = {},
-    allGroupsExpanded: Boolean,
-    onToggleExpandAll: (Boolean) -> Unit,
+    isCalcMode: Boolean = false,
+    onToggleCalcMode: () -> Unit = {},
     onOpenFilterDialog: () -> Unit,
     onScrollToTop: () -> Unit = {},
     languageMode: LanguageMode,
@@ -100,7 +96,6 @@ fun BalanceSheetQuickShortcutsRow(
     var showSortMenu by remember { mutableStateOf(false) }
 
     val sectionFilter = BalanceSheetFilterSpec.getSectionFilter(filterState)
-    val amountView = BalanceSheetFilterSpec.getAmountView(filterState)
     val sortOrder = BalanceSheetFilterSpec.getSortOrder(filterState)
     val excludeZero = BalanceSheetFilterSpec.getExcludeZero(filterState)
 
@@ -112,7 +107,8 @@ fun BalanceSheetQuickShortcutsRow(
                 chip.fieldId == BalanceSheetFilterSpec.FIELD_AMOUNT_VIEW ||
                 chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_EXCLUDE_ZERO}" ||
                 chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_WITHOUT_GROUPS}" ||
-                chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_ONLY_GROUPS}"
+                chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_ONLY_GROUPS}" ||
+                chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_COMPARE_ENABLED}"
         }
     }
 
@@ -163,30 +159,7 @@ fun BalanceSheetQuickShortcutsRow(
         )
 
         // ---------------------------------------------------------------------
-        // 2. View Cycling Pill: Amount -> Previous Amount -> Amount
-        // ---------------------------------------------------------------------
-        val isPrevView = amountView == BalanceSheetAmountView.PREVIOUS_AMOUNT
-        val viewIcon = if (isPrevView) Icons.Default.CalendarToday else Icons.AutoMirrored.Filled.TrendingUp
-        val viewLabel = if (isBn) amountView.titleBn else amountView.titleEn
-        CompactToolbarPill(
-            icon = viewIcon,
-            label = viewLabel,
-            hasDropdown = false,
-            isActive = isPrevView,
-            activeColor = SolidPrimary,
-            modifier = Modifier.testTag("balance_sheet_view_cycle_button"),
-            onClick = {
-                val nextView = if (isPrevView) {
-                    BalanceSheetAmountView.AMOUNT
-                } else {
-                    BalanceSheetAmountView.PREVIOUS_AMOUNT
-                }
-                onFilterChange(BalanceSheetFilterSpec.withAmountView(filterState, nextView))
-            }
-        )
-
-        // ---------------------------------------------------------------------
-        // 3. Sort Dropdown: Low to High, High to Low, A to Z, Z to A
+        // 2. Sort Dropdown: Low to High, High to Low, A to Z, Z to A
         // ---------------------------------------------------------------------
         val sortIcon = when (sortOrder) {
             BalanceSheetSortOrder.AMOUNT_ASC -> Icons.Default.ArrowUpward
@@ -257,7 +230,7 @@ fun BalanceSheetQuickShortcutsRow(
         }
 
         // ---------------------------------------------------------------------
-        // 4. Hide 0 Toggle Pill
+        // 3. Hide 0 Toggle Pill
         // ---------------------------------------------------------------------
         CompactToolbarPill(
             icon = if (excludeZero) Icons.Default.VisibilityOff else Icons.Default.Visibility,
@@ -272,27 +245,20 @@ fun BalanceSheetQuickShortcutsRow(
         )
 
         // ---------------------------------------------------------------------
-        // 5. Optional Expand / Collapse All (when hierarchical view is active)
+        // 4. Calc Mode Toggle Pill
         // ---------------------------------------------------------------------
-        if (sectionFilter != BalanceSheetSectionFilter.ACCOUNTS) {
-            val expandIcon = if (allGroupsExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore
-            val expandLabel = if (allGroupsExpanded) {
-                if (isBn) "সব বন্ধ" else "Collapse"
-            } else {
-                if (isBn) "সব খুলুন" else "Expand"
-            }
-
-            CompactToolbarPill(
-                icon = expandIcon,
-                label = expandLabel,
-                hasDropdown = false,
-                isActive = false,
-                onClick = { onToggleExpandAll(!allGroupsExpanded) }
-            )
-        }
+        CompactToolbarPill(
+            icon = Icons.Default.Tune,
+            label = if (isBn) "হিসাব" else "Calc",
+            hasDropdown = false,
+            isActive = isCalcMode,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("balance_sheet_calc_toggle_button"),
+            onClick = onToggleCalcMode
+        )
 
         // ---------------------------------------------------------------------
-        // 6. Active Dialog Filter Status / Reset / Extra Chips
+        // 5. Active Dialog Filter Status / Reset / Extra Chips
         // ---------------------------------------------------------------------
         if (isFilterActive || extraChips.isNotEmpty()) {
             VerticalDivider(

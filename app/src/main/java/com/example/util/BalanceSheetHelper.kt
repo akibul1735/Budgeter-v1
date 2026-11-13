@@ -207,11 +207,7 @@ object BalanceSheetHelper {
             set(Calendar.SECOND, 59)
             set(Calendar.MILLISECOND, 999)
         }
-        val effectiveCompareDateEpochMs = if (preset != BalanceSheetComparisonPreset.CUSTOM) {
-            maxOf(cal.timeInMillis, System.currentTimeMillis())
-        } else {
-            cal.timeInMillis
-        }
+        val effectiveCompareDateEpochMs = cal.timeInMillis
 
         // Filter transactions if status filter is active
         val validTransactions = if (selectedStatusSet.isNotEmpty()) {
@@ -231,7 +227,7 @@ object BalanceSheetHelper {
                 tx.debitAccountId?.let { baseDebits[it] = (baseDebits[it] ?: 0.0) + tx.amount }
                 tx.creditAccountId?.let { baseCredits[it] = (baseCredits[it] ?: 0.0) + tx.amount }
             }
-            if (showOnlyCurrentBalance || tx.dateEpochMs <= effectiveCompareDateEpochMs) {
+            if (tx.dateEpochMs <= effectiveCompareDateEpochMs) {
                 tx.debitAccountId?.let { currDebits[it] = (currDebits[it] ?: 0.0) + tx.amount }
                 tx.creditAccountId?.let { currCredits[it] = (currCredits[it] ?: 0.0) + tx.amount }
             }

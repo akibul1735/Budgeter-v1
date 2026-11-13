@@ -47,6 +47,7 @@ object BalanceSheetFilterSpec {
     const val FIELD_FILTER_NON_ZERO_GROUPS = "filter_non_zero_groups"
     const val FIELD_SHOW_HIDDEN = "show_hidden"
     const val FIELD_ONLY_CURRENT = "only_current"
+    const val FIELD_COMPARE_ENABLED = "compare_enabled"
     const val FIELD_WITHOUT_GROUPS = "without_groups"
     const val FIELD_ONLY_GROUPS = "only_groups"
     const val FIELD_AMOUNT_VIEW = "amount_view"
@@ -311,11 +312,11 @@ object BalanceSheetFilterSpec {
                             icon = Icons.Default.Visibility
                         ),
                         FilterCondition(
-                            id = FIELD_ONLY_CURRENT,
-                            titleEn = "Current Balance Only",
-                            titleBn = "শুধু বর্তমান ব্যালেন্স (তুলনাহীন)",
-                            subtitleEn = "Show single current balance column without delta",
-                            subtitleBn = "অতীতের তুলনা ছাড়া একক বর্তমান ব্যালেন্স",
+                            id = FIELD_COMPARE_ENABLED,
+                            titleEn = "Compare Periods",
+                            titleBn = "সময়কাল তুলনা",
+                            subtitleEn = "Compare balances against a baseline date",
+                            subtitleBn = "অতীত তারিখের সাথে ব্যালেন্স তুলনা করুন",
                             icon = Icons.Default.Layers
                         ),
                         FilterCondition(
@@ -429,10 +430,14 @@ object BalanceSheetFilterSpec {
         return false
     }
 
-    fun getShowOnlyCurrent(state: FilterState): Boolean {
-        (state[FIELD_ONLY_CURRENT] as? FilterValue.BooleanVal)?.let { return it.value }
-        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_ONLY_CURRENT) }
+    fun isComparisonEnabled(state: FilterState): Boolean {
+        (state[FIELD_ONLY_CURRENT] as? FilterValue.BooleanVal)?.let { return !it.value }
+        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_COMPARE_ENABLED) }
         return false
+    }
+
+    fun getShowOnlyCurrent(state: FilterState): Boolean {
+        return !isComparisonEnabled(state)
     }
 
     fun getShowWithoutGroups(state: FilterState): Boolean {
@@ -543,10 +548,20 @@ object BalanceSheetFilterSpec {
         return state + (FIELD_SHOW_HIDDEN to FilterValue.BooleanVal(value)) + ("display_options" to FilterValue.ToggleGroup(updated))
     }
 
+    fun withComparisonEnabled(state: FilterState, enabled: Boolean): FilterState {
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: emptySet()
+        val updated = if (enabled) {
+            (currOptions - FIELD_ONLY_CURRENT) + FIELD_COMPARE_ENABLED
+        } else {
+            currOptions - FIELD_ONLY_CURRENT - FIELD_COMPARE_ENABLED
+        }
+        val next = state - FIELD_ONLY_CURRENT
+        return if (updated.isEmpty()) next - "display_options"
+        else next + ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
     fun withShowOnlyCurrent(state: FilterState, value: Boolean): FilterState {
-        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getShowOnlyCurrent(state)) setOf(FIELD_ONLY_CURRENT) else emptySet()
-        val updated = if (value) currOptions + FIELD_ONLY_CURRENT else currOptions - FIELD_ONLY_CURRENT
-        return state + (FIELD_ONLY_CURRENT to FilterValue.BooleanVal(value)) + ("display_options" to FilterValue.ToggleGroup(updated))
+        return withComparisonEnabled(state, !value)
     }
 
     fun withShowWithoutGroups(state: FilterState, value: Boolean): FilterState {
@@ -603,7 +618,7 @@ object BalanceSheetFilterSpec {
         if (!getExcludeZero(state)) count++
         if (getFilterNonZeroGroups(state)) count++
         if (getShowHidden(state)) count++
-        if (getShowOnlyCurrent(state)) count++
+        if (isComparisonEnabled(state)) count++
         if (getShowWithoutGroups(state)) count++
         if (getOnlyGroups(state)) count++
         if (getAmountView(state) != BalanceSheetAmountView.AMOUNT) count++

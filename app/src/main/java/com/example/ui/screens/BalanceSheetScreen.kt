@@ -153,9 +153,14 @@ import com.example.ui.dialogs.InactiveAccountsDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.luminance
 import com.example.ui.components.AccountInclusionToggleBar
+import com.example.ui.components.PeriodOrCustomPickerDialog
 import com.example.util.AccountInclusionViewMode
 import com.example.util.AccountCalculationPreferences
 import com.example.util.AccountCalcConfig
@@ -174,6 +179,10 @@ import com.example.util.TabExportHelper
 import com.example.util.TabFilterPreferences
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 data class BalanceSheetFilterState(
@@ -271,30 +280,101 @@ fun BalanceSheetScreen(
         return
     }
 
-    var baseDateMs by remember {
-        val defaultBase = BalanceSheetHelper.getPresetDateRanges(BalanceSheetFilterSpec.getDatePreset(filterState)).first
-        mutableStateOf(defaultBase)
+    val currentCal = remember { DateUtils.getCalendar() }
+    val currentCalYear = currentCal.get(Calendar.YEAR)
+    val currentCalMonth = currentCal.get(Calendar.MONTH) + 1
+    val defaultPrevCal = remember(currentCalYear, currentCalMonth) {
+        DateUtils.getCalendar().apply {
+            set(Calendar.YEAR, currentCalYear)
+            set(Calendar.MONTH, currentCalMonth - 1)
+            set(Calendar.DAY_OF_MONTH, 1)
+            add(Calendar.MONTH, -1)
+        }
     }
-    var compareDateMs by remember {
-        val defaultCompare = BalanceSheetHelper.getPresetDateRanges(BalanceSheetFilterSpec.getDatePreset(filterState)).second
-        mutableStateOf(defaultCompare)
-    }
+    val defaultPrevYear = defaultPrevCal.get(Calendar.YEAR)
+    val defaultPrevMonth = defaultPrevCal.get(Calendar.MONTH) + 1
 
-    val (resolvedBaseMs, resolvedCompareMs) = remember(balanceSheetSpec, filterState, baseDateMs, compareDateMs) {
-        BalanceSheetFilterSpec.resolveComparisonDates(balanceSheetSpec, filterState, baseDateMs, compareDateMs)
-    }
+    var primaryYear by rememberSaveable { mutableIntStateOf(currentCalYear) }
+    var primaryMonth by rememberSaveable { mutableIntStateOf(currentCalMonth) }
+    var isPrimaryCustom by rememberSaveable { mutableStateOf(false) }
+    var primaryCustomStartMs by rememberSaveable { mutableLongStateOf(DateUtils.getStartOfMonth(currentCalYear, currentCalMonth)) }
+    var primaryCustomEndMs by rememberSaveable { mutableLongStateOf(DateUtils.getEndOfMonth(currentCalYear, currentCalMonth)) }
+
+    var compareBaseYear by rememberSaveable { mutableIntStateOf(defaultPrevYear) }
+    var compareBaseMonth by rememberSaveable { mutableIntStateOf(defaultPrevMonth) }
+    var isCompareBaseCustom by rememberSaveable { mutableStateOf(false) }
+    var compareBaseCustomStartMs by rememberSaveable { mutableLongStateOf(DateUtils.getStartOfMonth(defaultPrevYear, defaultPrevMonth)) }
+    var compareBaseCustomEndMs by rememberSaveable { mutableLongStateOf(DateUtils.getEndOfMonth(defaultPrevYear, defaultPrevMonth)) }
 
     val selectedPreset = remember(filterState) { BalanceSheetFilterSpec.getDatePreset(filterState) }
+    val isComparisonActive = remember(filterState) { BalanceSheetFilterSpec.isComparisonEnabled(filterState) }
+    val showOnlyCurrentBalance = !isComparisonActive
+
+    val primaryRange = remember(primaryYear, primaryMonth, isPrimaryCustom, primaryCustomStartMs, primaryCustomEndMs) {
+        if (isPrimaryCustom) {
+            Pair(primaryCustomStartMs, primaryCustomEndMs)
+        } else {
+            Pair(DateUtils.getStartOfMonth(primaryYear, primaryMonth), DateUtils.getEndOfMonth(primaryYear, primaryMonth))
+        }
+    }
+    val compareBaseRange = remember(compareBaseYear, compareBaseMonth, isCompareBaseCustom, compareBaseCustomStartMs, compareBaseCustomEndMs) {
+        if (isCompareBaseCustom) {
+            Pair(compareBaseCustomStartMs, compareBaseCustomEndMs)
+        } else {
+            Pair(DateUtils.getStartOfMonth(compareBaseYear, compareBaseMonth), DateUtils.getEndOfMonth(compareBaseYear, compareBaseMonth))
+        }
+    }
+
+    val (resolvedBaseMs, resolvedCompareMs) = remember(balanceSheetSpec, filterState, primaryRange, compareBaseRange, selectedPreset) {
+        if (selectedPreset == BalanceSheetComparisonPreset.THIS_MONTH || selectedPreset == BalanceSheetComparisonPreset.CUSTOM) {
+            Pair(compareBaseRange.second, primaryRange.second)
+        } else {
+            BalanceSheetFilterSpec.resolveComparisonDates(balanceSheetSpec, filterState, compareBaseRange.second, primaryRange.second)
+        }
+    }
+
+    val sdfShort = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
+    fun formatPeriodLabel(range: Pair<Long, Long>, isCustom: Boolean, year: Int, month: Int): String {
+        if (!isCustom) {
+            return DateUtils.formatMonthYear(year, month, languageMode)
+        }
+        val calS = Calendar.getInstance().apply { timeInMillis = range.first }
+        val calE = Calendar.getInstance().apply { timeInMillis = range.second }
+        val isFullMonth = calS.get(Calendar.DAY_OF_MONTH) == 1 &&
+                calS.get(Calendar.YEAR) == calE.get(Calendar.YEAR) &&
+                calS.get(Calendar.MONTH) == calE.get(Calendar.MONTH) &&
+                calE.get(Calendar.DAY_OF_MONTH) >= calE.getActualMaximum(Calendar.DAY_OF_MONTH) - 1
+        return if (isFullMonth) {
+            DateUtils.formatMonthYear(calS.get(Calendar.YEAR), calS.get(Calendar.MONTH) + 1, languageMode)
+        } else {
+            "${sdfShort.format(Date(range.first))} - ${sdfShort.format(Date(range.second))}"
+        }
+    }
+
+    val primaryPeriodLabel = remember(selectedPreset, primaryRange, isPrimaryCustom, primaryYear, primaryMonth, resolvedCompareMs, languageMode) {
+        if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH && selectedPreset != BalanceSheetComparisonPreset.CUSTOM) {
+            DateUtils.formatDate(resolvedCompareMs, languageMode)
+        } else {
+            formatPeriodLabel(primaryRange, isPrimaryCustom, primaryYear, primaryMonth)
+        }
+    }
+    val compareBasePeriodLabel = remember(selectedPreset, compareBaseRange, isCompareBaseCustom, compareBaseYear, compareBaseMonth, resolvedBaseMs, languageMode) {
+        if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH && selectedPreset != BalanceSheetComparisonPreset.CUSTOM) {
+            DateUtils.formatDate(resolvedBaseMs, languageMode)
+        } else {
+            formatPeriodLabel(compareBaseRange, isCompareBaseCustom, compareBaseYear, compareBaseMonth)
+        }
+    }
+
     val selectedAccountIds = remember(filterState) { BalanceSheetFilterSpec.getSelectedAccountIds(filterState) }
     val selectedStatusSet = remember(filterState) { BalanceSheetFilterSpec.getSelectedStatuses(filterState) }
     val sortOrder = remember(filterState) { BalanceSheetFilterSpec.getSortOrder(filterState) }
     val excludeZeroAmounts = remember(filterState) { BalanceSheetFilterSpec.getExcludeZero(filterState) }
     val filterNonZeroGroups = remember(filterState) { BalanceSheetFilterSpec.getFilterNonZeroGroups(filterState) }
     val showHiddenAccounts = remember(filterState) { BalanceSheetFilterSpec.getShowHidden(filterState) }
-    val showOnlyCurrentBalance = remember(filterState) { BalanceSheetFilterSpec.getShowOnlyCurrent(filterState) }
     val showOnlyAccountsWithoutGroups = remember(filterState) { BalanceSheetFilterSpec.getShowWithoutGroups(filterState) }
     val showOnlyGroups = remember(filterState) { BalanceSheetFilterSpec.getOnlyGroups(filterState) }
-    val amountView = remember(filterState) { BalanceSheetFilterSpec.getAmountView(filterState) }
+    val amountView = BalanceSheetAmountView.AMOUNT
     val activeTabMode = remember(filterState) { BalanceSheetFilterSpec.getActiveTab(filterState) }
 
     // Modal Filter Dialog & Calculation Mode
@@ -303,7 +383,6 @@ fun BalanceSheetScreen(
     var showInactiveAccountsDialog by remember { mutableStateOf(false) }
     var isCalcMode by remember { mutableStateOf(false) }
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
-    var isDualDateFlow by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val filterSearchQuery = remember(filterState) { BalanceSheetFilterSpec.getSearchQuery(filterState) }
     val effectiveSearchQuery = remember(searchQuery, filterSearchQuery) {
@@ -319,9 +398,9 @@ fun BalanceSheetScreen(
         accounts.count { !it.isActive }
     }
 
-    // Date Pickers for Custom Mode
-    var showBaseDatePicker by remember { mutableStateOf(false) }
-    var showCompareDatePicker by remember { mutableStateOf(false) }
+    // Period Pickers (Month or Custom Range) for Primary and Compare sides
+    var showPrimaryPeriodDialog by remember { mutableStateOf(false) }
+    var showComparePeriodDialog by remember { mutableStateOf(false) }
 
     // Collapsed/Expanded parent account rows
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
@@ -342,7 +421,7 @@ fun BalanceSheetScreen(
         effectiveCalcConfig,
         showOnlyAccountsWithoutGroups,
         showOnlyGroups,
-        amountView,
+        showOnlyCurrentBalance,
         languageMode
     ) {
         BalanceSheetHelper.calculateBalanceSheet(
@@ -366,15 +445,6 @@ fun BalanceSheetScreen(
             amountView = amountView,
             languageMode = languageMode
         )
-    }
-
-    val allGroupsExpanded by remember(balanceSheetData, showOnlyGroups) {
-        derivedStateOf {
-            val allParentIds = (balanceSheetData.assetGroups.map { it.parentAccount.id } +
-                    balanceSheetData.liabilityGroups.map { it.parentAccount.id }).toSet()
-            if (allParentIds.isEmpty()) true
-            else allParentIds.all { expandedMap[it] ?: !showOnlyGroups }
-        }
     }
 
     Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
@@ -429,34 +499,396 @@ fun BalanceSheetScreen(
                 }
             )
 
-            // Fixed Timeline Control & Date Columns Card at top
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 4.dp)
-            ) {
-                ComparisonDatesCard(
-                    preset = selectedPreset,
-                    baseDateLabel = balanceSheetData.baseDateLabel,
-                    compareDateLabel = balanceSheetData.compareDateLabel,
-                    showOnlyCurrentBalance = showOnlyCurrentBalance,
-                    languageMode = languageMode,
-                    isCalcMode = isCalcMode,
-                    onToggleCalcMode = { isCalcMode = !isCalcMode },
-                    onOpenFilter = { showFilterDialog = true },
-                    onPickBaseDate = {
-                        isDualDateFlow = false
-                        showBaseDatePicker = true
-                    },
-                    onPickCompareDate = {
-                        isDualDateFlow = false
-                        showCompareDatePicker = true
-                    },
-                    onPickBothDates = {
-                        isDualDateFlow = true
-                        showBaseDatePicker = true
+            val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.45f
+
+            // Top Month Navigation Capsule & Compare Row (matching Budget tab)
+            if (!isComparisonActive) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Month / Period Navigation Capsule: ‹ November 2026 ▾ ›
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.height(40.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (isPrimaryCustom) {
+                                        val diff = (primaryCustomEndMs - primaryCustomStartMs).coerceAtLeast(24L * 60 * 60 * 1000L)
+                                        primaryCustomStartMs -= diff
+                                        primaryCustomEndMs -= diff
+                                    } else {
+                                        val cal = DateUtils.getCalendar().apply {
+                                            set(Calendar.YEAR, primaryYear)
+                                            set(Calendar.MONTH, primaryMonth - 1)
+                                            set(Calendar.DAY_OF_MONTH, 1)
+                                            add(Calendar.MONTH, -1)
+                                        }
+                                        primaryYear = cal.get(Calendar.YEAR)
+                                        primaryMonth = cal.get(Calendar.MONTH) + 1
+                                    }
+                                    if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                                        updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                                    } else {
+                                        scrollToListTop()
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text(
+                                    text = "‹",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { showPrimaryPeriodDialog = true }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = primaryPeriodLabel,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Primary Period",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (isPrimaryCustom) {
+                                        val diff = (primaryCustomEndMs - primaryCustomStartMs).coerceAtLeast(24L * 60 * 60 * 1000L)
+                                        primaryCustomStartMs += diff
+                                        primaryCustomEndMs += diff
+                                    } else {
+                                        val cal = DateUtils.getCalendar().apply {
+                                            set(Calendar.YEAR, primaryYear)
+                                            set(Calendar.MONTH, primaryMonth - 1)
+                                            set(Calendar.DAY_OF_MONTH, 1)
+                                            add(Calendar.MONTH, 1)
+                                        }
+                                        primaryYear = cal.get(Calendar.YEAR)
+                                        primaryMonth = cal.get(Calendar.MONTH) + 1
+                                    }
+                                    if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                                        updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                                    } else {
+                                        scrollToListTop()
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text(
+                                    text = "›",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
-                )
+
+                    // + Compare Button
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .testTag("balance_sheet_compare_button")
+                            .clickable {
+                                val refCal = DateUtils.getCalendar().apply {
+                                    if (isPrimaryCustom) {
+                                        timeInMillis = primaryCustomStartMs
+                                    } else {
+                                        set(Calendar.YEAR, primaryYear)
+                                        set(Calendar.MONTH, primaryMonth - 1)
+                                    }
+                                    set(Calendar.DAY_OF_MONTH, 1)
+                                    add(Calendar.MONTH, -1)
+                                }
+                                val prevY = refCal.get(Calendar.YEAR)
+                                val prevM = refCal.get(Calendar.MONTH) + 1
+                                compareBaseYear = prevY
+                                compareBaseMonth = prevM
+                                isCompareBaseCustom = false
+                                compareBaseCustomStartMs = DateUtils.getStartOfMonth(prevY, prevM)
+                                compareBaseCustomEndMs = DateUtils.getEndOfMonth(prevY, prevM)
+                                updateFilterState(
+                                    BalanceSheetFilterSpec.withComparisonEnabled(
+                                        filterState - BalanceSheetFilterSpec.FIELD_DATE,
+                                        true
+                                    )
+                                )
+                            }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "+ তুলনা" else "+ Compare",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Dual Comparison Navigation Bar: [ ‹ Primary Month ▾ › ] vs [ ‹ Compare Month ▾ › ] ✕
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Side 1: Primary Period Capsule
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (isPrimaryCustom) {
+                                        val diff = (primaryCustomEndMs - primaryCustomStartMs).coerceAtLeast(24L * 60 * 60 * 1000L)
+                                        primaryCustomStartMs -= diff
+                                        primaryCustomEndMs -= diff
+                                    } else {
+                                        val cal = DateUtils.getCalendar().apply {
+                                            set(Calendar.YEAR, primaryYear)
+                                            set(Calendar.MONTH, primaryMonth - 1)
+                                            set(Calendar.DAY_OF_MONTH, 1)
+                                            add(Calendar.MONTH, -1)
+                                        }
+                                        primaryYear = cal.get(Calendar.YEAR)
+                                        primaryMonth = cal.get(Calendar.MONTH) + 1
+                                    }
+                                    if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                                        updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                                    } else {
+                                        scrollToListTop()
+                                    }
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "‹", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showPrimaryPeriodDialog = true }
+                                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = primaryPeriodLabel,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Primary Period",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (isPrimaryCustom) {
+                                        val diff = (primaryCustomEndMs - primaryCustomStartMs).coerceAtLeast(24L * 60 * 60 * 1000L)
+                                        primaryCustomStartMs += diff
+                                        primaryCustomEndMs += diff
+                                    } else {
+                                        val cal = DateUtils.getCalendar().apply {
+                                            set(Calendar.YEAR, primaryYear)
+                                            set(Calendar.MONTH, primaryMonth - 1)
+                                            set(Calendar.DAY_OF_MONTH, 1)
+                                            add(Calendar.MONTH, 1)
+                                        }
+                                        primaryYear = cal.get(Calendar.YEAR)
+                                        primaryMonth = cal.get(Calendar.MONTH) + 1
+                                    }
+                                    if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                                        updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                                    } else {
+                                        scrollToListTop()
+                                    }
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "vs",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    // Side 2: Compare Period Capsule
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (isCompareBaseCustom) {
+                                        val diff = (compareBaseCustomEndMs - compareBaseCustomStartMs).coerceAtLeast(24L * 60 * 60 * 1000L)
+                                        compareBaseCustomStartMs -= diff
+                                        compareBaseCustomEndMs -= diff
+                                    } else {
+                                        val cal = DateUtils.getCalendar().apply {
+                                            set(Calendar.YEAR, compareBaseYear)
+                                            set(Calendar.MONTH, compareBaseMonth - 1)
+                                            set(Calendar.DAY_OF_MONTH, 1)
+                                            add(Calendar.MONTH, -1)
+                                        }
+                                        compareBaseYear = cal.get(Calendar.YEAR)
+                                        compareBaseMonth = cal.get(Calendar.MONTH) + 1
+                                    }
+                                    if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                                        updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                                    } else {
+                                        scrollToListTop()
+                                    }
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "‹", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showComparePeriodDialog = true }
+                                    .padding(horizontal = 2.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = compareBasePeriodLabel,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Compare Period",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    if (isCompareBaseCustom) {
+                                        val diff = (compareBaseCustomEndMs - compareBaseCustomStartMs).coerceAtLeast(24L * 60 * 60 * 1000L)
+                                        compareBaseCustomStartMs += diff
+                                        compareBaseCustomEndMs += diff
+                                    } else {
+                                        val cal = DateUtils.getCalendar().apply {
+                                            set(Calendar.YEAR, compareBaseYear)
+                                            set(Calendar.MONTH, compareBaseMonth - 1)
+                                            set(Calendar.DAY_OF_MONTH, 1)
+                                            add(Calendar.MONTH, 1)
+                                        }
+                                        compareBaseYear = cal.get(Calendar.YEAR)
+                                        compareBaseMonth = cal.get(Calendar.MONTH) + 1
+                                    }
+                                    if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                                        updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                                    } else {
+                                        scrollToListTop()
+                                    }
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Text(text = "›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+
+                    // Exit Compare Button
+                    IconButton(
+                        onClick = {
+                            updateFilterState(
+                                BalanceSheetFilterSpec.withComparisonEnabled(
+                                    filterState - BalanceSheetFilterSpec.FIELD_DATE,
+                                    false
+                                )
+                            )
+                        },
+                        modifier = Modifier
+                            .size(30.dp)
+                            .testTag("balance_sheet_close_compare_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close Comparison",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
 
             // Top Collapsible Summary Card (Smoothly transitions between full NetWorthSummaryCard and MiniNetWorthSummaryCard)
@@ -503,17 +935,17 @@ fun BalanceSheetScreen(
                     },
                     onClearAll = {
                         expandedMap.clear()
+                        primaryYear = currentCalYear
+                        primaryMonth = currentCalMonth
+                        isPrimaryCustom = false
+                        compareBaseYear = defaultPrevYear
+                        compareBaseMonth = defaultPrevMonth
+                        isCompareBaseCustom = false
                         val resetState = balanceSheetSpec.clear(filterState)
                         updateFilterState(resetState)
                     },
-                    allGroupsExpanded = allGroupsExpanded,
-                    onToggleExpandAll = { expand ->
-                        val allParentIds = (balanceSheetData.assetGroups.map { it.parentAccount.id } +
-                                balanceSheetData.liabilityGroups.map { it.parentAccount.id }).toSet()
-                        allParentIds.forEach { parentId ->
-                            expandedMap[parentId] = expand
-                        }
-                    },
+                    isCalcMode = isCalcMode,
+                    onToggleCalcMode = { isCalcMode = !isCalcMode },
                     onOpenFilterDialog = { showFilterDialog = true },
                     onScrollToTop = { scrollToListTop() },
                     languageMode = languageMode
@@ -1088,81 +1520,90 @@ fun BalanceSheetScreen(
         )
     }
 
-    // Custom Date Range Pickers
-    if (showBaseDatePicker) {
-        val dateState = rememberDatePickerState(initialSelectedDateMillis = baseDateMs)
-        DatePickerDialog(
-            onDismissRequest = { showBaseDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    dateState.selectedDateMillis?.let {
-                        baseDateMs = it
-                        showBaseDatePicker = false
-                        if (isDualDateFlow) {
-                            showCompareDatePicker = true
-                        } else {
-                            updateFilterState(BalanceSheetFilterSpec.withCustomDates(filterState, it, compareDateMs))
-                        }
-                    }
-                }) {
-                    Text(
-                        if (isDualDateFlow) {
-                            if (languageMode == LanguageMode.BANGLA) "পরবর্তী" else "Next"
-                        } else {
-                            if (languageMode == LanguageMode.BANGLA) "প্রয়োগ" else "Apply"
-                        }
-                    )
+    // PRIMARY PERIOD PICKER DIALOG (Select Month or Custom Range)
+    if (showPrimaryPeriodDialog) {
+        PeriodOrCustomPickerDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "মূল সময়সীমা নির্বাচন করুন" else "Select Primary Period",
+            initialYear = primaryYear,
+            initialMonth = primaryMonth,
+            initialCustomStartMs = primaryRange.first,
+            initialCustomEndMs = primaryRange.second,
+            isCustomInitially = isPrimaryCustom,
+            languageMode = languageMode,
+            onDismiss = { showPrimaryPeriodDialog = false },
+            onSelectMonth = { y, m ->
+                primaryYear = y
+                primaryMonth = m
+                isPrimaryCustom = false
+                primaryCustomStartMs = DateUtils.getStartOfMonth(y, m)
+                primaryCustomEndMs = DateUtils.getEndOfMonth(y, m)
+                showPrimaryPeriodDialog = false
+                if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                    updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                } else {
+                    scrollToListTop()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showBaseDatePicker = false }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+            onSelectCustomRange = { s, e ->
+                primaryCustomStartMs = s
+                primaryCustomEndMs = e
+                isPrimaryCustom = true
+                showPrimaryPeriodDialog = false
+                if (selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                    updateFilterState(filterState - BalanceSheetFilterSpec.FIELD_DATE)
+                } else {
+                    scrollToListTop()
                 }
             }
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "বেস তারিখ নির্বাচন করুন (তুলনার শুরুর তারিখ)" else "Select Base Comparison Date",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                DatePicker(state = dateState)
-            }
-        }
+        )
     }
 
-    if (showCompareDatePicker) {
-        val dateState = rememberDatePickerState(initialSelectedDateMillis = compareDateMs)
-        DatePickerDialog(
-            onDismissRequest = { showCompareDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    dateState.selectedDateMillis?.let {
-                        compareDateMs = it
-                        showCompareDatePicker = false
-                        updateFilterState(BalanceSheetFilterSpec.withCustomDates(filterState, baseDateMs, it))
-                    }
-                }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ" else "Apply")
+    // COMPARE PERIOD PICKER DIALOG (Select Month or Custom Range)
+    if (showComparePeriodDialog) {
+        PeriodOrCustomPickerDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "তুলনা সময়সীমা নির্বাচন করুন" else "Select Compare Period",
+            initialYear = compareBaseYear,
+            initialMonth = compareBaseMonth,
+            initialCustomStartMs = compareBaseRange.first,
+            initialCustomEndMs = compareBaseRange.second,
+            isCustomInitially = isCompareBaseCustom,
+            languageMode = languageMode,
+            onDismiss = { showComparePeriodDialog = false },
+            onSelectMonth = { y, m ->
+                compareBaseYear = y
+                compareBaseMonth = m
+                isCompareBaseCustom = false
+                compareBaseCustomStartMs = DateUtils.getStartOfMonth(y, m)
+                compareBaseCustomEndMs = DateUtils.getEndOfMonth(y, m)
+                showComparePeriodDialog = false
+                if (!isComparisonActive || selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                    updateFilterState(
+                        BalanceSheetFilterSpec.withComparisonEnabled(
+                            filterState - BalanceSheetFilterSpec.FIELD_DATE,
+                            true
+                        )
+                    )
+                } else {
+                    scrollToListTop()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showCompareDatePicker = false }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+            onSelectCustomRange = { s, e ->
+                compareBaseCustomStartMs = s
+                compareBaseCustomEndMs = e
+                isCompareBaseCustom = true
+                showComparePeriodDialog = false
+                if (!isComparisonActive || selectedPreset != BalanceSheetComparisonPreset.THIS_MONTH) {
+                    updateFilterState(
+                        BalanceSheetFilterSpec.withComparisonEnabled(
+                            filterState - BalanceSheetFilterSpec.FIELD_DATE,
+                            true
+                        )
+                    )
+                } else {
+                    scrollToListTop()
                 }
             }
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক বর্তমান তারিখ নির্বাচন করুন" else "Select Compare Date",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                DatePicker(state = dateState)
-            }
-        }
+        )
     }
 }
 
@@ -1465,222 +1906,6 @@ private fun MiniNetWorthSummaryCard(
     }
 }
 
-@Composable
-private fun ComparisonDatesCard(
-    preset: BalanceSheetComparisonPreset,
-    baseDateLabel: String,
-    compareDateLabel: String,
-    showOnlyCurrentBalance: Boolean,
-    languageMode: LanguageMode,
-    isCalcMode: Boolean,
-    onToggleCalcMode: () -> Unit,
-    onOpenFilter: () -> Unit,
-    onPickBaseDate: () -> Unit,
-    onPickCompareDate: () -> Unit,
-    onPickBothDates: () -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Preset Capsule / Button
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                    modifier = Modifier.clickable { onOpenFilter() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarMonth,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        val presetName = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn
-                        Text(
-                            text = presetName,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                // Calculation Inclusion/Exclusion Toggle Button
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isCalcMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onToggleCalcMode() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Calculation Settings",
-                            tint = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "হিসাব গণনা" else "Calc",
-                            fontSize = 11.sp,
-                            fontWeight = if (isCalcMode) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Date Range Display with two clickable dates to compare
-            if (showOnlyCurrentBalance) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { onPickCompareDate() }
-                        .padding(vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স স্ন্যাপশট" else "Current Balance Snapshot",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = compareDateLabel,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.EditCalendar,
-                            contentDescription = "Change Date",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Clickable Base Date Chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onPickBaseDate() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "বেস তারিখ" else "Base Date",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = baseDateLabel,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.EditCalendar,
-                                contentDescription = "Edit Base Date",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-
-                    // Dual arrow separator
-                    IconButton(
-                        onClick = onPickBothDates,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Pick Both Dates",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    // Clickable Compare Date Chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onPickCompareDate() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক তারিখ" else "Compare Date",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                )
-                                Text(
-                                    text = compareDateLabel,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Default.EditCalendar,
-                                contentDescription = "Edit Compare Date",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun SectionHeader(

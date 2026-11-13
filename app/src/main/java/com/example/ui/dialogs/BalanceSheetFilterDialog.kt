@@ -547,9 +547,9 @@ fun BalanceSheetFilterDialog(
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                             CompactToggleRow(
-                                title = if (languageMode == LanguageMode.BANGLA) "শুধু বর্তমান ব্যালেন্স (তুলনাহীন)" else "Current Balance Only",
-                                checked = BalanceSheetFilterSpec.getShowOnlyCurrent(draftState),
-                                onCheckedChange = { draftState = BalanceSheetFilterSpec.withShowOnlyCurrent(draftState, it) }
+                                title = if (languageMode == LanguageMode.BANGLA) "সময়কাল তুলনা (Compare)" else "Compare Periods",
+                                checked = BalanceSheetFilterSpec.isComparisonEnabled(draftState),
+                                onCheckedChange = { draftState = BalanceSheetFilterSpec.withComparisonEnabled(draftState, it) }
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                             CompactToggleRow(
