@@ -55,12 +55,16 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -425,6 +429,89 @@ fun BudgetTrackingScreen(
         activeIds
     }
 
+    // Derived Mini Filter Bar States (Independent & Simultaneous)
+    val activeDisplayType = remember(filterState.showOnlyGroups, filterState.showOnlyCategoriesWithoutGroups) {
+        when {
+            filterState.showOnlyGroups -> MiniBudgetDisplayType.GROUPS
+            filterState.showOnlyCategoriesWithoutGroups -> MiniBudgetDisplayType.CATEGORIES
+            else -> MiniBudgetDisplayType.ALL
+        }
+    }
+
+    val activeBudgetView = remember(
+        filterState.showOnlyActual,
+        filterState.showOnlyRemainingBalance,
+        filterState.filterOnlyOverBudget
+    ) {
+        when {
+            filterState.showOnlyActual -> MiniBudgetView.ACTUAL
+            filterState.showOnlyRemainingBalance -> MiniBudgetView.REMAINING
+            filterState.filterOnlyOverBudget -> MiniBudgetView.OVER_BUDGET
+            else -> MiniBudgetView.BUDGET
+        }
+    }
+
+    val activeSortMode = remember(filterState.sortOrder) {
+        when (filterState.sortOrder) {
+            BudgetSortOrder.AMOUNT_ASC,
+            BudgetSortOrder.REMAINING_ASC,
+            BudgetSortOrder.BUDGET_ASC -> MiniBudgetSortMode.LOW_TO_HIGH
+            BudgetSortOrder.NAME_ASC -> MiniBudgetSortMode.A_TO_Z
+            BudgetSortOrder.NAME_DESC -> MiniBudgetSortMode.Z_TO_A
+            else -> MiniBudgetSortMode.HIGH_TO_LOW
+        }
+    }
+
+    fun itemSortMetric(item: CategoryBudgetTrackingItem, view: MiniBudgetView): Double {
+        return when (view) {
+            MiniBudgetView.BUDGET -> item.budgetLimit
+            MiniBudgetView.ACTUAL -> item.spentAmount
+            MiniBudgetView.REMAINING -> item.remainingAmount
+            MiniBudgetView.OVER_BUDGET -> item.overBudgetAmount
+        }
+    }
+
+    fun groupSortMetric(group: CategoryGroupBudgetTracking, view: MiniBudgetView): Double {
+        return when (view) {
+            MiniBudgetView.BUDGET -> group.totalBudget
+            MiniBudgetView.ACTUAL -> group.totalSpent
+            MiniBudgetView.REMAINING -> group.remainingAmount
+            MiniBudgetView.OVER_BUDGET -> group.overBudgetAmount
+        }
+    }
+
+    fun itemMatchesView(item: CategoryBudgetTrackingItem, view: MiniBudgetView): Boolean {
+        return when (view) {
+            MiniBudgetView.BUDGET -> item.hasBudget && item.budgetLimit > 0.001
+            MiniBudgetView.ACTUAL -> item.spentAmount > 0.001
+            MiniBudgetView.REMAINING -> item.hasBudget && item.remainingAmount > 0.001
+            MiniBudgetView.OVER_BUDGET -> item.isOverBudget
+        }
+    }
+
+    fun sortBudgetItems(
+        items: List<CategoryBudgetTrackingItem>,
+        view: MiniBudgetView,
+        sortMode: MiniBudgetSortMode
+    ): List<CategoryBudgetTrackingItem> {
+        return when (sortMode) {
+            MiniBudgetSortMode.LOW_TO_HIGH -> items.sortedWith(
+                compareBy<CategoryBudgetTrackingItem> { itemSortMetric(it, view) }
+                    .thenBy { (if (languageMode == LanguageMode.BANGLA && it.category.nameBn.isNotBlank()) it.category.nameBn else it.category.nameEn).lowercase() }
+            )
+            MiniBudgetSortMode.HIGH_TO_LOW -> items.sortedWith(
+                compareByDescending<CategoryBudgetTrackingItem> { itemSortMetric(it, view) }
+                    .thenBy { (if (languageMode == LanguageMode.BANGLA && it.category.nameBn.isNotBlank()) it.category.nameBn else it.category.nameEn).lowercase() }
+            )
+            MiniBudgetSortMode.A_TO_Z -> items.sortedBy {
+                (if (languageMode == LanguageMode.BANGLA && it.category.nameBn.isNotBlank()) it.category.nameBn else it.category.nameEn).lowercase()
+            }
+            MiniBudgetSortMode.Z_TO_A -> items.sortedByDescending {
+                (if (languageMode == LanguageMode.BANGLA && it.category.nameBn.isNotBlank()) it.category.nameBn else it.category.nameEn).lowercase()
+            }
+        }
+    }
+
     // Helper to compute category groups for a specific category type
     fun computeCategoryGroupsForType(targetCatType: CategoryType, itemTypeKey: String): List<CategoryGroupBudgetTracking> {
         val relevantCategories = allCategories.filter { it.type == targetCatType }
@@ -438,6 +525,7 @@ fun BudgetTrackingScreen(
         parentCategories.forEach { parent ->
             val children = groupedByParent[parent.id] ?: emptyList()
             if (children.isNotEmpty()) {
+                // Apply filtering FIRST
                 val trackingItems = children.map { cat ->
                     val catTxs = compareMonthTransactions.filter {
                         it.transaction.categoryId == cat.id || it.transaction.subCategoryId == cat.id
@@ -471,10 +559,7 @@ fun BudgetTrackingScreen(
                     val matchesSearch = searchQuery.isEmpty() ||
                             item.category.nameEn.contains(searchQuery, ignoreCase = true) ||
                             item.category.nameBn.contains(searchQuery, ignoreCase = true)
-                    val matchesBudgeted = !filterState.filterOnlyBudgeted || (item.hasBudget && item.budgetLimit > 0.001)
-                    val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
-                    val matchesRemaining = !filterState.showOnlyRemainingBalance || (item.hasBudget && item.remainingAmount > 0.001)
-                    val matchesActual = !filterState.showOnlyActual || (item.spentAmount > 0.001)
+                    val matchesView = itemMatchesView(item, activeBudgetView)
                     val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(item.category.id) || item.hasBudget || item.spentAmount > 0.0)
                     val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() ||
                             filterState.selectedCategoryIds.contains(item.category.id) ||
@@ -488,49 +573,13 @@ fun BudgetTrackingScreen(
                     val matchesMin = minAmt == null || (item.spentAmount >= minAmt || (item.hasBudget && item.budgetLimit >= minAmt))
                     val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || (item.hasBudget && item.budgetLimit <= maxAmt))
 
-                    matchesSearch && matchesBudgeted && matchesOver && matchesRemaining && matchesActual && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax
+                    matchesSearch && matchesView && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax
                 }
 
-                val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-                val sortedTrackingItems = if (shouldSortByAmount) {
-                    trackingItems.sortedByDescending { it.spentAmount }
-                } else {
-                    when (filterState.sortOrder) {
-                        BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> trackingItems.sortedByDescending { it.spentAmount }
-                        BudgetSortOrder.AMOUNT_ASC -> trackingItems.sortedBy { it.spentAmount }
-                        BudgetSortOrder.REMAINING_DESC -> trackingItems.sortedByDescending { it.remainingAmount }
-                        BudgetSortOrder.REMAINING_ASC -> trackingItems.sortedBy { it.remainingAmount }
-                        BudgetSortOrder.BUDGET_DESC -> trackingItems.sortedByDescending { it.budgetLimit }
-                        BudgetSortOrder.BUDGET_ASC -> trackingItems.sortedBy { it.budgetLimit }
-                        BudgetSortOrder.UTILIZATION_DESC -> trackingItems.sortedByDescending { it.percentageInt }
-                        BudgetSortOrder.NAME_ASC -> trackingItems.sortedBy { it.category.nameEn.lowercase() }
-                        BudgetSortOrder.NAME_DESC -> trackingItems.sortedByDescending { it.category.nameEn.lowercase() }
-                        BudgetSortOrder.DEFAULT -> trackingItems
-                    }
-                }
+                // THEN sort matching items using selected view's value
+                val sortedTrackingItems = sortBudgetItems(trackingItems, activeBudgetView, activeSortMode)
 
-                val isAnyFilterActive = filterState.excludeZeroAmounts ||
-                        filterState.hideEmptyGroups ||
-                        filterState.showOnlyRemainingBalance ||
-                        filterState.showOnlyActual ||
-                        filterState.filterOnlyBudgeted ||
-                        filterState.filterOnlyOverBudget ||
-                        filterState.filterActive3Months ||
-                        filterState.selectedCategoryIds.isNotEmpty() ||
-                        filterState.selectedAccountIds.isNotEmpty() ||
-                        filterState.selectedLabels.isNotEmpty() ||
-                        filterState.selectedStatusSet.isNotEmpty() ||
-                        searchQuery.isNotEmpty() ||
-                        filterState.minAmount != null ||
-                        filterState.maxAmount != null
-
-                val shouldIncludeGroup = if (filterState.hideEmptyGroups || isAnyFilterActive) {
-                    sortedTrackingItems.isNotEmpty()
-                } else {
-                    true
-                }
-
-                if (shouldIncludeGroup) {
+                if (sortedTrackingItems.isNotEmpty()) {
                     resultList.add(
                         CategoryGroupBudgetTracking(
                             parentCategory = parent,
@@ -574,11 +623,7 @@ fun BudgetTrackingScreen(
                 val matchesSearch = searchQuery.isEmpty() ||
                         parent.nameEn.contains(searchQuery, ignoreCase = true) ||
                         parent.nameBn.contains(searchQuery, ignoreCase = true)
-                val matchesBudgeted = !filterState.filterOnlyBudgeted || singleItem.hasBudget
-                val matchesOver = !filterState.filterOnlyOverBudget || singleItem.isOverBudget
-                // Correct Remaining Only: MUST have budget and remaining > 0
-                val matchesRemaining = !filterState.showOnlyRemainingBalance || (singleItem.hasBudget && singleItem.remainingAmount > 0.001)
-                val matchesActual = !filterState.showOnlyActual || (singleItem.spentAmount > 0.001)
+                val matchesView = itemMatchesView(singleItem, activeBudgetView)
                 val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(parent.id) || singleItem.hasBudget || singleItem.spentAmount > 0.0)
                 val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() || filterState.selectedCategoryIds.contains(parent.id)
                 val matchesZero = !filterState.excludeZeroAmounts || (
@@ -590,7 +635,7 @@ fun BudgetTrackingScreen(
                 val matchesMin = minAmt == null || (singleItem.spentAmount >= minAmt || (singleItem.hasBudget && singleItem.budgetLimit >= minAmt))
                 val matchesMax = maxAmt == null || (singleItem.spentAmount <= maxAmt || (singleItem.hasBudget && singleItem.budgetLimit <= maxAmt))
 
-                if (matchesSearch && matchesBudgeted && matchesOver && matchesRemaining && matchesActual && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax) {
+                if (matchesSearch && matchesView && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax) {
                     resultList.add(
                         CategoryGroupBudgetTracking(
                             parentCategory = parent,
@@ -639,10 +684,7 @@ fun BudgetTrackingScreen(
                 val matchesSearch = searchQuery.isEmpty() ||
                         item.category.nameEn.contains(searchQuery, ignoreCase = true) ||
                         item.category.nameBn.contains(searchQuery, ignoreCase = true)
-                val matchesBudgeted = !filterState.filterOnlyBudgeted || (item.hasBudget && item.budgetLimit > 0.001)
-                val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
-                val matchesRemaining = !filterState.showOnlyRemainingBalance || (item.hasBudget && item.remainingAmount > 0.001)
-                val matchesActual = !filterState.showOnlyActual || (item.spentAmount > 0.001)
+                val matchesView = itemMatchesView(item, activeBudgetView)
                 val matchesActive3Mo = !filterState.filterActive3Months || (activeCategoryIdsInLast3Months.contains(item.category.id) || item.hasBudget || item.spentAmount > 0.0)
                 val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() ||
                         filterState.selectedCategoryIds.contains(item.category.id) ||
@@ -656,26 +698,10 @@ fun BudgetTrackingScreen(
                 val matchesMin = minAmt == null || (item.spentAmount >= minAmt || (item.hasBudget && item.budgetLimit >= minAmt))
                 val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || (item.hasBudget && item.budgetLimit <= maxAmt))
 
-                matchesSearch && matchesBudgeted && matchesOver && matchesRemaining && matchesActual && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax
+                matchesSearch && matchesView && matchesActive3Mo && matchesCatFilter && matchesZero && matchesMin && matchesMax
             }
 
-            val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-            val sortedOrphanItems = if (shouldSortByAmount) {
-                orphanItems.sortedByDescending { it.spentAmount }
-            } else {
-                when (filterState.sortOrder) {
-                    BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> orphanItems.sortedByDescending { it.spentAmount }
-                    BudgetSortOrder.AMOUNT_ASC -> orphanItems.sortedBy { it.spentAmount }
-                    BudgetSortOrder.REMAINING_DESC -> orphanItems.sortedByDescending { it.remainingAmount }
-                    BudgetSortOrder.REMAINING_ASC -> orphanItems.sortedBy { it.remainingAmount }
-                    BudgetSortOrder.BUDGET_DESC -> orphanItems.sortedByDescending { it.budgetLimit }
-                    BudgetSortOrder.BUDGET_ASC -> orphanItems.sortedBy { it.budgetLimit }
-                    BudgetSortOrder.UTILIZATION_DESC -> orphanItems.sortedByDescending { it.percentageInt }
-                    BudgetSortOrder.NAME_ASC -> orphanItems.sortedBy { it.category.nameEn.lowercase() }
-                    BudgetSortOrder.NAME_DESC -> orphanItems.sortedByDescending { it.category.nameEn.lowercase() }
-                    BudgetSortOrder.DEFAULT -> orphanItems
-                }
-            }
+            val sortedOrphanItems = sortBudgetItems(orphanItems, activeBudgetView, activeSortMode)
 
             if (sortedOrphanItems.isNotEmpty()) {
                 resultList.add(
@@ -689,21 +715,21 @@ fun BudgetTrackingScreen(
             }
         }
 
-        val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-        if (shouldSortByAmount) {
-            resultList.sortByDescending { it.totalSpent }
-        } else {
-            when (filterState.sortOrder) {
-                BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> resultList.sortByDescending { it.totalSpent }
-                BudgetSortOrder.AMOUNT_ASC -> resultList.sortBy { it.totalSpent }
-                BudgetSortOrder.REMAINING_DESC -> resultList.sortByDescending { it.remainingAmount }
-                BudgetSortOrder.REMAINING_ASC -> resultList.sortBy { it.remainingAmount }
-                BudgetSortOrder.BUDGET_DESC -> resultList.sortByDescending { it.totalBudget }
-                BudgetSortOrder.BUDGET_ASC -> resultList.sortBy { it.totalBudget }
-                BudgetSortOrder.UTILIZATION_DESC -> resultList.sortByDescending { if (it.totalBudget > 0) it.totalSpent / it.totalBudget else 0.0 }
-                BudgetSortOrder.NAME_ASC -> resultList.sortBy { it.groupNameEn.lowercase() }
-                BudgetSortOrder.NAME_DESC -> resultList.sortByDescending { it.groupNameEn.lowercase() }
-                BudgetSortOrder.DEFAULT -> { /* keep default category order */ }
+        // Sort groups AFTER filtering using the active view's value
+        when (activeSortMode) {
+            MiniBudgetSortMode.LOW_TO_HIGH -> resultList.sortWith(
+                compareBy<CategoryGroupBudgetTracking> { groupSortMetric(it, activeBudgetView) }
+                    .thenBy { (if (languageMode == LanguageMode.BANGLA && it.groupNameBn.isNotBlank()) it.groupNameBn else it.groupNameEn).lowercase() }
+            )
+            MiniBudgetSortMode.HIGH_TO_LOW -> resultList.sortWith(
+                compareByDescending<CategoryGroupBudgetTracking> { groupSortMetric(it, activeBudgetView) }
+                    .thenBy { (if (languageMode == LanguageMode.BANGLA && it.groupNameBn.isNotBlank()) it.groupNameBn else it.groupNameEn).lowercase() }
+            )
+            MiniBudgetSortMode.A_TO_Z -> resultList.sortBy {
+                (if (languageMode == LanguageMode.BANGLA && it.groupNameBn.isNotBlank()) it.groupNameBn else it.groupNameEn).lowercase()
+            }
+            MiniBudgetSortMode.Z_TO_A -> resultList.sortByDescending {
+                (if (languageMode == LanguageMode.BANGLA && it.groupNameBn.isNotBlank()) it.groupNameBn else it.groupNameEn).lowercase()
             }
         }
 
@@ -735,7 +761,10 @@ fun BudgetTrackingScreen(
         parentCatMap,
         searchQuery,
         filterState,
-        activeCategoryIdsInLast3Months
+        activeCategoryIdsInLast3Months,
+        activeBudgetView,
+        activeSortMode,
+        languageMode
     ) {
         computeCategoryGroupsForType(CategoryType.EXPENSE, "EXPENSE")
     }
@@ -750,7 +779,10 @@ fun BudgetTrackingScreen(
         parentCatMap,
         searchQuery,
         filterState,
-        activeCategoryIdsInLast3Months
+        activeCategoryIdsInLast3Months,
+        activeBudgetView,
+        activeSortMode,
+        languageMode
     ) {
         computeCategoryGroupsForType(CategoryType.INCOME, "INCOME")
     }
@@ -766,6 +798,25 @@ fun BudgetTrackingScreen(
     // Overall Totals
     val totalFlowSpent = remember(categoryGroups) {
         categoryGroups.sumOf { it.totalSpent }
+    }
+
+    val flatCategories = remember(
+        categoryGroups,
+        activeDisplayType,
+        activeBudgetView,
+        activeSortMode,
+        totalFlowSpent,
+        languageMode
+    ) {
+        if (activeDisplayType != MiniBudgetDisplayType.CATEGORIES) {
+            emptyList()
+        } else {
+            val flattened = categoryGroups.flatMap { it.items }.map { item ->
+                val flatShare = if (totalFlowSpent > 0) (item.spentAmount / totalFlowSpent) * 100.0 else 0.0
+                item.copy(percentageShare = flatShare.coerceAtLeast(0.0))
+            }
+            sortBudgetItems(flattened, activeBudgetView, activeSortMode)
+        }
     }
     val totalFlowSpentBase = remember(categoryGroups) {
         categoryGroups.sumOf { it.totalSpentBase }
@@ -1182,7 +1233,7 @@ fun BudgetTrackingScreen(
                 }
             }
 
-            // 3. TOP SUMMARY CARD (Themed for Day & Night)
+            // 3. TOP SUMMARY CARD (Themed for Day & Night, clean borderless finish)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1192,8 +1243,7 @@ fun BudgetTrackingScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
                 ),
-                border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.40f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1313,249 +1363,133 @@ fun BudgetTrackingScreen(
                 }
             }
 
-            // 4. MINI FILTER AND SORT BAR (Themed for Day & Night)
+            // 4. COMPACT 3-CONTROL CYCLING FILTER & SORT BAR (Display Type | Budget View | Sort)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 14.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Horizontally scrollable row containing Segmented capsule and filter pills
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    // Segmented Capsule: [ All | Groups | Categories ]
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
-                        modifier = Modifier.height(35.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Segment: All
-                            val isAllActive = !filterState.showOnlyGroups && !filterState.showOnlyCategoriesWithoutGroups
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isAllActive) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        filterState = filterState.copy(
-                                            showOnlyGroups = false,
-                                            showOnlyCategoriesWithoutGroups = false
-                                        )
-                                    }
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isAllActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isAllActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-
-                            // Segment: Groups
-                            val isGroupsActive = filterState.showOnlyGroups
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isGroupsActive) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        filterState = filterState.copy(
-                                            showOnlyGroups = true,
-                                            showOnlyCategoriesWithoutGroups = false
-                                        )
-                                    }
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ" else "Groups",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isGroupsActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isGroupsActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-
-                            // Segment: Categories
-                            val isCategoriesActive = filterState.showOnlyCategoriesWithoutGroups
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isCategoriesActive) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        filterState = filterState.copy(
-                                            showOnlyGroups = false,
-                                            showOnlyCategoriesWithoutGroups = true
-                                        )
-                                    }
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = if (isCategoriesActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isCategoriesActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Filter Pill 1: Remaining
-                    val isRemainingActive = filterState.showOnlyRemainingBalance
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isRemainingActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                        border = if (isRemainingActive) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                        modifier = Modifier
-                            .height(35.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable {
-                                filterState = filterState.copy(showOnlyRemainingBalance = !filterState.showOnlyRemainingBalance)
-                            }
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining",
-                                fontSize = 11.5.sp,
-                                fontWeight = if (isRemainingActive) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isRemainingActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    // Filter Pill 2: Active
-                    val isActiveActive = filterState.filterOnlyBudgeted
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isActiveActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                        border = if (isActiveActive) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                        modifier = Modifier
-                            .height(35.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable {
-                                filterState = filterState.copy(filterOnlyBudgeted = !filterState.filterOnlyBudgeted)
-                            }
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সক্রিয়" else "Active",
-                                fontSize = 11.5.sp,
-                                fontWeight = if (isActiveActive) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isActiveActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    // Filter Pill 3: Over Budget
-                    val isOverBudgetActive = filterState.filterOnlyOverBudget
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isOverBudgetActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                        border = if (isOverBudgetActive) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                        modifier = Modifier
-                            .height(35.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable {
-                                filterState = filterState.copy(filterOnlyOverBudget = !filterState.filterOnlyOverBudget)
-                            }
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Budget",
-                                fontSize = 11.5.sp,
-                                fontWeight = if (isOverBudgetActive) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isOverBudgetActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+                // Control 1: Display Type (All -> Groups -> Categories -> All)
+                val displayIcon = when (activeDisplayType) {
+                    MiniBudgetDisplayType.ALL -> Icons.Default.Layers
+                    MiniBudgetDisplayType.GROUPS -> Icons.Default.Folder
+                    MiniBudgetDisplayType.CATEGORIES -> Icons.Default.Category
                 }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Redesigned Sort Button on the far right
-                var showSortDropdown by remember { mutableStateOf(false) }
-                val isNonDefaultSort = filterState.sortOrder != BudgetSortOrder.DEFAULT
-                Box {
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isNonDefaultSort) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, if (isNonDefaultSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                        modifier = Modifier
-                            .height(35.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable { showSortDropdown = true }
-                            .testTag("budget_sort_button")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Sort,
-                                contentDescription = "Sort",
-                                tint = if (isNonDefaultSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
+                val isDisplayFiltered = activeDisplayType != MiniBudgetDisplayType.ALL
+                BudgetCyclingFilterPill(
+                    icon = displayIcon,
+                    label = if (languageMode == LanguageMode.BANGLA) activeDisplayType.titleBn else activeDisplayType.titleEn,
+                    isHighlighted = isDisplayFiltered,
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    isDark = isDark,
+                    testTag = "budget_display_type_button",
+                    modifier = Modifier.weight(0.95f),
+                    onClick = {
+                        filterState = when (activeDisplayType) {
+                            MiniBudgetDisplayType.ALL -> filterState.copy(
+                                showOnlyGroups = true,
+                                showOnlyCategoriesWithoutGroups = false
                             )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = null,
-                                tint = if (isNonDefaultSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(15.dp)
+                            MiniBudgetDisplayType.GROUPS -> filterState.copy(
+                                showOnlyGroups = false,
+                                showOnlyCategoriesWithoutGroups = true
+                            )
+                            MiniBudgetDisplayType.CATEGORIES -> filterState.copy(
+                                showOnlyGroups = false,
+                                showOnlyCategoriesWithoutGroups = false
                             )
                         }
                     }
+                )
 
-                    DropdownMenu(
-                        expanded = showSortDropdown,
-                        onDismissRequest = { showSortDropdown = false }
-                    ) {
-                        BudgetSortOrder.values().forEach { order ->
-                            val isSelected = filterState.sortOrder == order
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) order.titleBn else order.titleEn,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                } else null,
-                                onClick = {
-                                    filterState = filterState.copy(sortOrder = order, sortByAmount = (order == BudgetSortOrder.AMOUNT_DESC || order == BudgetSortOrder.SPENT_DESC))
-                                    showSortDropdown = false
-                                }
-                            )
-                        }
-                    }
+                // Control 2: Budget View (Budget -> Actual -> Remaining -> Over Budget -> Budget)
+                val viewAccentColor = when (activeBudgetView) {
+                    MiniBudgetView.BUDGET -> MaterialTheme.colorScheme.primary
+                    MiniBudgetView.ACTUAL -> BrandBlueLight
+                    MiniBudgetView.REMAINING -> SolidIncome
+                    MiniBudgetView.OVER_BUDGET -> CrimsonPink
                 }
+                val viewIcon = when (activeBudgetView) {
+                    MiniBudgetView.BUDGET -> Icons.Default.Assessment
+                    MiniBudgetView.ACTUAL -> Icons.AutoMirrored.Filled.TrendingUp
+                    MiniBudgetView.REMAINING -> Icons.Default.Check
+                    MiniBudgetView.OVER_BUDGET -> Icons.AutoMirrored.Filled.TrendingDown
+                }
+                BudgetCyclingFilterPill(
+                    icon = viewIcon,
+                    label = if (languageMode == LanguageMode.BANGLA) activeBudgetView.titleBn else activeBudgetView.titleEn,
+                    isHighlighted = true,
+                    accentColor = viewAccentColor,
+                    isDark = isDark,
+                    testTag = "budget_view_button",
+                    modifier = Modifier.weight(1.08f),
+                    onClick = {
+                        filterState = when (activeBudgetView) {
+                            MiniBudgetView.BUDGET -> filterState.copy(
+                                filterOnlyBudgeted = false,
+                                showOnlyActual = true,
+                                showOnlyRemainingBalance = false,
+                                filterOnlyOverBudget = false
+                            )
+                            MiniBudgetView.ACTUAL -> filterState.copy(
+                                filterOnlyBudgeted = false,
+                                showOnlyActual = false,
+                                showOnlyRemainingBalance = true,
+                                filterOnlyOverBudget = false
+                            )
+                            MiniBudgetView.REMAINING -> filterState.copy(
+                                filterOnlyBudgeted = false,
+                                showOnlyActual = false,
+                                showOnlyRemainingBalance = false,
+                                filterOnlyOverBudget = true
+                            )
+                            MiniBudgetView.OVER_BUDGET -> filterState.copy(
+                                filterOnlyBudgeted = true,
+                                showOnlyActual = false,
+                                showOnlyRemainingBalance = false,
+                                filterOnlyOverBudget = false
+                            )
+                        }
+                    }
+                )
+
+                // Control 3: Sort (Low to High -> High to Low -> A to Z -> Z to A -> Low to High)
+                val sortIcon = when (activeSortMode) {
+                    MiniBudgetSortMode.LOW_TO_HIGH -> Icons.Default.ArrowUpward
+                    MiniBudgetSortMode.HIGH_TO_LOW -> Icons.Default.ArrowDownward
+                    MiniBudgetSortMode.A_TO_Z, MiniBudgetSortMode.Z_TO_A -> Icons.AutoMirrored.Filled.Sort
+                }
+                BudgetCyclingFilterPill(
+                    icon = sortIcon,
+                    label = if (languageMode == LanguageMode.BANGLA) activeSortMode.titleBn else activeSortMode.titleEn,
+                    isHighlighted = activeSortMode != MiniBudgetSortMode.HIGH_TO_LOW,
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    isDark = isDark,
+                    testTag = "budget_sort_button",
+                    modifier = Modifier.weight(1.02f),
+                    onClick = {
+                        filterState = when (activeSortMode) {
+                            MiniBudgetSortMode.LOW_TO_HIGH -> filterState.copy(
+                                sortOrder = BudgetSortOrder.AMOUNT_DESC,
+                                sortByAmount = true
+                            )
+                            MiniBudgetSortMode.HIGH_TO_LOW -> filterState.copy(
+                                sortOrder = BudgetSortOrder.NAME_ASC,
+                                sortByAmount = false
+                            )
+                            MiniBudgetSortMode.A_TO_Z -> filterState.copy(
+                                sortOrder = BudgetSortOrder.NAME_DESC,
+                                sortByAmount = false
+                            )
+                            MiniBudgetSortMode.Z_TO_A -> filterState.copy(
+                                sortOrder = BudgetSortOrder.AMOUNT_ASC,
+                                sortByAmount = false
+                            )
+                        }
+                    }
+                )
             }
 
 
@@ -1797,30 +1731,8 @@ fun BudgetTrackingScreen(
                     }
                 } else {
                     if (filterState.showOnlyCategoriesWithoutGroups) {
-                        val flatItems = categoryGroups.flatMap { it.items }.map { item ->
-                            val flatShare = if (totalFlowSpent > 0) (item.spentAmount / totalFlowSpent) * 100.0 else 0.0
-                            item.copy(percentageShare = flatShare.coerceAtLeast(0.0))
-                        }.let { list ->
-                            val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-                            if (shouldSortByAmount) {
-                                list.sortedByDescending { it.spentAmount }
-                            } else {
-                                when (filterState.sortOrder) {
-                                    BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> list.sortedByDescending { it.spentAmount }
-                                    BudgetSortOrder.AMOUNT_ASC -> list.sortedBy { it.spentAmount }
-                                    BudgetSortOrder.REMAINING_DESC -> list.sortedByDescending { it.remainingAmount }
-                                    BudgetSortOrder.REMAINING_ASC -> list.sortedBy { it.remainingAmount }
-                                    BudgetSortOrder.BUDGET_DESC -> list.sortedByDescending { it.budgetLimit }
-                                    BudgetSortOrder.BUDGET_ASC -> list.sortedBy { it.budgetLimit }
-                                    BudgetSortOrder.UTILIZATION_DESC -> list.sortedByDescending { it.percentageInt }
-                                    BudgetSortOrder.NAME_ASC -> list.sortedBy { it.category.nameEn.lowercase() }
-                                    BudgetSortOrder.NAME_DESC -> list.sortedByDescending { it.category.nameEn.lowercase() }
-                                    BudgetSortOrder.DEFAULT -> list
-                                }
-                            }
-                        }
                         items(
-                            items = flatItems,
+                            items = flatCategories,
                             key = { "${it.category.id}_${it.category.nameEn}" }
                         ) { item ->
                             CategoryRow(
@@ -5303,3 +5215,81 @@ private fun MetricCard(
     }
 }
 
+private enum class MiniBudgetDisplayType(val titleEn: String, val titleBn: String) {
+    ALL("All", "সব"),
+    GROUPS("Groups", "গ্রুপ"),
+    CATEGORIES("Categories", "ক্যাটাগরি")
+}
+
+private enum class MiniBudgetView(val titleEn: String, val titleBn: String) {
+    BUDGET("Budget", "বাজেট"),
+    ACTUAL("Actual", "প্রকৃত"),
+    REMAINING("Remaining", "অবশিষ্ট"),
+    OVER_BUDGET("Over Budget", "অতিরিক্ত")
+}
+
+private enum class MiniBudgetSortMode(val titleEn: String, val titleBn: String) {
+    LOW_TO_HIGH("Low to High", "কম → বেশি"),
+    HIGH_TO_LOW("High to Low", "বেশি → কম"),
+    A_TO_Z("A to Z", "A → Z"),
+    Z_TO_A("Z to A", "Z → A")
+}
+
+@Composable
+private fun BudgetCyclingFilterPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    isHighlighted: Boolean,
+    accentColor: Color,
+    isDark: Boolean,
+    testTag: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val containerColor = if (isHighlighted) {
+        accentColor.copy(alpha = if (isDark) 0.20f else 0.12f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isDark) 0.45f else 0.55f)
+    }
+    val borderColor = if (isHighlighted) {
+        accentColor.copy(alpha = 0.45f)
+    } else {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    }
+    val contentColor = if (isHighlighted) accentColor else MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor),
+        modifier = modifier
+            .height(35.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .testTag(testTag)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(13.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (isHighlighted) FontWeight.SemiBold else FontWeight.Medium,
+                color = contentColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}

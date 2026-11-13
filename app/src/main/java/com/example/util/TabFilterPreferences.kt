@@ -851,6 +851,7 @@ class TabFilterPreferences private constructor(context: Context) {
             val excludeZero = obj.optBoolean("excludeZero", true)
             val hideEmpty = obj.optBoolean("hideEmpty", true)
             val withoutGroups = obj.optBoolean("withoutGroups", false)
+            val onlyGroups = obj.optBoolean("onlyGroups", false)
             val displayCurr = obj.optBoolean("displayCurr", true)
             val displayCurrSym = obj.optBoolean("displayCurrSym", true)
             val sortByAmt = obj.optBoolean("sortByAmt", true)
@@ -878,6 +879,7 @@ class TabFilterPreferences private constructor(context: Context) {
                 excludeZeroAmounts = excludeZero,
                 hideEmptyGroups = hideEmpty,
                 showOnlyCategoriesWithoutGroups = withoutGroups,
+                showOnlyGroups = onlyGroups,
                 displayCurrency = displayCurr,
                 displayCurrencySymbol = displayCurrSym,
                 sortByAmount = sortByAmt,
@@ -925,6 +927,7 @@ class TabFilterPreferences private constructor(context: Context) {
             obj.put("excludeZero", state.excludeZeroAmounts)
             obj.put("hideEmpty", state.hideEmptyGroups)
             obj.put("withoutGroups", state.showOnlyCategoriesWithoutGroups)
+            obj.put("onlyGroups", state.showOnlyGroups)
             obj.put("displayCurr", state.displayCurrency)
             obj.put("displayCurrSym", state.displayCurrencySymbol)
             obj.put("sortByAmt", state.sortByAmount)
