@@ -15,16 +15,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.Visibility
@@ -66,47 +68,52 @@ import com.example.ui.components.filter.clear
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.removeActiveChip
 import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
-import com.example.ui.theme.SolidExpense
-import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
-import com.example.util.BalanceSheetComparisonPreset
+import com.example.util.BalanceSheetAmountView
+import com.example.util.BalanceSheetSectionFilter
 import com.example.util.BalanceSheetSortOrder
 
 /**
- * Unified, single-bar filter and shortcut toolbar for Balance Sheet.
- * Combines quick 1-tap shortcuts (Section, Timeline preset, Sort, ৳0 toggle, Calc, Expand)
- * and active filter state (active filter indicator badge, 1-tap reset, active chips with individual dismissal)
- * into a single compact, horizontally scrollable row without spawning a second bar.
+ * Compact filter and sorting bar placed directly below the Balance Sheet summary card.
+ * Features independent, simultaneous controls:
+ * 1. Section cycling pill (All -> Groups -> Accounts -> All)
+ * 2. View cycling pill (Amount -> Previous Amount -> Amount)
+ * 3. Sort dropdown (Low to High, High to Low, A to Z, Z to A)
+ * 4. Hide 0 toggle pill
+ * Plus optional Expand/Collapse & active dialog filter chips.
  */
 @Composable
 fun BalanceSheetQuickShortcutsRow(
     filterState: FilterState,
     onFilterChange: (FilterState) -> Unit,
-    isCalcMode: Boolean,
-    onToggleCalcMode: () -> Unit,
+    onSectionChanged: (BalanceSheetSectionFilter) -> Unit = {},
     allGroupsExpanded: Boolean,
     onToggleExpandAll: (Boolean) -> Unit,
     onOpenFilterDialog: () -> Unit,
+    onScrollToTop: () -> Unit = {},
     languageMode: LanguageMode,
     modifier: Modifier = Modifier,
     spec: FilterSpec<*>? = null,
     onClearAll: (() -> Unit)? = null
 ) {
     val isBn = languageMode == LanguageMode.BANGLA
-    var showSectionMenu by remember { mutableStateOf(false) }
-    var showTimelineMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
 
-    val activeSection = BalanceSheetFilterSpec.getActiveTab(filterState)
-    val datePreset = BalanceSheetFilterSpec.getDatePreset(filterState)
+    val sectionFilter = BalanceSheetFilterSpec.getSectionFilter(filterState)
+    val amountView = BalanceSheetFilterSpec.getAmountView(filterState)
     val sortOrder = BalanceSheetFilterSpec.getSortOrder(filterState)
     val excludeZero = BalanceSheetFilterSpec.getExcludeZero(filterState)
-    val withoutGroups = BalanceSheetFilterSpec.getShowWithoutGroups(filterState)
 
     val isFilterActive = spec?.isActive(filterState) ?: (BalanceSheetFilterSpec.activeFilterCount(filterState) > 0)
     val activeCount = spec?.activeFilterCount(filterState) ?: BalanceSheetFilterSpec.activeFilterCount(filterState)
-    val activeChips = remember(spec, filterState, languageMode) {
-        spec?.activeChips(filterState, languageMode) ?: emptyList()
+    val extraChips = remember(spec, filterState, languageMode) {
+        (spec?.activeChips(filterState, languageMode) ?: emptyList()).filterNot { chip ->
+            chip.fieldId == BalanceSheetFilterSpec.FIELD_SORT ||
+                chip.fieldId == BalanceSheetFilterSpec.FIELD_AMOUNT_VIEW ||
+                chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_EXCLUDE_ZERO}" ||
+                chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_WITHOUT_GROUPS}" ||
+                chip.id == "toggle_display_options_${BalanceSheetFilterSpec.FIELD_ONLY_GROUPS}"
+        }
     }
 
     val consumeHorizontalScroll = remember {
@@ -129,255 +136,80 @@ fun BalanceSheetQuickShortcutsRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // ---------------------------------------------------------------------
-        // 0. Unified Filter Trigger & Active Status Controls
+        // 1. Section Cycling Pill: All -> Groups -> Accounts -> All
         // ---------------------------------------------------------------------
-        if (isFilterActive) {
-            // Emphasized Active Filter Badge with count
-            CompactToolbarPill(
-                icon = Icons.Default.FilterAlt,
-                label = if (isBn) "ফিল্টার ($activeCount)" else "Filter ($activeCount)",
-                hasDropdown = false,
-                isActive = true,
-                isEmphasized = true,
-                activeColor = SolidPrimary,
-                modifier = Modifier.testTag("active_filter_badge"),
-                onClick = onOpenFilterDialog
-            )
-
-            // Fast Reset / Clear All Pill
-            CompactToolbarPill(
-                icon = Icons.Default.RestartAlt,
-                label = if (isBn) "রিসেট" else "Reset",
-                hasDropdown = false,
-                isActive = false,
-                modifier = Modifier.testTag("filter_reset_btn"),
-                onClick = {
-                    if (onClearAll != null) onClearAll()
-                    else if (spec != null) onFilterChange(spec.clear(filterState))
-                    else onFilterChange(emptyMap())
+        val sectionIcon = when (sectionFilter) {
+            BalanceSheetSectionFilter.ALL -> Icons.Default.Layers
+            BalanceSheetSectionFilter.GROUPS -> Icons.Default.Folder
+            BalanceSheetSectionFilter.ACCOUNTS -> Icons.Default.AccountBalanceWallet
+        }
+        val sectionLabel = if (isBn) sectionFilter.titleBn else sectionFilter.titleEn
+        CompactToolbarPill(
+            icon = sectionIcon,
+            label = sectionLabel,
+            hasDropdown = false,
+            isActive = sectionFilter != BalanceSheetSectionFilter.ALL,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("balance_sheet_section_cycle_button"),
+            onClick = {
+                val nextSection = when (sectionFilter) {
+                    BalanceSheetSectionFilter.ALL -> BalanceSheetSectionFilter.GROUPS
+                    BalanceSheetSectionFilter.GROUPS -> BalanceSheetSectionFilter.ACCOUNTS
+                    BalanceSheetSectionFilter.ACCOUNTS -> BalanceSheetSectionFilter.ALL
                 }
-            )
-
-            // Active Filter Chips (if any custom dialog criteria like accounts, status, search, options)
-            activeChips.forEach { chip ->
-                CompactActiveFilterChip(
-                    chip = chip,
-                    accentColor = SolidPrimary,
-                    onRemove = {
-                        val newState = spec?.removeActiveChip(filterState, chip.id) ?: filterState
-                        onFilterChange(newState)
-                    }
-                )
+                onSectionChanged(nextSection)
+                onFilterChange(BalanceSheetFilterSpec.withSectionFilter(filterState, nextSection))
             }
-
-            VerticalDivider(
-                modifier = Modifier
-                    .height(16.dp)
-                    .padding(horizontal = 2.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-            )
-        } else {
-            // Inactive Filter Dialog Trigger
-            CompactToolbarPill(
-                icon = Icons.Default.FilterAlt,
-                label = if (isBn) "ফিল্টার" else "Filter",
-                hasDropdown = false,
-                isActive = false,
-                modifier = Modifier.testTag("filter_dialog_trigger_btn"),
-                onClick = onOpenFilterDialog
-            )
-        }
+        )
 
         // ---------------------------------------------------------------------
-        // 1. Balance Sheet Section Selector: All / Assets / Liabilities
+        // 2. View Cycling Pill: Amount -> Previous Amount -> Amount
         // ---------------------------------------------------------------------
-        val isSectionCustom = activeSection != BalanceSheetFilterSpec.TAB_ALL
-        val (sectionIcon, sectionLabel) = when (activeSection) {
-            BalanceSheetFilterSpec.TAB_ASSETS -> Icons.AutoMirrored.Filled.TrendingUp to (if (isBn) "সম্পদ" else "Assets")
-            BalanceSheetFilterSpec.TAB_LIABILITIES -> Icons.AutoMirrored.Filled.TrendingDown to (if (isBn) "দায়" else "Liabilities")
-            else -> Icons.Default.Layers to (if (isBn) "সেকশন: সব" else "Section: All")
-        }
-
-        Box {
-            CompactToolbarPill(
-                icon = sectionIcon,
-                label = sectionLabel,
-                hasDropdown = true,
-                isActive = isSectionCustom,
-                onClick = { showSectionMenu = true }
-            )
-
-            DropdownMenu(
-                expanded = showSectionMenu,
-                onDismissRequest = { showSectionMenu = false }
-            ) {
-                DropdownMenuItem(
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Layers,
-                            contentDescription = null,
-                            tint = if (activeSection == BalanceSheetFilterSpec.TAB_ALL) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                    text = {
-                        Text(
-                            text = if (isBn) "সব (সম্পদ ও দায়)" else "All (Assets & Liabilities)",
-                            fontSize = 12.sp,
-                            fontWeight = if (activeSection == BalanceSheetFilterSpec.TAB_ALL) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    trailingIcon = {
-                        if (activeSection == BalanceSheetFilterSpec.TAB_ALL) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
-                        }
-                    },
-                    onClick = {
-                        showSectionMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withActiveTab(filterState, BalanceSheetFilterSpec.TAB_ALL))
-                    }
-                )
-
-                DropdownMenuItem(
-                    leadingIcon = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.TrendingUp,
-                            contentDescription = null,
-                            tint = if (activeSection == BalanceSheetFilterSpec.TAB_ASSETS) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                    text = {
-                        Text(
-                            text = if (isBn) "শুধু সম্পদ (Assets Only)" else "Assets Only",
-                            fontSize = 12.sp,
-                            fontWeight = if (activeSection == BalanceSheetFilterSpec.TAB_ASSETS) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    trailingIcon = {
-                        if (activeSection == BalanceSheetFilterSpec.TAB_ASSETS) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(16.dp))
-                        }
-                    },
-                    onClick = {
-                        showSectionMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withActiveTab(filterState, BalanceSheetFilterSpec.TAB_ASSETS))
-                    }
-                )
-
-                DropdownMenuItem(
-                    leadingIcon = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.TrendingDown,
-                            contentDescription = null,
-                            tint = if (activeSection == BalanceSheetFilterSpec.TAB_LIABILITIES) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                    text = {
-                        Text(
-                            text = if (isBn) "শুধু দায় (Liabilities Only)" else "Liabilities Only",
-                            fontSize = 12.sp,
-                            fontWeight = if (activeSection == BalanceSheetFilterSpec.TAB_LIABILITIES) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    trailingIcon = {
-                        if (activeSection == BalanceSheetFilterSpec.TAB_LIABILITIES) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(16.dp))
-                        }
-                    },
-                    onClick = {
-                        showSectionMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withActiveTab(filterState, BalanceSheetFilterSpec.TAB_LIABILITIES))
-                    }
-                )
-            }
-        }
-
-        // ---------------------------------------------------------------------
-        // 2. Timeline Preset Dropdown (Quick Date Preset Selector)
-        // ---------------------------------------------------------------------
-        val isTimelineCustom = datePreset != BalanceSheetComparisonPreset.THIS_MONTH
-        val timelineLabel = if (isBn) datePreset.titleBn else datePreset.titleEn
-
-        Box {
-            CompactToolbarPill(
-                icon = Icons.Default.CalendarMonth,
-                label = timelineLabel,
-                hasDropdown = true,
-                isActive = isTimelineCustom,
-                onClick = { showTimelineMenu = true }
-            )
-
-            DropdownMenu(
-                expanded = showTimelineMenu,
-                onDismissRequest = { showTimelineMenu = false }
-            ) {
-                BalanceSheetFilterSpec.DATE_PRESET_OPTIONS.forEach { opt ->
-                    val isSelected = when (opt.id) {
-                        BalanceSheetFilterSpec.PRESET_THIS_MONTH -> datePreset == BalanceSheetComparisonPreset.THIS_MONTH
-                        BalanceSheetFilterSpec.PRESET_END_OF_LAST_MONTH -> datePreset == BalanceSheetComparisonPreset.END_OF_LAST_MONTH
-                        BalanceSheetFilterSpec.PRESET_BEGINNING_OF_MONTH -> datePreset == BalanceSheetComparisonPreset.BEGINNING_OF_MONTH
-                        BalanceSheetFilterSpec.PRESET_LAST_12_MONTHS -> datePreset == BalanceSheetComparisonPreset.LAST_12_MONTHS
-                        BalanceSheetFilterSpec.PRESET_PREVIOUS_MONTH -> datePreset == BalanceSheetComparisonPreset.PREVIOUS_MONTH
-                        BalanceSheetFilterSpec.PRESET_BEGINNING_OF_YEAR -> datePreset == BalanceSheetComparisonPreset.BEGINNING_OF_YEAR
-                        BalanceSheetFilterSpec.PRESET_LAST_30_DAYS -> datePreset == BalanceSheetComparisonPreset.LAST_30_DAYS
-                        BalanceSheetFilterSpec.PRESET_TODAY -> datePreset == BalanceSheetComparisonPreset.TODAY
-                        BalanceSheetFilterSpec.PRESET_CUSTOM -> datePreset == BalanceSheetComparisonPreset.CUSTOM
-                        else -> false
-                    }
-
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = if (isBn) opt.titleBn else opt.titleEn,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        },
-                        trailingIcon = {
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(15.dp))
-                            }
-                        },
-                        onClick = {
-                            showTimelineMenu = false
-                            val newPreset = when (opt.id) {
-                                BalanceSheetFilterSpec.PRESET_THIS_MONTH -> BalanceSheetComparisonPreset.THIS_MONTH
-                                BalanceSheetFilterSpec.PRESET_END_OF_LAST_MONTH -> BalanceSheetComparisonPreset.END_OF_LAST_MONTH
-                                BalanceSheetFilterSpec.PRESET_BEGINNING_OF_MONTH -> BalanceSheetComparisonPreset.BEGINNING_OF_MONTH
-                                BalanceSheetFilterSpec.PRESET_LAST_12_MONTHS -> BalanceSheetComparisonPreset.LAST_12_MONTHS
-                                BalanceSheetFilterSpec.PRESET_PREVIOUS_MONTH -> BalanceSheetComparisonPreset.PREVIOUS_MONTH
-                                BalanceSheetFilterSpec.PRESET_BEGINNING_OF_YEAR -> BalanceSheetComparisonPreset.BEGINNING_OF_YEAR
-                                BalanceSheetFilterSpec.PRESET_LAST_30_DAYS -> BalanceSheetComparisonPreset.LAST_30_DAYS
-                                BalanceSheetFilterSpec.PRESET_TODAY -> BalanceSheetComparisonPreset.TODAY
-                                else -> BalanceSheetComparisonPreset.CUSTOM
-                            }
-                            onFilterChange(BalanceSheetFilterSpec.withPreset(filterState, newPreset))
-                        }
-                    )
+        val isPrevView = amountView == BalanceSheetAmountView.PREVIOUS_AMOUNT
+        val viewIcon = if (isPrevView) Icons.Default.CalendarToday else Icons.AutoMirrored.Filled.TrendingUp
+        val viewLabel = if (isBn) amountView.titleBn else amountView.titleEn
+        CompactToolbarPill(
+            icon = viewIcon,
+            label = viewLabel,
+            hasDropdown = false,
+            isActive = isPrevView,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("balance_sheet_view_cycle_button"),
+            onClick = {
+                val nextView = if (isPrevView) {
+                    BalanceSheetAmountView.AMOUNT
+                } else {
+                    BalanceSheetAmountView.PREVIOUS_AMOUNT
                 }
+                onFilterChange(BalanceSheetFilterSpec.withAmountView(filterState, nextView))
             }
-        }
+        )
 
         // ---------------------------------------------------------------------
-        // 3. Sort Order Menu
+        // 3. Sort Dropdown: Low to High, High to Low, A to Z, Z to A
         // ---------------------------------------------------------------------
-        val isSortCustom = sortOrder != BalanceSheetSortOrder.AMOUNT_DESC
+        val sortIcon = when (sortOrder) {
+            BalanceSheetSortOrder.AMOUNT_ASC -> Icons.Default.ArrowUpward
+            BalanceSheetSortOrder.AMOUNT_DESC -> Icons.Default.ArrowDownward
+            else -> Icons.AutoMirrored.Filled.Sort
+        }
         val sortLabel = when (sortOrder) {
-            BalanceSheetSortOrder.AMOUNT_DESC -> if (isBn) "পরিমাণ ↓" else "Amount ↓"
-            BalanceSheetSortOrder.AMOUNT_ASC -> if (isBn) "পরিমাণ ↑" else "Amount ↑"
-            BalanceSheetSortOrder.NAME_ASC -> if (isBn) "নাম A-Z" else "Name A-Z"
-            BalanceSheetSortOrder.DEFAULT -> if (isBn) "ডিফল্ট ক্রম" else "Default"
+            BalanceSheetSortOrder.AMOUNT_ASC -> if (isBn) "কম → বেশি" else "Low to High"
+            BalanceSheetSortOrder.AMOUNT_DESC -> if (isBn) "বেশি → কম" else "High to Low"
+            BalanceSheetSortOrder.NAME_ASC -> if (isBn) "A → Z" else "A to Z"
+            BalanceSheetSortOrder.NAME_DESC -> if (isBn) "Z → A" else "Z to A"
+            BalanceSheetSortOrder.DEFAULT -> if (isBn) "A → Z" else "A to Z"
         }
+        val isSortActive = sortOrder != BalanceSheetSortOrder.AMOUNT_DESC
 
         Box {
             CompactToolbarPill(
-                icon = Icons.AutoMirrored.Filled.Sort,
+                icon = sortIcon,
                 label = sortLabel,
                 hasDropdown = true,
-                isActive = isSortCustom,
+                isActive = isSortActive,
+                activeColor = SolidPrimary,
+                modifier = Modifier.testTag("balance_sheet_sort_dropdown_button"),
                 onClick = { showSortMenu = true }
             )
 
@@ -386,58 +218,63 @@ fun BalanceSheetQuickShortcutsRow(
                 onDismissRequest = { showSortMenu = false }
             ) {
                 SortMenuItem(
-                    title = if (isBn) "পরিমাণ: বেশি থেকে কম" else "Amount: High to Low",
-                    isSelected = sortOrder == BalanceSheetSortOrder.AMOUNT_DESC,
-                    onClick = {
-                        showSortMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.AMOUNT_DESC))
-                    }
-                )
-                SortMenuItem(
-                    title = if (isBn) "পরিমাণ: কম থেকে বেশি" else "Amount: Low to High",
+                    title = if (isBn) "কম → বেশি (Low to High)" else "Low to High",
                     isSelected = sortOrder == BalanceSheetSortOrder.AMOUNT_ASC,
                     onClick = {
                         showSortMenu = false
                         onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.AMOUNT_ASC))
+                        onScrollToTop()
                     }
                 )
                 SortMenuItem(
-                    title = if (isBn) "নাম: ক থেকে ঁ / A to Z" else "Name: A to Z",
-                    isSelected = sortOrder == BalanceSheetSortOrder.NAME_ASC,
+                    title = if (isBn) "বেশি → কম (High to Low)" else "High to Low",
+                    isSelected = sortOrder == BalanceSheetSortOrder.AMOUNT_DESC,
+                    onClick = {
+                        showSortMenu = false
+                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.AMOUNT_DESC))
+                        onScrollToTop()
+                    }
+                )
+                SortMenuItem(
+                    title = if (isBn) "A → Z" else "A to Z",
+                    isSelected = sortOrder == BalanceSheetSortOrder.NAME_ASC || sortOrder == BalanceSheetSortOrder.DEFAULT,
                     onClick = {
                         showSortMenu = false
                         onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.NAME_ASC))
+                        onScrollToTop()
                     }
                 )
                 SortMenuItem(
-                    title = if (isBn) "ডিফল্ট ক্রম" else "Default Order",
-                    isSelected = sortOrder == BalanceSheetSortOrder.DEFAULT,
+                    title = if (isBn) "Z → A" else "Z to A",
+                    isSelected = sortOrder == BalanceSheetSortOrder.NAME_DESC,
                     onClick = {
                         showSortMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.DEFAULT))
+                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.NAME_DESC))
+                        onScrollToTop()
                     }
                 )
             }
         }
 
         // ---------------------------------------------------------------------
-        // 4. Zero Balance Toggle (Exclude vs Show ৳0)
+        // 4. Hide 0 Toggle Pill
         // ---------------------------------------------------------------------
         CompactToolbarPill(
             icon = if (excludeZero) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-            label = if (excludeZero) (if (isBn) "শূন্য লুকানো" else "Hide ৳0") else (if (isBn) "সকল ব্যালেন্স" else "Show ৳0"),
+            label = if (isBn) "০ লুকান" else "Hide 0",
             hasDropdown = false,
-            isActive = !excludeZero,
+            isActive = excludeZero,
             activeColor = SolidPrimary,
+            modifier = Modifier.testTag("balance_sheet_hide_zero_button"),
             onClick = {
                 onFilterChange(BalanceSheetFilterSpec.withExcludeZero(filterState, !excludeZero))
             }
         )
 
         // ---------------------------------------------------------------------
-        // 5. Expand / Collapse All Parent Groups (If hierarchical view is active)
+        // 5. Optional Expand / Collapse All (when hierarchical view is active)
         // ---------------------------------------------------------------------
-        if (!withoutGroups) {
+        if (sectionFilter != BalanceSheetSectionFilter.ACCOUNTS) {
             val expandIcon = if (allGroupsExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore
             val expandLabel = if (allGroupsExpanded) {
                 if (isBn) "সব বন্ধ" else "Collapse"
@@ -455,16 +292,53 @@ fun BalanceSheetQuickShortcutsRow(
         }
 
         // ---------------------------------------------------------------------
-        // 6. Calculation Mode Toggle ("হিসাব গণনা" / "Calc Mode")
+        // 6. Active Dialog Filter Status / Reset / Extra Chips
         // ---------------------------------------------------------------------
-        CompactToolbarPill(
-            icon = Icons.Default.Tune,
-            label = if (isBn) "হিসাব গণনা" else "Calc",
-            hasDropdown = false,
-            isActive = isCalcMode,
-            activeColor = SolidPrimary,
-            onClick = onToggleCalcMode
-        )
+        if (isFilterActive || extraChips.isNotEmpty()) {
+            VerticalDivider(
+                modifier = Modifier
+                    .height(16.dp)
+                    .padding(horizontal = 2.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+
+            if (extraChips.isNotEmpty()) {
+                CompactToolbarPill(
+                    icon = Icons.Default.FilterAlt,
+                    label = if (isBn) "ফিল্টার ($activeCount)" else "Filter ($activeCount)",
+                    hasDropdown = false,
+                    isActive = true,
+                    isEmphasized = true,
+                    activeColor = SolidPrimary,
+                    modifier = Modifier.testTag("active_filter_badge"),
+                    onClick = onOpenFilterDialog
+                )
+            }
+
+            CompactToolbarPill(
+                icon = Icons.Default.RestartAlt,
+                label = if (isBn) "রিসেট" else "Reset",
+                hasDropdown = false,
+                isActive = false,
+                modifier = Modifier.testTag("filter_reset_btn"),
+                onClick = {
+                    if (onClearAll != null) onClearAll()
+                    else if (spec != null) onFilterChange(spec.clear(filterState))
+                    else onFilterChange(emptyMap())
+                }
+            )
+
+            extraChips.forEach { chip ->
+                CompactActiveFilterChip(
+                    chip = chip,
+                    accentColor = SolidPrimary,
+                    onRemove = {
+                        val newState = spec?.removeActiveChip(filterState, chip.id) ?: filterState
+                        onFilterChange(newState)
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -481,12 +355,12 @@ private fun CompactToolbarPill(
 ) {
     val bgColor = when {
         isEmphasized -> activeColor
-        isActive -> activeColor.copy(alpha = 0.18f)
+        isActive -> activeColor.copy(alpha = 0.16f)
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
     }
     val borderColor = when {
         isEmphasized -> activeColor
-        isActive -> activeColor.copy(alpha = 0.65f)
+        isActive -> activeColor.copy(alpha = 0.55f)
         else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
     }
     val contentColor = when {
@@ -496,29 +370,29 @@ private fun CompactToolbarPill(
     }
 
     Surface(
-        shape = RoundedCornerShape(7.dp),
+        shape = RoundedCornerShape(16.dp),
         color = bgColor,
-        border = BorderStroke(0.8.dp, borderColor),
+        border = BorderStroke(0.85.dp, borderColor),
         modifier = modifier
-            .height(25.dp)
-            .clip(RoundedCornerShape(7.dp))
+            .height(29.dp)
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
+            horizontalArrangement = Arrangement.spacedBy(3.5.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = contentColor,
-                modifier = Modifier.size(11.5.dp)
+                modifier = Modifier.size(12.5.dp)
             )
             Text(
                 text = label,
-                fontSize = 10.sp,
-                fontWeight = if (isActive || isEmphasized) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 10.5.sp,
+                fontWeight = if (isActive || isEmphasized) FontWeight.SemiBold else FontWeight.Medium,
                 color = contentColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -527,8 +401,8 @@ private fun CompactToolbarPill(
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
                     contentDescription = null,
-                    tint = contentColor.copy(alpha = 0.7f),
-                    modifier = Modifier.size(12.dp)
+                    tint = contentColor.copy(alpha = 0.75f),
+                    modifier = Modifier.size(13.dp)
                 )
             }
         }
@@ -542,15 +416,15 @@ private fun CompactActiveFilterChip(
     onRemove: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(7.dp),
+        shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(0.7.dp, accentColor.copy(alpha = 0.5f)),
         modifier = Modifier
-            .height(25.dp)
-            .clip(RoundedCornerShape(7.dp))
+            .height(27.dp)
+            .clip(RoundedCornerShape(14.dp))
     ) {
         Row(
-            modifier = Modifier.padding(start = 6.dp, end = 3.dp),
+            modifier = Modifier.padding(start = 7.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
@@ -598,7 +472,7 @@ private fun SortMenuItem(
         text = {
             Text(
                 text = title,
-                fontSize = 11.5.sp,
+                fontSize = 12.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface
             )

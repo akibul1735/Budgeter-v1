@@ -117,7 +117,9 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -851,6 +853,16 @@ fun BudgetTrackingScreen(
     // Track scroll state to smoothly collapse top card without scrolling away content underneath
     val listState = rememberLazyListState()
     val collapsibleCardState = rememberCollapsibleCardState(collapseRangePx = 220f)
+    val headerScrollState = LocalHeaderScrollState.current
+    val coroutineScope = rememberCoroutineScope()
+
+    fun scrollToListTop() {
+        collapsibleCardState.reset()
+        headerScrollState.show()
+        coroutineScope.launch {
+            listState.animateScrollToItem(0)
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize().testTag("budget_tracking_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -1401,6 +1413,7 @@ fun BudgetTrackingScreen(
                                 showOnlyCategoriesWithoutGroups = false
                             )
                         }
+                        scrollToListTop()
                     }
                 )
 
@@ -1452,6 +1465,7 @@ fun BudgetTrackingScreen(
                                 filterOnlyOverBudget = false
                             )
                         }
+                        scrollToListTop()
                     }
                 )
 
@@ -1488,6 +1502,7 @@ fun BudgetTrackingScreen(
                                 sortByAmount = false
                             )
                         }
+                        scrollToListTop()
                     }
                 )
             }
@@ -1779,7 +1794,6 @@ fun BudgetTrackingScreen(
         }
 
         // 6. BOTTOM PINNED CONTAINER: EXPENSE / INCOME TOGGLE + FABs ABOVE NAVIGATION TABS
-        val headerScrollState = LocalHeaderScrollState.current
         AutoHidingBottomContainer(
             headerScrollState = headerScrollState,
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -1952,7 +1966,10 @@ fun BudgetTrackingScreen(
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(20.dp))
-                            .clickable { activeTabMode = "EXPENSE" }
+                            .clickable {
+                                activeTabMode = "EXPENSE"
+                                scrollToListTop()
+                            }
                             .testTag("budget_mode_expense")
                     ) {
                         Row(
@@ -1985,7 +2002,10 @@ fun BudgetTrackingScreen(
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(20.dp))
-                            .clickable { activeTabMode = "ALL" }
+                            .clickable {
+                                activeTabMode = "ALL"
+                                scrollToListTop()
+                            }
                             .testTag("budget_mode_all")
                     ) {
                         Row(
@@ -2018,7 +2038,10 @@ fun BudgetTrackingScreen(
                             .weight(1f)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(20.dp))
-                            .clickable { activeTabMode = "INCOME" }
+                            .clickable {
+                                activeTabMode = "INCOME"
+                                scrollToListTop()
+                            }
                             .testTag("budget_mode_income")
                     ) {
                         Row(
@@ -2515,6 +2538,7 @@ fun BudgetTrackingScreen(
             onApply = { newFilter ->
                 filterState = newFilter
                 showFilterDialog = false
+                scrollToListTop()
             }
         )
     }

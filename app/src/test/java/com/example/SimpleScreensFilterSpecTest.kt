@@ -41,7 +41,10 @@ import com.example.ui.components.filter.specs.BalanceSheetFilterSpec
 import com.example.ui.components.filter.specs.CashFlowFilterSpec
 import com.example.ui.screens.BalanceSheetFilterState
 import com.example.ui.screens.CashFlowTabSection
+import com.example.util.BalanceSheetAmountView
 import com.example.util.BalanceSheetComparisonPreset
+import com.example.util.BalanceSheetHelper
+import com.example.util.BalanceSheetSectionFilter
 import com.example.util.BalanceSheetSortOrder
 import com.example.util.CashFlowPeriodPreset
 import com.example.data.model.TransactionType
@@ -1693,5 +1696,131 @@ class SimpleScreensFilterSpecTest {
         assertTrue(NetEarningsFilterSpec.getHideEmptyGroups(migratedState))
         assertTrue(NetEarningsFilterSpec.getDisplayCurrency(migratedState))
         assertTrue(NetEarningsFilterSpec.getDisplayCurrencySymbol(migratedState))
+    }
+
+    @Test
+    fun testBalanceSheetSectionViewSortAndHideZero() {
+        var state: FilterState = emptyMap()
+
+        // Default values
+        assertEquals(BalanceSheetSectionFilter.ALL, BalanceSheetFilterSpec.getSectionFilter(state))
+        assertEquals(BalanceSheetAmountView.AMOUNT, BalanceSheetFilterSpec.getAmountView(state))
+        assertEquals(BalanceSheetSortOrder.AMOUNT_DESC, BalanceSheetFilterSpec.getSortOrder(state))
+        assertTrue(BalanceSheetFilterSpec.getExcludeZero(state))
+
+        // Section cycling: All -> Groups -> Accounts -> All
+        state = BalanceSheetFilterSpec.withSectionFilter(state, BalanceSheetSectionFilter.GROUPS)
+        assertEquals(BalanceSheetSectionFilter.GROUPS, BalanceSheetFilterSpec.getSectionFilter(state))
+        assertTrue(BalanceSheetFilterSpec.getOnlyGroups(state))
+        assertFalse(BalanceSheetFilterSpec.getShowWithoutGroups(state))
+
+        state = BalanceSheetFilterSpec.withSectionFilter(state, BalanceSheetSectionFilter.ACCOUNTS)
+        assertEquals(BalanceSheetSectionFilter.ACCOUNTS, BalanceSheetFilterSpec.getSectionFilter(state))
+        assertFalse(BalanceSheetFilterSpec.getOnlyGroups(state))
+        assertTrue(BalanceSheetFilterSpec.getShowWithoutGroups(state))
+
+        state = BalanceSheetFilterSpec.withSectionFilter(state, BalanceSheetSectionFilter.ALL)
+        assertEquals(BalanceSheetSectionFilter.ALL, BalanceSheetFilterSpec.getSectionFilter(state))
+        assertFalse(BalanceSheetFilterSpec.getOnlyGroups(state))
+        assertFalse(BalanceSheetFilterSpec.getShowWithoutGroups(state))
+
+        // View cycling: Amount -> Previous Amount -> Amount
+        state = BalanceSheetFilterSpec.withAmountView(state, BalanceSheetAmountView.PREVIOUS_AMOUNT)
+        assertEquals(BalanceSheetAmountView.PREVIOUS_AMOUNT, BalanceSheetFilterSpec.getAmountView(state))
+
+        state = BalanceSheetFilterSpec.withAmountView(state, BalanceSheetAmountView.AMOUNT)
+        assertEquals(BalanceSheetAmountView.AMOUNT, BalanceSheetFilterSpec.getAmountView(state))
+
+        // Sort Z to A
+        state = BalanceSheetFilterSpec.withSortOrder(state, BalanceSheetSortOrder.NAME_DESC)
+        assertEquals(BalanceSheetSortOrder.NAME_DESC, BalanceSheetFilterSpec.getSortOrder(state))
+
+        // Verify FilterStore round-trip preserves section, view, sort, and hide zero simultaneously
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = FilterStore.getInstance(context)
+        val combined = BalanceSheetFilterSpec.withSectionFilter(emptyMap(), BalanceSheetSectionFilter.GROUPS)
+            .let { BalanceSheetFilterSpec.withAmountView(it, BalanceSheetAmountView.PREVIOUS_AMOUNT) }
+            .let { BalanceSheetFilterSpec.withSortOrder(it, BalanceSheetSortOrder.NAME_DESC) }
+            .let { BalanceSheetFilterSpec.withExcludeZero(it, false) }
+        store.saveFilterState(BalanceSheetFilterSpec.SPEC_KEY, combined)
+        val loaded = store.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)
+        assertEquals(BalanceSheetSectionFilter.GROUPS, BalanceSheetFilterSpec.getSectionFilter(loaded))
+        assertEquals(BalanceSheetAmountView.PREVIOUS_AMOUNT, BalanceSheetFilterSpec.getAmountView(loaded))
+        assertEquals(BalanceSheetSortOrder.NAME_DESC, BalanceSheetFilterSpec.getSortOrder(loaded))
+        assertFalse(BalanceSheetFilterSpec.getExcludeZero(loaded))
+
+        // Verify BalanceSheetHelper filters Hide 0 & sorts using selected view's value
+        val baseTime = 1_700_000_000_000L
+        val compareTime = 1_701_000_000_000L
+
+        val alphaAcc = Account(id = 1L, nameEn = "Alpha Wallet", nameBn = "আলফা", type = com.example.data.model.AccountType.ASSET, initialBalance = 0.0)
+        val betaAcc = Account(id = 2L, nameEn = "Beta Bank", nameBn = "বিটা", type = com.example.data.model.AccountType.ASSET, initialBalance = 0.0)
+        val gammaAcc = Account(id = 3L, nameEn = "Gamma Vault", nameBn = "গামা", type = com.example.data.model.AccountType.ASSET, initialBalance = 0.0)
+        val equityAcc = Account(id = 99L, nameEn = "Opening Equity", nameBn = "ইকুইটি", type = com.example.data.model.AccountType.EQUITY, initialBalance = 0.0)
+
+        // At baseTime: Alpha = 300, Beta = 0, Gamma = 100
+        // Between baseTime and compareTime: Alpha drops to 50 (-250), Beta rises to 400 (+400), Gamma stays 100
+        val txs = listOf(
+            Transaction(id = 1L, type = TransactionType.INCOME, amount = 300.0, dateEpochMs = baseTime - 1000L, debitAccountId = 1L, creditAccountId = 99L, status = TransactionStatus.CLEARED),
+            Transaction(id = 2L, type = TransactionType.INCOME, amount = 100.0, dateEpochMs = baseTime - 1000L, debitAccountId = 3L, creditAccountId = 99L, status = TransactionStatus.CLEARED),
+            Transaction(id = 3L, type = TransactionType.EXPENSE, amount = 250.0, dateEpochMs = baseTime + 5000L, debitAccountId = 99L, creditAccountId = 1L, status = TransactionStatus.CLEARED),
+            Transaction(id = 4L, type = TransactionType.INCOME, amount = 400.0, dateEpochMs = baseTime + 5000L, debitAccountId = 2L, creditAccountId = 99L, status = TransactionStatus.CLEARED)
+        )
+
+        // 1. Amount view + Hide 0 + High to Low -> Beta (400), Gamma (100), Alpha (50)
+        val amountHighToLow = BalanceSheetHelper.calculateBalanceSheet(
+            accounts = listOf(alphaAcc, betaAcc, gammaAcc, equityAcc),
+            transactions = txs,
+            baseDateEpochMs = baseTime,
+            compareDateEpochMs = compareTime,
+            preset = BalanceSheetComparisonPreset.CUSTOM,
+            excludeZeroAmounts = true,
+            sortOrder = BalanceSheetSortOrder.AMOUNT_DESC,
+            amountView = BalanceSheetAmountView.AMOUNT,
+            showOnlyAccountsWithoutGroups = true
+        )
+        assertEquals(listOf("Beta Bank", "Gamma Vault", "Alpha Wallet"), amountHighToLow.assetGroups.map { it.parentAccount.nameEn })
+
+        // 2. Previous Amount view + Hide 0 + High to Low -> Beta (0) is hidden by Hide 0, leaving Alpha (300), Gamma (100)
+        val prevHighToLow = BalanceSheetHelper.calculateBalanceSheet(
+            accounts = listOf(alphaAcc, betaAcc, gammaAcc, equityAcc),
+            transactions = txs,
+            baseDateEpochMs = baseTime,
+            compareDateEpochMs = compareTime,
+            preset = BalanceSheetComparisonPreset.CUSTOM,
+            excludeZeroAmounts = true,
+            sortOrder = BalanceSheetSortOrder.AMOUNT_DESC,
+            amountView = BalanceSheetAmountView.PREVIOUS_AMOUNT,
+            showOnlyAccountsWithoutGroups = true
+        )
+        assertEquals(listOf("Alpha Wallet", "Gamma Vault"), prevHighToLow.assetGroups.map { it.parentAccount.nameEn })
+
+        // 3. Previous Amount view + Show 0 + Low to High -> Beta (0), Gamma (100), Alpha (300)
+        val prevShowZeroLowToHigh = BalanceSheetHelper.calculateBalanceSheet(
+            accounts = listOf(alphaAcc, betaAcc, gammaAcc, equityAcc),
+            transactions = txs,
+            baseDateEpochMs = baseTime,
+            compareDateEpochMs = compareTime,
+            preset = BalanceSheetComparisonPreset.CUSTOM,
+            excludeZeroAmounts = false,
+            sortOrder = BalanceSheetSortOrder.AMOUNT_ASC,
+            amountView = BalanceSheetAmountView.PREVIOUS_AMOUNT,
+            showOnlyAccountsWithoutGroups = true
+        )
+        assertEquals(listOf("Beta Bank", "Gamma Vault", "Alpha Wallet"), prevShowZeroLowToHigh.assetGroups.map { it.parentAccount.nameEn })
+
+        // 4. Z to A sorting
+        val nameDesc = BalanceSheetHelper.calculateBalanceSheet(
+            accounts = listOf(alphaAcc, betaAcc, gammaAcc, equityAcc),
+            transactions = txs,
+            baseDateEpochMs = baseTime,
+            compareDateEpochMs = compareTime,
+            preset = BalanceSheetComparisonPreset.CUSTOM,
+            excludeZeroAmounts = true,
+            sortOrder = BalanceSheetSortOrder.NAME_DESC,
+            amountView = BalanceSheetAmountView.AMOUNT,
+            showOnlyAccountsWithoutGroups = true
+        )
+        assertEquals(listOf("Gamma Vault", "Beta Bank", "Alpha Wallet"), nameDesc.assetGroups.map { it.parentAccount.nameEn })
     }
 }

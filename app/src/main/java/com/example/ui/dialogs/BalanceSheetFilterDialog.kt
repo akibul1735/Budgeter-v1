@@ -250,6 +250,7 @@ fun BalanceSheetFilterDialog(
         when (currentSort) {
             BalanceSheetSortOrder.AMOUNT_ASC -> BalanceSheetFilterSpec.SORT_AMOUNT_ASC
             BalanceSheetSortOrder.NAME_ASC -> BalanceSheetFilterSpec.SORT_NAME_ASC
+            BalanceSheetSortOrder.NAME_DESC -> BalanceSheetFilterSpec.SORT_NAME_DESC
             BalanceSheetSortOrder.DEFAULT -> BalanceSheetFilterSpec.SORT_DEFAULT
             else -> BalanceSheetFilterSpec.SORT_AMOUNT_DESC
         }
@@ -501,6 +502,7 @@ fun BalanceSheetFilterDialog(
                         val nextSort = when (newSortId) {
                             BalanceSheetFilterSpec.SORT_AMOUNT_ASC -> BalanceSheetSortOrder.AMOUNT_ASC
                             BalanceSheetFilterSpec.SORT_NAME_ASC -> BalanceSheetSortOrder.NAME_ASC
+                            BalanceSheetFilterSpec.SORT_NAME_DESC -> BalanceSheetSortOrder.NAME_DESC
                             BalanceSheetFilterSpec.SORT_DEFAULT -> BalanceSheetSortOrder.DEFAULT
                             else -> BalanceSheetSortOrder.AMOUNT_DESC
                         }

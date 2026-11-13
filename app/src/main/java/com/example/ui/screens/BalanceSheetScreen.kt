@@ -102,7 +102,9 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -158,10 +160,12 @@ import com.example.util.AccountInclusionViewMode
 import com.example.util.AccountCalculationPreferences
 import com.example.util.AccountCalcConfig
 import com.example.util.BalanceSheetAccountRow
+import com.example.util.BalanceSheetAmountView
 import com.example.util.BalanceSheetComparisonData
 import com.example.util.BalanceSheetComparisonPreset
 import com.example.util.BalanceSheetGroup
 import com.example.util.BalanceSheetHelper
+import com.example.util.BalanceSheetSectionFilter
 import com.example.util.BalanceSheetSortOrder
 import com.example.util.DateUtils
 import com.example.util.IconHelper
@@ -229,11 +233,28 @@ fun BalanceSheetScreen(
         else accountCalcConfig
     }
 
+    val listState = rememberLazyListState()
+    val collapsibleCardState = rememberCollapsibleCardState(collapseRangePx = 220f)
+    val headerScrollState = LocalHeaderScrollState.current
+    val coroutineScope = rememberCoroutineScope()
+
+    fun scrollToListTop() {
+        collapsibleCardState.reset()
+        headerScrollState.show()
+        coroutineScope.launch {
+            listState.animateScrollToItem(0)
+        }
+    }
+
     val filterStore = remember { FilterStore.getInstance(context) }
     var filterState by remember { mutableStateOf(filterStore.loadFilterState(BalanceSheetFilterSpec.SPEC_KEY)) }
     val updateFilterState: (FilterState) -> Unit = { newState ->
+        val changed = newState != filterState
         filterState = newState
         filterStore.saveFilterState(BalanceSheetFilterSpec.SPEC_KEY, newState)
+        if (changed) {
+            scrollToListTop()
+        }
     }
 
     val balanceSheetSpec = remember(accounts) { BalanceSheetFilterSpec.createSpec(accounts) }
@@ -272,6 +293,8 @@ fun BalanceSheetScreen(
     val showHiddenAccounts = remember(filterState) { BalanceSheetFilterSpec.getShowHidden(filterState) }
     val showOnlyCurrentBalance = remember(filterState) { BalanceSheetFilterSpec.getShowOnlyCurrent(filterState) }
     val showOnlyAccountsWithoutGroups = remember(filterState) { BalanceSheetFilterSpec.getShowWithoutGroups(filterState) }
+    val showOnlyGroups = remember(filterState) { BalanceSheetFilterSpec.getOnlyGroups(filterState) }
+    val amountView = remember(filterState) { BalanceSheetFilterSpec.getAmountView(filterState) }
     val activeTabMode = remember(filterState) { BalanceSheetFilterSpec.getActiveTab(filterState) }
 
     // Modal Filter Dialog & Calculation Mode
@@ -318,6 +341,8 @@ fun BalanceSheetScreen(
         effectiveSearchQuery,
         effectiveCalcConfig,
         showOnlyAccountsWithoutGroups,
+        showOnlyGroups,
+        amountView,
         languageMode
     ) {
         BalanceSheetHelper.calculateBalanceSheet(
@@ -336,19 +361,21 @@ fun BalanceSheetScreen(
             searchQuery = effectiveSearchQuery,
             accountCalcConfig = effectiveCalcConfig,
             showOnlyAccountsWithoutGroups = showOnlyAccountsWithoutGroups,
+            showOnlyGroups = showOnlyGroups,
+            showOnlyCurrentBalance = showOnlyCurrentBalance,
+            amountView = amountView,
             languageMode = languageMode
         )
     }
 
-    val allGroupsExpanded = remember(expandedMap, balanceSheetData) {
-        val allParentIds = (balanceSheetData.assetGroups.map { it.parentAccount.id } +
-                balanceSheetData.liabilityGroups.map { it.parentAccount.id }).toSet()
-        if (allParentIds.isEmpty()) true
-        else allParentIds.all { expandedMap[it] != false }
+    val allGroupsExpanded by remember(balanceSheetData, showOnlyGroups) {
+        derivedStateOf {
+            val allParentIds = (balanceSheetData.assetGroups.map { it.parentAccount.id } +
+                    balanceSheetData.liabilityGroups.map { it.parentAccount.id }).toSet()
+            if (allParentIds.isEmpty()) true
+            else allParentIds.all { expandedMap[it] ?: !showOnlyGroups }
+        }
     }
-
-    val listState = rememberLazyListState()
-    val collapsibleCardState = rememberCollapsibleCardState(collapseRangePx = 220f)
 
     Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -415,15 +442,6 @@ fun BalanceSheetScreen(
                     showOnlyCurrentBalance = showOnlyCurrentBalance,
                     languageMode = languageMode,
                     isCalcMode = isCalcMode,
-                    sortOrder = sortOrder,
-                    onToggleSortOrder = {
-                        val nextSort = if (sortOrder == BalanceSheetSortOrder.NAME_ASC || sortOrder == BalanceSheetSortOrder.DEFAULT) {
-                            BalanceSheetSortOrder.AMOUNT_DESC
-                        } else {
-                            BalanceSheetSortOrder.NAME_ASC
-                        }
-                        updateFilterState(BalanceSheetFilterSpec.withSortOrder(filterState, nextSort))
-                    },
                     onToggleCalcMode = { isCalcMode = !isCalcMode },
                     onOpenFilter = { showFilterDialog = true },
                     onPickBaseDate = {
@@ -438,35 +456,6 @@ fun BalanceSheetScreen(
                         isDualDateFlow = true
                         showBaseDatePicker = true
                     }
-                )
-            }
-
-            // Single compact filter bar for Balance Sheet (handles both shortcuts and active filters)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 2.dp)
-            ) {
-                BalanceSheetQuickShortcutsRow(
-                    spec = balanceSheetSpec,
-                    filterState = filterState,
-                    onFilterChange = { updateFilterState(it) },
-                    onClearAll = {
-                        val resetState = balanceSheetSpec.clear(filterState)
-                        updateFilterState(resetState)
-                    },
-                    isCalcMode = isCalcMode,
-                    onToggleCalcMode = { isCalcMode = !isCalcMode },
-                    allGroupsExpanded = allGroupsExpanded,
-                    onToggleExpandAll = { expand ->
-                        val allParentIds = (balanceSheetData.assetGroups.map { it.parentAccount.id } +
-                                balanceSheetData.liabilityGroups.map { it.parentAccount.id }).toSet()
-                        allParentIds.forEach { parentId ->
-                            expandedMap[parentId] = expand
-                        }
-                    },
-                    onOpenFilterDialog = { showFilterDialog = true },
-                    languageMode = languageMode
                 )
             }
 
@@ -499,6 +488,38 @@ fun BalanceSheetScreen(
                 }
             }
 
+            // Compact filter & sorting bar directly below the summary card
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                BalanceSheetQuickShortcutsRow(
+                    spec = balanceSheetSpec,
+                    filterState = filterState,
+                    onFilterChange = { updateFilterState(it) },
+                    onSectionChanged = {
+                        expandedMap.clear()
+                    },
+                    onClearAll = {
+                        expandedMap.clear()
+                        val resetState = balanceSheetSpec.clear(filterState)
+                        updateFilterState(resetState)
+                    },
+                    allGroupsExpanded = allGroupsExpanded,
+                    onToggleExpandAll = { expand ->
+                        val allParentIds = (balanceSheetData.assetGroups.map { it.parentAccount.id } +
+                                balanceSheetData.liabilityGroups.map { it.parentAccount.id }).toSet()
+                        allParentIds.forEach { parentId ->
+                            expandedMap[parentId] = expand
+                        }
+                    },
+                    onOpenFilterDialog = { showFilterDialog = true },
+                    onScrollToTop = { scrollToListTop() },
+                    languageMode = languageMode
+                )
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -517,6 +538,7 @@ fun BalanceSheetScreen(
                             displayCurrency = true,
                             displayCurrencySymbol = true,
                             showOnlyCurrentBalance = showOnlyCurrentBalance,
+                            amountView = amountView,
                             headerColor = MaterialTheme.colorScheme.primary,
                             languageMode = languageMode
                         )
@@ -530,7 +552,7 @@ fun BalanceSheetScreen(
                         }
                     } else {
                         itemsIndexed(balanceSheetData.assetGroups, key = { _, group -> "asset_${group.parentAccount.id}" }) { index, group ->
-                            val isExpanded = expandedMap[group.parentAccount.id] ?: true
+                            val isExpanded = expandedMap[group.parentAccount.id] ?: !showOnlyGroups
                             BalanceSheetGroupItem(
                                 group = group,
                                 isExpanded = isExpanded,
@@ -539,6 +561,7 @@ fun BalanceSheetScreen(
                                 displayCurrency = true,
                                 displayCurrencySymbol = true,
                                 showOnlyCurrentBalance = showOnlyCurrentBalance,
+                                amountView = amountView,
                                 languageMode = languageMode,
                                 onToggleExpand = {
                                     expandedMap[group.parentAccount.id] = !isExpanded
@@ -571,6 +594,7 @@ fun BalanceSheetScreen(
                             displayCurrency = true,
                             displayCurrencySymbol = true,
                             showOnlyCurrentBalance = showOnlyCurrentBalance,
+                            amountView = amountView,
                             headerColor = SolidExpense,
                             languageMode = languageMode
                         )
@@ -584,7 +608,7 @@ fun BalanceSheetScreen(
                         }
                     } else {
                         itemsIndexed(balanceSheetData.liabilityGroups, key = { _, group -> "liability_${group.parentAccount.id}" }) { index, group ->
-                            val isExpanded = expandedMap[group.parentAccount.id] ?: true
+                            val isExpanded = expandedMap[group.parentAccount.id] ?: !showOnlyGroups
                             BalanceSheetGroupItem(
                                 group = group,
                                 isExpanded = isExpanded,
@@ -593,6 +617,7 @@ fun BalanceSheetScreen(
                                 displayCurrency = true,
                                 displayCurrencySymbol = true,
                                 showOnlyCurrentBalance = showOnlyCurrentBalance,
+                                amountView = amountView,
                                 languageMode = languageMode,
                                 onToggleExpand = {
                                     expandedMap[group.parentAccount.id] = !isExpanded
@@ -613,7 +638,6 @@ fun BalanceSheetScreen(
         }
 
         // Action Buttons: Speed Dial FAB & Segmented [ Assets | Liabilities ] Buttons at bottom
-        val headerScrollState = LocalHeaderScrollState.current
         val rotationAngle by animateFloatAsState(
             targetValue = if (isSpeedDialExpanded) 45f else 0f,
             label = "fab_rotation"
@@ -1449,8 +1473,6 @@ private fun ComparisonDatesCard(
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
     isCalcMode: Boolean,
-    sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.NAME_ASC,
-    onToggleSortOrder: () -> Unit,
     onToggleCalcMode: () -> Unit,
     onOpenFilter: () -> Unit,
     onPickBaseDate: () -> Unit,
@@ -1498,58 +1520,29 @@ private fun ComparisonDatesCard(
                     }
                 }
 
-                // Action Buttons: Sort (Icon only) + Calc Toggle
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                // Calculation Inclusion/Exclusion Toggle Button
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isCalcMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onToggleCalcMode() }
                 ) {
-                    // Sort Button beside Calc Button (Default: A to Z, Click: Sort by Amount - icon only, no text)
-                    val isSortedByAmount = sortOrder == BalanceSheetSortOrder.AMOUNT_DESC || sortOrder == BalanceSheetSortOrder.AMOUNT_ASC
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isSortedByAmount) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onToggleSortOrder() }
-                            .testTag("balance_sheet_sort_toggle")
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Sort,
-                                contentDescription = if (isSortedByAmount) "Sort by Amount" else "Sort A to Z",
-                                tint = if (isSortedByAmount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(17.dp)
-                            )
-                        }
-                    }
-
-                    // Calculation Inclusion/Exclusion Toggle Button (replaces legacy Edit button)
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isCalcMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onToggleCalcMode() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Calculation Settings",
-                                tint = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "হিসাব গণনা" else "Calc",
-                                fontSize = 11.sp,
-                                fontWeight = if (isCalcMode) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Calculation Settings",
+                            tint = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "হিসাব গণনা" else "Calc",
+                            fontSize = 11.sp,
+                            fontWeight = if (isCalcMode) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -1697,10 +1690,12 @@ private fun SectionHeader(
     displayCurrency: Boolean,
     displayCurrencySymbol: Boolean = true,
     showOnlyCurrentBalance: Boolean,
+    amountView: BalanceSheetAmountView = BalanceSheetAmountView.AMOUNT,
     headerColor: Color,
     languageMode: LanguageMode = LanguageMode.ENGLISH
 ) {
     val delta = currentAmount - baseAmount
+    val isPrevView = amountView == BalanceSheetAmountView.PREVIOUS_AMOUNT
 
     Row(
         modifier = Modifier
@@ -1718,12 +1713,13 @@ private fun SectionHeader(
         )
 
         if (showOnlyCurrentBalance) {
+            val focusedAmount = if (isPrevView) baseAmount else currentAmount
             Box(
                 modifier = Modifier.widthIn(min = 85.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Text(
-                    text = formatBalance(currentAmount, displayCurrency, languageMode, displayCurrencySymbol),
+                    text = formatBalance(focusedAmount, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -1738,9 +1734,9 @@ private fun SectionHeader(
                 ) {
                     Text(
                         text = formatBalance(baseAmount, displayCurrency, languageMode, displayCurrencySymbol),
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = if (isPrevView) 14.5.sp else 13.5.sp,
+                        fontWeight = if (isPrevView) FontWeight.Bold else FontWeight.SemiBold,
+                        color = if (isPrevView) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.End
                     )
                 }
@@ -1755,9 +1751,9 @@ private fun SectionHeader(
                     ) {
                         Text(
                             text = formatBalance(currentAmount, displayCurrency, languageMode, displayCurrencySymbol),
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = if (isPrevView) 13.5.sp else 14.5.sp,
+                            fontWeight = if (isPrevView) FontWeight.SemiBold else FontWeight.Bold,
+                            color = if (isPrevView) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                             textAlign = TextAlign.End
                         )
                         Spacer(modifier = Modifier.width(2.dp))
@@ -1778,12 +1774,14 @@ private fun BalanceSheetGroupItem(
     displayCurrency: Boolean,
     displayCurrencySymbol: Boolean = true,
     showOnlyCurrentBalance: Boolean,
+    amountView: BalanceSheetAmountView = BalanceSheetAmountView.AMOUNT,
     languageMode: LanguageMode,
     onToggleExpand: () -> Unit,
     onToggleIncludeStatus: ((Account, Boolean) -> Unit)?,
     onRequestAdjustCalculation: (Account, Double) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
+    val isPrevView = amountView == BalanceSheetAmountView.PREVIOUS_AMOUNT
     val isIncluded = accountCalcConfig.isIncluded(group.parentAccount.id)
     val isAdjusted = accountCalcConfig.getAdjustment(group.parentAccount.id) != 0.0 || group.adjustmentAmount != 0.0
     val adjustment = if (accountCalcConfig.getAdjustment(group.parentAccount.id) != 0.0) {
@@ -1980,8 +1978,9 @@ private fun BalanceSheetGroupItem(
                         ) {
                             Column(horizontalAlignment = Alignment.End) {
                                 if (showOnlyCurrentBalance) {
+                                    val focusedGroupBal = if (isPrevView) group.effectiveBaseBalance else group.effectiveCurrentBalance
                                     Text(
-                                        text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                        text = formatBalance(focusedGroupBal, displayCurrency, languageMode, displayCurrencySymbol),
                                         fontSize = 14.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
@@ -1995,9 +1994,9 @@ private fun BalanceSheetGroupItem(
                                     ) {
                                         Text(
                                             text = formatBalance(group.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Normal,
-                                            color = MaterialTheme.colorScheme.outline,
+                                            fontSize = if (isPrevView) 14.sp else 11.5.sp,
+                                            fontWeight = if (isPrevView) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (!isIncluded) MaterialTheme.colorScheme.outline else if (isPrevView) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                             textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                             maxLines = 1
                                         )
@@ -2008,9 +2007,9 @@ private fun BalanceSheetGroupItem(
                                         )
                                         Text(
                                             text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                            fontSize = if (isPrevView) 11.5.sp else 14.sp,
+                                            fontWeight = if (isPrevView) FontWeight.Normal else FontWeight.Bold,
+                                            color = if (!isIncluded) MaterialTheme.colorScheme.outline else if (isPrevView) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                                             textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                             maxLines = 1
                                         )
@@ -2069,6 +2068,7 @@ private fun BalanceSheetGroupItem(
                                 displayCurrency = displayCurrency,
                                 displayCurrencySymbol = displayCurrencySymbol,
                                 showOnlyCurrentBalance = showOnlyCurrentBalance,
+                                amountView = amountView,
                                 languageMode = languageMode,
                                 onToggleIncludeStatus = onToggleIncludeStatus,
                                 onRequestAdjustCalculation = onRequestAdjustCalculation,
@@ -2234,13 +2234,14 @@ private fun BalanceSheetGroupItem(
                     horizontalArrangement = Arrangement.End
                 ) {
                     if (showOnlyCurrentBalance) {
+                        val focusedStandaloneBal = if (isPrevView) group.effectiveBaseBalance else group.effectiveCurrentBalance
                         Box(
                             modifier = Modifier.widthIn(min = 85.dp),
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                    text = formatBalance(focusedStandaloneBal, displayCurrency, languageMode, displayCurrencySymbol),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
@@ -2260,9 +2261,9 @@ private fun BalanceSheetGroupItem(
                             ) {
                                 Text(
                                     text = formatBalance(group.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                                    fontSize = if (isPrevView) 14.sp else 12.sp,
+                                    fontWeight = if (isPrevView) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (!isIncluded) MaterialTheme.colorScheme.outline else if (isPrevView) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                     textAlign = TextAlign.End
                                 )
@@ -2279,9 +2280,9 @@ private fun BalanceSheetGroupItem(
                                     ) {
                                         Text(
                                             text = formatBalance(group.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            fontSize = if (isPrevView) 12.sp else 14.sp,
+                                            fontWeight = if (isPrevView) FontWeight.Normal else FontWeight.Bold,
+                                            color = if (!isIncluded) MaterialTheme.colorScheme.outline else if (isPrevView) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                                             textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                             textAlign = TextAlign.End
                                         )
@@ -2332,11 +2333,13 @@ private fun SubAccountRowItem(
     displayCurrency: Boolean,
     displayCurrencySymbol: Boolean = true,
     showOnlyCurrentBalance: Boolean,
+    amountView: BalanceSheetAmountView = BalanceSheetAmountView.AMOUNT,
     languageMode: LanguageMode,
     onToggleIncludeStatus: ((Account, Boolean) -> Unit)?,
     onRequestAdjustCalculation: (Account, Double) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
+    val isPrevView = amountView == BalanceSheetAmountView.PREVIOUS_AMOUNT
     val isIncluded = accountCalcConfig.isIncluded(row.account.id)
     val isAdjusted = accountCalcConfig.getAdjustment(row.account.id) != 0.0 || row.adjustmentAmount != 0.0
     val adjustment = if (accountCalcConfig.getAdjustment(row.account.id) != 0.0) {
@@ -2526,13 +2529,14 @@ private fun SubAccountRowItem(
                 horizontalArrangement = Arrangement.End
             ) {
                 if (showOnlyCurrentBalance) {
+                    val focusedSubBal = if (isPrevView) row.effectiveBaseBalance else row.effectiveCurrentBalance
                     Box(
                         modifier = Modifier.widthIn(min = 85.dp),
                         contentAlignment = Alignment.CenterEnd
                     ) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = formatBalance(row.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
+                                text = formatBalance(focusedSubBal, displayCurrency, languageMode, displayCurrencySymbol),
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
@@ -2552,8 +2556,9 @@ private fun SubAccountRowItem(
                         ) {
                             Text(
                                 text = formatBalance(row.effectiveBaseBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                fontSize = 12.sp,
-                                color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                                fontSize = if (isPrevView) 13.5.sp else 12.sp,
+                                fontWeight = if (isPrevView) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (!isIncluded) MaterialTheme.colorScheme.outline else if (isPrevView) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                 textAlign = TextAlign.End
                             )
@@ -2570,9 +2575,9 @@ private fun SubAccountRowItem(
                                 ) {
                                     Text(
                                         text = formatBalance(row.effectiveCurrentBalance, displayCurrency, languageMode, displayCurrencySymbol),
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                        fontSize = if (isPrevView) 12.sp else 13.5.sp,
+                                        fontWeight = if (isPrevView) FontWeight.Normal else FontWeight.SemiBold,
+                                        color = if (!isIncluded) MaterialTheme.colorScheme.outline else if (isPrevView) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                                         textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                         textAlign = TextAlign.End
                                     )

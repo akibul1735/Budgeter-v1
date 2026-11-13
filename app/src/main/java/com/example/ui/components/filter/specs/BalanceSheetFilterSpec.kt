@@ -25,8 +25,10 @@ import com.example.ui.components.filter.FilterValue
 import com.example.ui.components.filter.SelectItemOption
 import com.example.ui.components.filter.SortOptionItem
 import com.example.ui.theme.SolidPrimary
+import com.example.util.BalanceSheetAmountView
 import com.example.util.BalanceSheetComparisonPreset
 import com.example.util.BalanceSheetHelper
+import com.example.util.BalanceSheetSectionFilter
 import com.example.util.BalanceSheetSortOrder
 
 /**
@@ -46,12 +48,18 @@ object BalanceSheetFilterSpec {
     const val FIELD_SHOW_HIDDEN = "show_hidden"
     const val FIELD_ONLY_CURRENT = "only_current"
     const val FIELD_WITHOUT_GROUPS = "without_groups"
+    const val FIELD_ONLY_GROUPS = "only_groups"
+    const val FIELD_AMOUNT_VIEW = "amount_view"
     const val FIELD_ACTIVE_TAB = "active_tab"
 
     // Tab Constants
     const val TAB_ALL = "all"
     const val TAB_ASSETS = "assets"
     const val TAB_LIABILITIES = "liabilities"
+
+    // Amount View Constants
+    const val VIEW_AMOUNT = "amount"
+    const val VIEW_PREVIOUS_AMOUNT = "previous_amount"
 
     // Date Preset IDs
     const val PRESET_THIS_MONTH = "this_month"
@@ -68,6 +76,7 @@ object BalanceSheetFilterSpec {
     const val SORT_AMOUNT_DESC = "amount_desc"
     const val SORT_AMOUNT_ASC = "amount_asc"
     const val SORT_NAME_ASC = "name_asc"
+    const val SORT_NAME_DESC = "name_desc"
     const val SORT_DEFAULT = "default"
 
     val DATE_PRESET_OPTIONS = listOf(
@@ -129,21 +138,27 @@ object BalanceSheetFilterSpec {
 
     val SORT_OPTIONS: List<SortOptionItem<Any>> = listOf(
         SortOptionItem(
-            id = SORT_AMOUNT_DESC,
-            titleEn = "Amount: High to Low",
-            titleBn = "পরিমাণ: বেশি থেকে কম",
-            icon = Icons.AutoMirrored.Filled.TrendingDown
-        ),
-        SortOptionItem(
             id = SORT_AMOUNT_ASC,
-            titleEn = "Amount: Low to High",
-            titleBn = "পরিমাণ: কম থেকে বেশি",
+            titleEn = "Low to High",
+            titleBn = "কম → বেশি",
             icon = Icons.AutoMirrored.Filled.TrendingUp
         ),
         SortOptionItem(
+            id = SORT_AMOUNT_DESC,
+            titleEn = "High to Low",
+            titleBn = "বেশি → কম",
+            icon = Icons.AutoMirrored.Filled.TrendingDown
+        ),
+        SortOptionItem(
             id = SORT_NAME_ASC,
-            titleEn = "Name: A to Z",
-            titleBn = "নাম: ক থেকে ঁ",
+            titleEn = "A to Z",
+            titleBn = "A → Z",
+            icon = Icons.AutoMirrored.Filled.Sort
+        ),
+        SortOptionItem(
+            id = SORT_NAME_DESC,
+            titleEn = "Z to A",
+            titleBn = "Z → A",
             icon = Icons.AutoMirrored.Filled.Sort
         ),
         SortOptionItem(
@@ -310,7 +325,25 @@ object BalanceSheetFilterSpec {
                             subtitleEn = "Show all accounts without grouping structure",
                             subtitleBn = "গ্রুপ বিন্যাস ছাড়াই হিসাবগুলো দেখান",
                             icon = Icons.Default.Tune
+                        ),
+                        FilterCondition(
+                            id = FIELD_ONLY_GROUPS,
+                            titleEn = "Groups View",
+                            titleBn = "গ্রুপ ভিউ",
+                            subtitleEn = "Show parent account groups collapsed",
+                            subtitleBn = "গ্রুপ কার্ড সংক্ষিপ্তভাবে দেখান",
+                            icon = Icons.Default.Layers
                         )
+                    )
+                ),
+                FilterField.ToggleGroupField(
+                    id = FIELD_AMOUNT_VIEW,
+                    titleEn = "Value View",
+                    titleBn = "পরিমাণ ভিউ",
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                    conditions = listOf(
+                        FilterCondition(VIEW_AMOUNT, "Amount", "পরিমাণ", group = "bs_view"),
+                        FilterCondition(VIEW_PREVIOUS_AMOUNT, "Previous Amount", "পূর্বের পরিমাণ", group = "bs_view")
                     )
                 )
             )
@@ -372,6 +405,7 @@ object BalanceSheetFilterSpec {
         return when (sortId) {
             SORT_AMOUNT_ASC -> BalanceSheetSortOrder.AMOUNT_ASC
             SORT_NAME_ASC -> BalanceSheetSortOrder.NAME_ASC
+            SORT_NAME_DESC -> BalanceSheetSortOrder.NAME_DESC
             SORT_DEFAULT -> BalanceSheetSortOrder.DEFAULT
             else -> BalanceSheetSortOrder.AMOUNT_DESC
         }
@@ -405,6 +439,29 @@ object BalanceSheetFilterSpec {
         (state[FIELD_WITHOUT_GROUPS] as? FilterValue.BooleanVal)?.let { return it.value }
         (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_WITHOUT_GROUPS) }
         return false
+    }
+
+    fun getOnlyGroups(state: FilterState): Boolean {
+        (state[FIELD_ONLY_GROUPS] as? FilterValue.BooleanVal)?.let { return it.value }
+        (state["display_options"] as? FilterValue.ToggleGroup)?.let { return it.activeIds.contains(FIELD_ONLY_GROUPS) }
+        return false
+    }
+
+    fun getSectionFilter(state: FilterState): BalanceSheetSectionFilter {
+        return when {
+            getOnlyGroups(state) -> BalanceSheetSectionFilter.GROUPS
+            getShowWithoutGroups(state) -> BalanceSheetSectionFilter.ACCOUNTS
+            else -> BalanceSheetSectionFilter.ALL
+        }
+    }
+
+    fun getAmountView(state: FilterState): BalanceSheetAmountView {
+        val active = (state[FIELD_AMOUNT_VIEW] as? FilterValue.ToggleGroup)?.activeIds ?: emptySet()
+        return if (active.contains(VIEW_PREVIOUS_AMOUNT)) {
+            BalanceSheetAmountView.PREVIOUS_AMOUNT
+        } else {
+            BalanceSheetAmountView.AMOUNT
+        }
     }
 
     fun getActiveTab(state: FilterState): String {
@@ -452,6 +509,7 @@ object BalanceSheetFilterSpec {
         val id = when (sortOrder) {
             BalanceSheetSortOrder.AMOUNT_ASC -> SORT_AMOUNT_ASC
             BalanceSheetSortOrder.NAME_ASC -> SORT_NAME_ASC
+            BalanceSheetSortOrder.NAME_DESC -> SORT_NAME_DESC
             BalanceSheetSortOrder.DEFAULT -> SORT_DEFAULT
             else -> SORT_AMOUNT_DESC
         }
@@ -493,8 +551,45 @@ object BalanceSheetFilterSpec {
 
     fun withShowWithoutGroups(state: FilterState, value: Boolean): FilterState {
         val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getShowWithoutGroups(state)) setOf(FIELD_WITHOUT_GROUPS) else emptySet()
-        val updated = if (value) currOptions + FIELD_WITHOUT_GROUPS else currOptions - FIELD_WITHOUT_GROUPS
-        return state + (FIELD_WITHOUT_GROUPS to FilterValue.BooleanVal(value)) + ("display_options" to FilterValue.ToggleGroup(updated))
+        var updated = if (value) currOptions + FIELD_WITHOUT_GROUPS else currOptions - FIELD_WITHOUT_GROUPS
+        var nextState = state + (FIELD_WITHOUT_GROUPS to FilterValue.BooleanVal(value))
+        if (value) {
+            updated = updated - FIELD_ONLY_GROUPS
+            nextState = nextState + (FIELD_ONLY_GROUPS to FilterValue.BooleanVal(false))
+        }
+        return nextState + ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
+    fun withOnlyGroups(state: FilterState, value: Boolean): FilterState {
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: if (getOnlyGroups(state)) setOf(FIELD_ONLY_GROUPS) else emptySet()
+        var updated = if (value) currOptions + FIELD_ONLY_GROUPS else currOptions - FIELD_ONLY_GROUPS
+        var nextState = state + (FIELD_ONLY_GROUPS to FilterValue.BooleanVal(value))
+        if (value) {
+            updated = updated - FIELD_WITHOUT_GROUPS
+            nextState = nextState + (FIELD_WITHOUT_GROUPS to FilterValue.BooleanVal(false))
+        }
+        return nextState + ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
+    fun withSectionFilter(state: FilterState, section: BalanceSheetSectionFilter): FilterState {
+        val currOptions = (state["display_options"] as? FilterValue.ToggleGroup)?.activeIds ?: emptySet()
+        val updated = when (section) {
+            BalanceSheetSectionFilter.ALL -> currOptions - FIELD_ONLY_GROUPS - FIELD_WITHOUT_GROUPS
+            BalanceSheetSectionFilter.GROUPS -> (currOptions - FIELD_WITHOUT_GROUPS) + FIELD_ONLY_GROUPS
+            BalanceSheetSectionFilter.ACCOUNTS -> (currOptions - FIELD_ONLY_GROUPS) + FIELD_WITHOUT_GROUPS
+        }
+        return state +
+            (FIELD_ONLY_GROUPS to FilterValue.BooleanVal(section == BalanceSheetSectionFilter.GROUPS)) +
+            (FIELD_WITHOUT_GROUPS to FilterValue.BooleanVal(section == BalanceSheetSectionFilter.ACCOUNTS)) +
+            ("display_options" to FilterValue.ToggleGroup(updated))
+    }
+
+    fun withAmountView(state: FilterState, view: BalanceSheetAmountView): FilterState {
+        return if (view == BalanceSheetAmountView.AMOUNT) {
+            state - FIELD_AMOUNT_VIEW
+        } else {
+            state + (FIELD_AMOUNT_VIEW to FilterValue.ToggleGroup(setOf(VIEW_PREVIOUS_AMOUNT)))
+        }
     }
 
     fun activeFilterCount(state: FilterState): Int {
@@ -510,6 +605,8 @@ object BalanceSheetFilterSpec {
         if (getShowHidden(state)) count++
         if (getShowOnlyCurrent(state)) count++
         if (getShowWithoutGroups(state)) count++
+        if (getOnlyGroups(state)) count++
+        if (getAmountView(state) != BalanceSheetAmountView.AMOUNT) count++
         return count
     }
 }

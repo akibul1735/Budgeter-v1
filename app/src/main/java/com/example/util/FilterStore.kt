@@ -459,6 +459,7 @@ class FilterStore private constructor(private val context: Context) {
             com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_DESC,
             com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_ASC,
             com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_NAME_ASC,
+            com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_NAME_DESC,
             com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_DEFAULT
         )
         const val DEFAULT_BS_SORT = com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_DESC
@@ -468,6 +469,7 @@ class FilterStore private constructor(private val context: Context) {
                 com.example.util.BalanceSheetSortOrder.AMOUNT_DESC -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_DESC
                 com.example.util.BalanceSheetSortOrder.AMOUNT_ASC -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_AMOUNT_ASC
                 com.example.util.BalanceSheetSortOrder.NAME_ASC -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_NAME_ASC
+                com.example.util.BalanceSheetSortOrder.NAME_DESC -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_NAME_DESC
                 com.example.util.BalanceSheetSortOrder.DEFAULT -> com.example.ui.components.filter.specs.BalanceSheetFilterSpec.SORT_DEFAULT
                 null -> DEFAULT_BS_SORT
             }
