@@ -401,6 +401,48 @@ fun AddEditTransactionSheet(
         mutableStateOf(existingTransaction?.referenceNo ?: "")
     }
 
+    val knownLabelNames = remember(allTransactions, labelMap) {
+        val ordered = LinkedHashMap<String, String>()
+        labelMap.values.forEach { lbl ->
+            val trimmed = lbl.name.trim().removePrefix("#")
+            if (trimmed.isNotBlank()) {
+                ordered.putIfAbsent(trimmed.lowercase(), trimmed)
+            }
+        }
+        allTransactions.forEach { tx ->
+            tx.transaction.referenceNo.split(",").forEach { part ->
+                val trimmed = part.trim().removePrefix("#")
+                if (trimmed.isNotBlank()) {
+                    ordered.putIfAbsent(trimmed.lowercase(), trimmed)
+                }
+            }
+        }
+        ordered.values.toList()
+    }
+    var autoMatchedLabelKeys by remember { mutableStateOf(emptySet<String>()) }
+    var dismissedAutoLabelKeys by remember { mutableStateOf(emptySet<String>()) }
+
+    fun syncAutoMatchedLabelsForName(newName: String) {
+        val result = mergeAutoMatchedLabelsForName(
+            name = newName,
+            currentLabelTag = labelTag,
+            availableLabels = knownLabelNames,
+            autoMatchedKeys = autoMatchedLabelKeys,
+            dismissedKeys = dismissedAutoLabelKeys
+        )
+        labelTag = result.updatedLabelTag
+        autoMatchedLabelKeys = result.updatedAutoMatchedKeys
+        dismissedAutoLabelKeys = result.updatedDismissedKeys
+    }
+
+    fun removeLabelChip(labelToRemove: String) {
+        val removeKey = labelToRemove.trim().lowercase()
+        val remaining = parseTransactionLabels(labelTag).filterNot { it.lowercase() == removeKey }
+        labelTag = remaining.joinToString(", ")
+        autoMatchedLabelKeys = autoMatchedLabelKeys - removeKey
+        dismissedAutoLabelKeys = dismissedAutoLabelKeys + removeKey
+    }
+
     var attachmentUri by remember {
         mutableStateOf(existingTransaction?.attachmentUri ?: "")
     }
@@ -1077,6 +1119,7 @@ fun AddEditTransactionSheet(
         if (latestMatch != null) {
             applyAutofillFromTransaction(latestMatch)
         }
+        syncAutoMatchedLabelsForName(suggestedPayee)
 
         coroutineScope.launch {
             kotlinx.coroutines.delay(60)
@@ -1347,6 +1390,8 @@ fun AddEditTransactionSheet(
             if (!txConfig.plusOneKeepLabels) {
                 labelTag = ""
             }
+            autoMatchedLabelKeys = emptySet()
+            dismissedAutoLabelKeys = emptySet()
             // Reset fee and status
             hasTransferFee = false
             transferFeeAmount = 0.0
@@ -1627,6 +1672,7 @@ fun AddEditTransactionSheet(
                                         applyAutofillFromTransaction(exactMatch)
                                     }
                                 }
+                                syncAutoMatchedLabelsForName(it)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1677,6 +1723,7 @@ fun AddEditTransactionSheet(
                                             onClick = {
                                                 payee = ""
                                                 showNameDropdown = false
+                                                syncAutoMatchedLabelsForName("")
                                             },
                                             modifier = Modifier.size(32.dp)
                                         ) {
@@ -3027,29 +3074,212 @@ fun AddEditTransactionSheet(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
 
-                            // Row E: Label / Tags
-                            OptionRowItem(
-                                icon = {
-                                    val firstLabel = labelTag.split(",").firstOrNull()?.trim()?.lowercase()
-                                    val labelObj = firstLabel?.let { labelMap[it] }
-                                    if (labelObj != null) {
-                                        IconHelper.AppIcon(
-                                            iconName = labelObj.iconName,
-                                            tint = SolidPrimary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    } else {
+                            // Row E: Label / Tags Docker
+                            val activeLabels = remember(labelTag) { parseTransactionLabels(labelTag) }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateContentSize()
+                                    .padding(horizontal = 14.dp, vertical = 9.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { showLabelDialog = true },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             imageVector = Icons.AutoMirrored.Filled.Label,
                                             contentDescription = "Label",
-                                            tint = if (labelTag.isNotBlank()) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                            tint = if (activeLabels.isNotEmpty()) SolidPrimary else MaterialTheme.colorScheme.outline,
                                             modifier = Modifier.size(20.dp)
                                         )
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Text(
+                                            text = LanguageHelper.getString("label", languageMode),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (activeLabels.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = SolidPrimary.copy(alpha = 0.14f)
+                                            ) {
+                                                Text(
+                                                    text = "${activeLabels.size}",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SolidPrimary,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
                                     }
-                                },
-                                title = if (labelTag.isNotBlank()) labelTag else LanguageHelper.getString("label", languageMode),
-                                onClick = { showLabelDialog = true }
-                            )
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (activeLabels.isNotEmpty()) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { showLabelDialog = true }
+                                            .testTag("tx_label_add_button")
+                                    ) {
+                                        Text(
+                                            text = if (activeLabels.isNotEmpty()) {
+                                                if (languageMode == LanguageMode.BANGLA) "+ যোগ" else "+ Add"
+                                            } else "+",
+                                            fontSize = if (activeLabels.isNotEmpty()) 11.sp else 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (activeLabels.isNotEmpty()) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(7.dp))
+
+                                // Visual Label Docker
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isDarkTheme) {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+                                    },
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = if (activeLabels.isNotEmpty()) {
+                                            SolidPrimary.copy(alpha = 0.26f)
+                                        } else {
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable(enabled = activeLabels.isEmpty()) { showLabelDialog = true }
+                                        .testTag("tx_label_docker")
+                                ) {
+                                    if (activeLabels.isEmpty()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.Label,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) {
+                                                    "লেবেল যোগ করতে ট্যাপ করুন"
+                                                } else {
+                                                    "Tap to add labels"
+                                                },
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                            )
+                                        }
+                                    } else {
+                                        FlowRow(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            activeLabels.forEach { labelName ->
+                                                val labelObj = labelMap[labelName.lowercase()]
+                                                val rawChipColor = parseItemColor(labelObj?.colorHex, SolidPrimary)
+                                                val chipColor = if (isDarkTheme && rawChipColor.luminance() < 0.22f) {
+                                                    SolidPrimary
+                                                } else {
+                                                    rawChipColor
+                                                }
+                                                Box(
+                                                    modifier = Modifier.testTag("tx_label_chip_${labelName.lowercase()}")
+                                                ) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(10.dp),
+                                                        color = chipColor.copy(alpha = if (isDarkTheme) 0.22f else 0.12f),
+                                                        border = BorderStroke(1.dp, chipColor.copy(alpha = 0.45f)),
+                                                        modifier = Modifier
+                                                            .padding(top = 5.dp, end = 6.dp)
+                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .clickable { showLabelDialog = true }
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier.padding(start = 8.dp, end = 12.dp, top = 5.dp, bottom = 5.dp)
+                                                        ) {
+                                                            if (labelObj != null) {
+                                                                val isCustomImg = IconHelper.isCustomIcon(labelObj.iconName) || IconHelper.isDrawableIcon(labelObj.iconName)
+                                                                IconHelper.AppIcon(
+                                                                    iconName = labelObj.iconName,
+                                                                    contentDescription = null,
+                                                                    tint = chipColor,
+                                                                    modifier = if (isCustomImg) {
+                                                                        Modifier.size(15.dp).clip(RoundedCornerShape(3.dp))
+                                                                    } else {
+                                                                        Modifier.size(14.dp)
+                                                                    }
+                                                                )
+                                                            } else {
+                                                                Icon(
+                                                                    imageVector = Icons.AutoMirrored.Filled.Label,
+                                                                    contentDescription = null,
+                                                                    tint = chipColor,
+                                                                    modifier = Modifier.size(14.dp)
+                                                                )
+                                                            }
+                                                            Spacer(modifier = Modifier.width(5.dp))
+                                                            Text(
+                                                                text = labelName,
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = chipColor,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    }
+
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = MaterialTheme.colorScheme.surface,
+                                                        border = BorderStroke(1.dp, chipColor.copy(alpha = 0.55f)),
+                                                        shadowElevation = 1.dp,
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopEnd)
+                                                            .size(18.dp)
+                                                            .clip(CircleShape)
+                                                            .clickable { removeLabelChip(labelName) }
+                                                            .testTag("tx_label_delete_${labelName.lowercase()}")
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Close,
+                                                                contentDescription = "Remove $labelName",
+                                                                tint = chipColor,
+                                                                modifier = Modifier.size(11.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -3559,6 +3789,9 @@ fun AddEditTransactionSheet(
             languageMode = languageMode,
             labelMap = labelMap,
             onLabelSelected = {
+                val chosenKeys = parseTransactionLabels(it).map { s -> s.lowercase() }.toSet()
+                dismissedAutoLabelKeys = dismissedAutoLabelKeys - chosenKeys
+                autoMatchedLabelKeys = autoMatchedLabelKeys.intersect(chosenKeys)
                 labelTag = it
                 showLabelDialog = false
             },
@@ -3840,4 +4073,76 @@ fun AddEditTransactionSheet(
     }
     }
 }
+
+internal data class AutoLabelMatchResult(
+    val updatedLabelTag: String,
+    val updatedAutoMatchedKeys: Set<String>,
+    val updatedDismissedKeys: Set<String>
+)
+
+internal fun parseTransactionLabels(raw: String): List<String> =
+    raw.split(",")
+        .map { it.trim().removePrefix("#") }
+        .filter { it.isNotBlank() }
+
+internal fun findMatchingLabelsInTransactionName(
+    name: String,
+    availableLabels: List<String>
+): List<String> {
+    val trimmedName = name.trim()
+    if (trimmedName.isEmpty() || availableLabels.isEmpty()) return emptyList()
+    return availableLabels
+        .asSequence()
+        .map { it.trim().removePrefix("#") }
+        .filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }
+        .filter { label ->
+            val pattern = Regex("(?i)(?<![\\p{L}\\p{N}\\p{M}])${Regex.escape(label)}(?![\\p{L}\\p{N}\\p{M}])")
+            pattern.containsMatchIn(trimmedName)
+        }
+        .toList()
+}
+
+internal fun mergeAutoMatchedLabelsForName(
+    name: String,
+    currentLabelTag: String,
+    availableLabels: List<String>,
+    autoMatchedKeys: Set<String>,
+    dismissedKeys: Set<String>
+): AutoLabelMatchResult {
+    if (name.isBlank()) {
+        val remaining = parseTransactionLabels(currentLabelTag).filterNot { it.lowercase() in autoMatchedKeys }
+        return AutoLabelMatchResult(
+            updatedLabelTag = remaining.joinToString(", "),
+            updatedAutoMatchedKeys = emptySet(),
+            updatedDismissedKeys = emptySet()
+        )
+    }
+
+    val matched = findMatchingLabelsInTransactionName(name, availableLabels)
+    val matchedLower = matched.map { it.lowercase() }.toSet()
+
+    val kept = parseTransactionLabels(currentLabelTag).filter { lbl ->
+        val key = lbl.lowercase()
+        key !in autoMatchedKeys || key in matchedLower
+    }.toMutableList()
+    val keptKeys = kept.map { it.lowercase() }.toMutableSet()
+
+    val newAutoKeys = autoMatchedKeys.intersect(matchedLower).toMutableSet()
+    for (lbl in matched) {
+        val key = lbl.lowercase()
+        if (key !in keptKeys && key !in dismissedKeys) {
+            kept.add(lbl)
+            keptKeys.add(key)
+            newAutoKeys.add(key)
+        }
+    }
+
+    return AutoLabelMatchResult(
+        updatedLabelTag = kept.joinToString(", "),
+        updatedAutoMatchedKeys = newAutoKeys,
+        updatedDismissedKeys = dismissedKeys
+    )
+}
+
 

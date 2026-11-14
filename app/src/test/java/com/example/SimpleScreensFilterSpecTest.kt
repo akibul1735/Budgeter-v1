@@ -1833,4 +1833,38 @@ class SimpleScreensFilterSpecTest {
         )
         assertEquals(listOf("Gamma Vault", "Beta Bank", "Alpha Wallet"), nameDesc.assetGroups.map { it.parentAccount.nameEn })
     }
+
+    @Test
+    fun testAutoMatchLabelsFromTransactionName() {
+        val available = listOf("purny", "Groceries", "Med", "পূর্ণি")
+
+        // Entering "Purny Medicine" auto-matches "purny" without false-matching "Med" inside "Medicine"
+        val matched = com.example.ui.dialogs.findMatchingLabelsInTransactionName("Purny Medicine", available)
+        assertEquals(listOf("purny"), matched)
+
+        // Merge adds "purny" into active labels while preserving existing manual labels
+        val merged = com.example.ui.dialogs.mergeAutoMatchedLabelsForName(
+            name = "Purny Medicine",
+            currentLabelTag = "Health",
+            availableLabels = available,
+            autoMatchedKeys = emptySet(),
+            dismissedKeys = emptySet()
+        )
+        assertEquals("Health, purny", merged.updatedLabelTag)
+        assertEquals(setOf("purny"), merged.updatedAutoMatchedKeys)
+
+        // If user deletes "purny" via corner cross button (added to dismissedKeys), continuing to type does not re-add it
+        val afterDelete = com.example.ui.dialogs.mergeAutoMatchedLabelsForName(
+            name = "Purny Medicine Store",
+            currentLabelTag = "Health",
+            availableLabels = available,
+            autoMatchedKeys = emptySet(),
+            dismissedKeys = setOf("purny")
+        )
+        assertEquals("Health", afterDelete.updatedLabelTag)
+
+        // Bangla Unicode label matching works cleanly
+        val banglaMatched = com.example.ui.dialogs.findMatchingLabelsInTransactionName("পূর্ণি ফার্মেসি", available)
+        assertEquals(listOf("পূর্ণি"), banglaMatched)
+    }
 }

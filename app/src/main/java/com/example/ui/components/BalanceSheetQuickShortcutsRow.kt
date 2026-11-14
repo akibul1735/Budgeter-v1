@@ -17,9 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Folder
@@ -28,18 +26,13 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,7 +66,7 @@ import com.example.util.BalanceSheetSortOrder
  * Compact filter and sorting bar placed directly below the Balance Sheet summary card.
  * Features independent, simultaneous controls:
  * 1. Section cycling pill (All -> Groups -> Accounts -> All)
- * 2. Sort dropdown (Low to High, High to Low, A to Z, Z to A)
+ * 2. Sort cycling pill (Low to High -> High to Low -> A to Z -> Z to A -> Low to High)
  * 3. Hide 0 toggle pill
  * 4. Calc mode toggle pill
  * Plus active dialog filter chips.
@@ -93,7 +86,6 @@ fun BalanceSheetQuickShortcutsRow(
     onClearAll: (() -> Unit)? = null
 ) {
     val isBn = languageMode == LanguageMode.BANGLA
-    var showSortMenu by remember { mutableStateOf(false) }
 
     val sectionFilter = BalanceSheetFilterSpec.getSectionFilter(filterState)
     val sortOrder = BalanceSheetFilterSpec.getSortOrder(filterState)
@@ -143,7 +135,6 @@ fun BalanceSheetQuickShortcutsRow(
         CompactToolbarPill(
             icon = sectionIcon,
             label = sectionLabel,
-            hasDropdown = false,
             isActive = sectionFilter != BalanceSheetSectionFilter.ALL,
             activeColor = SolidPrimary,
             modifier = Modifier.testTag("balance_sheet_section_cycle_button"),
@@ -159,7 +150,7 @@ fun BalanceSheetQuickShortcutsRow(
         )
 
         // ---------------------------------------------------------------------
-        // 2. Sort Dropdown: Low to High, High to Low, A to Z, Z to A
+        // 2. Sort Cycling Pill: Low to High -> High to Low -> A to Z -> Z to A -> Low to High
         // ---------------------------------------------------------------------
         val sortIcon = when (sortOrder) {
             BalanceSheetSortOrder.AMOUNT_ASC -> Icons.Default.ArrowUpward
@@ -175,59 +166,23 @@ fun BalanceSheetQuickShortcutsRow(
         }
         val isSortActive = sortOrder != BalanceSheetSortOrder.AMOUNT_DESC
 
-        Box {
-            CompactToolbarPill(
-                icon = sortIcon,
-                label = sortLabel,
-                hasDropdown = true,
-                isActive = isSortActive,
-                activeColor = SolidPrimary,
-                modifier = Modifier.testTag("balance_sheet_sort_dropdown_button"),
-                onClick = { showSortMenu = true }
-            )
-
-            DropdownMenu(
-                expanded = showSortMenu,
-                onDismissRequest = { showSortMenu = false }
-            ) {
-                SortMenuItem(
-                    title = if (isBn) "কম → বেশি (Low to High)" else "Low to High",
-                    isSelected = sortOrder == BalanceSheetSortOrder.AMOUNT_ASC,
-                    onClick = {
-                        showSortMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.AMOUNT_ASC))
-                        onScrollToTop()
-                    }
-                )
-                SortMenuItem(
-                    title = if (isBn) "বেশি → কম (High to Low)" else "High to Low",
-                    isSelected = sortOrder == BalanceSheetSortOrder.AMOUNT_DESC,
-                    onClick = {
-                        showSortMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.AMOUNT_DESC))
-                        onScrollToTop()
-                    }
-                )
-                SortMenuItem(
-                    title = if (isBn) "A → Z" else "A to Z",
-                    isSelected = sortOrder == BalanceSheetSortOrder.NAME_ASC || sortOrder == BalanceSheetSortOrder.DEFAULT,
-                    onClick = {
-                        showSortMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.NAME_ASC))
-                        onScrollToTop()
-                    }
-                )
-                SortMenuItem(
-                    title = if (isBn) "Z → A" else "Z to A",
-                    isSelected = sortOrder == BalanceSheetSortOrder.NAME_DESC,
-                    onClick = {
-                        showSortMenu = false
-                        onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, BalanceSheetSortOrder.NAME_DESC))
-                        onScrollToTop()
-                    }
-                )
+        CompactToolbarPill(
+            icon = sortIcon,
+            label = sortLabel,
+            isActive = isSortActive,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("balance_sheet_sort_cycle_button"),
+            onClick = {
+                val nextSort = when (sortOrder) {
+                    BalanceSheetSortOrder.AMOUNT_ASC -> BalanceSheetSortOrder.AMOUNT_DESC
+                    BalanceSheetSortOrder.AMOUNT_DESC -> BalanceSheetSortOrder.NAME_ASC
+                    BalanceSheetSortOrder.NAME_ASC, BalanceSheetSortOrder.DEFAULT -> BalanceSheetSortOrder.NAME_DESC
+                    BalanceSheetSortOrder.NAME_DESC -> BalanceSheetSortOrder.AMOUNT_ASC
+                }
+                onFilterChange(BalanceSheetFilterSpec.withSortOrder(filterState, nextSort))
+                onScrollToTop()
             }
-        }
+        )
 
         // ---------------------------------------------------------------------
         // 3. Hide 0 Toggle Pill
@@ -235,7 +190,6 @@ fun BalanceSheetQuickShortcutsRow(
         CompactToolbarPill(
             icon = if (excludeZero) Icons.Default.VisibilityOff else Icons.Default.Visibility,
             label = if (isBn) "০ লুকান" else "Hide 0",
-            hasDropdown = false,
             isActive = excludeZero,
             activeColor = SolidPrimary,
             modifier = Modifier.testTag("balance_sheet_hide_zero_button"),
@@ -250,7 +204,6 @@ fun BalanceSheetQuickShortcutsRow(
         CompactToolbarPill(
             icon = Icons.Default.Tune,
             label = if (isBn) "হিসাব" else "Calc",
-            hasDropdown = false,
             isActive = isCalcMode,
             activeColor = SolidPrimary,
             modifier = Modifier.testTag("balance_sheet_calc_toggle_button"),
@@ -272,7 +225,6 @@ fun BalanceSheetQuickShortcutsRow(
                 CompactToolbarPill(
                     icon = Icons.Default.FilterAlt,
                     label = if (isBn) "ফিল্টার ($activeCount)" else "Filter ($activeCount)",
-                    hasDropdown = false,
                     isActive = true,
                     isEmphasized = true,
                     activeColor = SolidPrimary,
@@ -284,7 +236,6 @@ fun BalanceSheetQuickShortcutsRow(
             CompactToolbarPill(
                 icon = Icons.Default.RestartAlt,
                 label = if (isBn) "রিসেট" else "Reset",
-                hasDropdown = false,
                 isActive = false,
                 modifier = Modifier.testTag("filter_reset_btn"),
                 onClick = {
@@ -312,7 +263,6 @@ fun BalanceSheetQuickShortcutsRow(
 private fun CompactToolbarPill(
     icon: ImageVector,
     label: String,
-    hasDropdown: Boolean = false,
     isActive: Boolean = false,
     isEmphasized: Boolean = false,
     activeColor: Color = SolidPrimary,
@@ -363,14 +313,6 @@ private fun CompactToolbarPill(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (hasDropdown) {
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = contentColor.copy(alpha = 0.75f),
-                    modifier = Modifier.size(13.dp)
-                )
-            }
         }
     }
 }
@@ -426,33 +368,4 @@ private fun CompactActiveFilterChip(
             }
         }
     }
-}
-
-@Composable
-private fun SortMenuItem(
-    title: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    DropdownMenuItem(
-        text = {
-            Text(
-                text = title,
-                fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface
-            )
-        },
-        trailingIcon = {
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    tint = SolidPrimary,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
-        },
-        onClick = onClick
-    )
 }
