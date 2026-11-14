@@ -937,7 +937,7 @@ fun AccountsScreen(
                         Column(
                             modifier = Modifier.padding(20.dp)
                         ) {
-                            // Top Row: Title + Adjusted badge
+                            // Top Row: Title + Adjusted badge (if any) + Edit button
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -951,43 +951,82 @@ fun AccountsScreen(
                                     },
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
 
-                                if (hasCustomizations) {
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { showResetAllConfirmDialog = true }
-                                            .testTag("net_worth_adjusted_badge")
-                                    ) {
-                                        Text(
-                                            text = if (isBn) "সমন্বিত" else "Adjusted",
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (hasCustomizations) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { showResetAllConfirmDialog = true }
+                                                .testTag("net_worth_adjusted_badge")
+                                        ) {
+                                            Text(
+                                                text = if (isBn) "সমন্বিত" else "Adjusted",
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
                                     }
-                                } else {
+
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                        color = if (isEditMode) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                                        },
+                                        border = if (isEditMode) {
+                                            null
+                                        } else {
+                                            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                        },
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(12.dp))
                                             .clickable { isEditMode = !isEditMode }
-                                            .testTag("net_worth_status_btn")
+                                            .testTag("net_worth_edit_btn")
                                     ) {
-                                        Text(
-                                            text = if (isEditMode) (if (isBn) "সম্পন্ন" else "Done") else (if (isBn) "স্ট্যাটাস" else "Status"),
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                        )
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Edit,
+                                                contentDescription = if (isEditMode) "Done" else "Edit",
+                                                tint = if (isEditMode) {
+                                                    MaterialTheme.colorScheme.onPrimary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                },
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = if (isEditMode) {
+                                                    if (isBn) "সম্পন্ন" else "Done"
+                                                } else {
+                                                    if (isBn) "সম্পাদনা" else "Edit"
+                                                },
+                                                color = if (isEditMode) {
+                                                    MaterialTheme.colorScheme.onPrimary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                },
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }
