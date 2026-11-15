@@ -55,6 +55,7 @@ import com.example.data.model.WishlistItemWithCategory
 import com.example.data.model.WishlistPriority
 import com.example.data.model.WishlistTargetType
 import com.example.util.FilterStore
+import com.example.util.RmManagerHelper
 import com.example.util.RmManagerHelper.RmFilterCategory
 import com.example.util.RmManagerHelper.RmSortOption
 import com.example.util.TabFilterPreferences
@@ -714,6 +715,145 @@ class SimpleScreensFilterSpecTest {
 
         val chips = spec.activeChips(state, LanguageMode.ENGLISH)
         assertTrue(chips.isNotEmpty())
+    }
+
+    @Test
+    fun testRmManagerOrthogonalFiltersHideZeroAndNameZaSort() {
+        val spec = RmManagerFilterSpec.createSpec()
+        var state: FilterState = emptyMap()
+
+        // Orthogonal Source + Status + Hide 0 + NAME_ZA Sort
+        state = RmManagerFilterSpec.withSourceFilter(state, RmManagerHelper.RmSourceFilter.RM_ACCOUNTS)
+        state = RmManagerFilterSpec.withStatusFilter(state, RmManagerHelper.RmStatusFilter.PENDING)
+        state = RmManagerFilterSpec.withHideZero(state, true)
+        state = RmManagerFilterSpec.withSort(state, RmSortOption.NAME_ZA)
+
+        assertEquals(RmManagerHelper.RmSourceFilter.RM_ACCOUNTS, RmManagerFilterSpec.getSourceFilter(state))
+        assertEquals(RmManagerHelper.RmStatusFilter.PENDING, RmManagerFilterSpec.getStatusFilter(state))
+        assertTrue(RmManagerFilterSpec.getHideZero(state))
+        assertEquals(RmSortOption.NAME_ZA, RmManagerFilterSpec.getSort(state))
+
+        // Verify Helper filtering combinations
+        val accAlpha = com.example.data.model.Account(
+            id = 1,
+            nameEn = "Alpha RM",
+            nameBn = "Alpha RM",
+            type = com.example.data.model.AccountType.ASSET
+        )
+        val accZeta = com.example.data.model.Account(
+            id = 2,
+            nameEn = "Zeta RM",
+            nameBn = "Zeta RM",
+            type = com.example.data.model.AccountType.ASSET
+        )
+        val accZero = com.example.data.model.Account(
+            id = 3,
+            nameEn = "Zero RM",
+            nameBn = "Zero RM",
+            type = com.example.data.model.AccountType.ASSET
+        )
+        val accOthers = com.example.data.model.Account(
+            id = 4,
+            nameEn = "RM Others",
+            nameBn = "RM Others",
+            type = com.example.data.model.AccountType.ASSET
+        )
+        val now = System.currentTimeMillis()
+        val txAlpha = com.example.data.model.TransactionWithDetails(
+            transaction = com.example.data.model.Transaction(
+                id = 101,
+                type = com.example.data.model.TransactionType.EXPENSE,
+                amount = 500.0,
+                creditAccountId = 1,
+                dateEpochMs = now - 2000L
+            )
+        )
+        val txZeta = com.example.data.model.TransactionWithDetails(
+            transaction = com.example.data.model.Transaction(
+                id = 102,
+                type = com.example.data.model.TransactionType.EXPENSE,
+                amount = 300.0,
+                creditAccountId = 2,
+                dateEpochMs = now - 1000L
+            )
+        )
+        val txZeroBorrow = com.example.data.model.TransactionWithDetails(
+            transaction = com.example.data.model.Transaction(
+                id = 103,
+                type = com.example.data.model.TransactionType.EXPENSE,
+                amount = 200.0,
+                creditAccountId = 3,
+                dateEpochMs = now - 3000L
+            )
+        )
+        val txZeroRepay = com.example.data.model.TransactionWithDetails(
+            transaction = com.example.data.model.Transaction(
+                id = 104,
+                type = com.example.data.model.TransactionType.INCOME,
+                amount = 200.0,
+                debitAccountId = 3,
+                dateEpochMs = now - 500L
+            )
+        )
+        val txOtherLabel = com.example.data.model.TransactionWithDetails(
+            transaction = com.example.data.model.Transaction(
+                id = 105,
+                type = com.example.data.model.TransactionType.EXPENSE,
+                amount = 750.0,
+                creditAccountId = 4,
+                referenceNo = "Friend",
+                dateEpochMs = now
+            )
+        )
+
+        val allAccounts = listOf(accAlpha, accZeta, accZero, accOthers)
+        val allTxs = listOf(txAlpha, txZeta, txZeroBorrow, txZeroRepay, txOtherLabel)
+
+        // 1. RM_ACCOUNTS + PENDING + NAME_ZA -> Zeta RM, Alpha RM
+        val pendingAccountsZa = RmManagerHelper.computeRmManagerData(
+            allAccounts = allAccounts,
+            allTransactions = allTxs,
+            sourceFilter = RmManagerHelper.RmSourceFilter.RM_ACCOUNTS,
+            statusFilter = RmManagerHelper.RmStatusFilter.PENDING,
+            hideZeroBalance = false,
+            sortOption = RmSortOption.NAME_ZA
+        )
+        assertEquals(listOf("Zeta RM", "Alpha RM"), pendingAccountsZa.allEntities.map { it.name })
+
+        // 2. RM_ACCOUNTS + SETTLED + hideZero=true -> Zero RM hidden (0 due, 0 net)
+        val settledHideZero = RmManagerHelper.computeRmManagerData(
+            allAccounts = allAccounts,
+            allTransactions = allTxs,
+            sourceFilter = RmManagerHelper.RmSourceFilter.RM_ACCOUNTS,
+            statusFilter = RmManagerHelper.RmStatusFilter.SETTLED,
+            hideZeroBalance = true
+        )
+        assertTrue(settledHideZero.allEntities.isEmpty())
+
+        // 3. RM_ACCOUNTS + SETTLED + hideZero=false -> Zero RM visible
+        val settledShowZero = RmManagerHelper.computeRmManagerData(
+            allAccounts = allAccounts,
+            allTransactions = allTxs,
+            sourceFilter = RmManagerHelper.RmSourceFilter.RM_ACCOUNTS,
+            statusFilter = RmManagerHelper.RmStatusFilter.SETTLED,
+            hideZeroBalance = false
+        )
+        assertEquals(listOf("Zero RM"), settledShowZero.allEntities.map { it.name })
+
+        // 4. RM_OTHERS + PENDING -> Friend label only
+        val othersPending = RmManagerHelper.computeRmManagerData(
+            allAccounts = allAccounts,
+            allTransactions = allTxs,
+            sourceFilter = RmManagerHelper.RmSourceFilter.RM_OTHERS,
+            statusFilter = RmManagerHelper.RmStatusFilter.PENDING
+        )
+        assertEquals(listOf("Friend"), othersPending.allEntities.map { it.name })
+
+        // Legacy compatibility: toggle FIELD_CATEGORY with CAT_UNRECONCILED preserves orthogonal Source/Status
+        val afterDialog = spec.toggleCondition(state, RmManagerFilterSpec.FIELD_CATEGORY, RmManagerFilterSpec.CAT_UNRECONCILED)
+        assertEquals(RmFilterCategory.UNRECONCILED, RmManagerFilterSpec.getCategory(afterDialog))
+        assertEquals(RmManagerHelper.RmSourceFilter.RM_ACCOUNTS, RmManagerFilterSpec.getSourceFilter(afterDialog))
+        assertEquals(RmManagerHelper.RmStatusFilter.PENDING, RmManagerFilterSpec.getStatusFilter(afterDialog))
     }
 
     @Test

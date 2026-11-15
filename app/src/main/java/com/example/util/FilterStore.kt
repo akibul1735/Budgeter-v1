@@ -296,6 +296,7 @@ class FilterStore private constructor(private val context: Context) {
             com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_LOWEST_DUE,
             com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_MOST_REPAID,
             com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_NAME_AZ,
+            com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_NAME_ZA,
             com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_RECENT_ACTIVITY
         )
         const val DEFAULT_RM_SORT = com.example.ui.components.filter.specs.RmManagerFilterSpec.SORT_HIGHEST_DUE

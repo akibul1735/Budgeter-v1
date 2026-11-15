@@ -166,7 +166,20 @@ object RmManagerHelper {
         LOWEST_DUE,
         MOST_REPAID,
         NAME_AZ,
+        NAME_ZA,
         RECENT_ACTIVITY
+    }
+
+    enum class RmSourceFilter {
+        ALL,
+        RM_ACCOUNTS,
+        RM_OTHERS
+    }
+
+    enum class RmStatusFilter {
+        ALL,
+        PENDING,
+        SETTLED
     }
 
     enum class RmFilterCategory {
@@ -302,7 +315,10 @@ object RmManagerHelper {
         sortOption: RmSortOption = RmSortOption.HIGHEST_DUE,
         languageMode: LanguageMode = LanguageMode.ENGLISH,
         includeKeyword: String = "RM",
-        excludeKeyword: String = "RM Others"
+        excludeKeyword: String = "RM Others",
+        sourceFilter: RmSourceFilter = RmSourceFilter.ALL,
+        statusFilter: RmStatusFilter = RmStatusFilter.ALL,
+        hideZeroBalance: Boolean = false
     ): RmManagerScreenData {
         val rmAccountsList = allAccounts.filter { isRmAccount(it, includeKeyword, excludeKeyword) }
         val excludedAccountsList = allAccounts.filter { isExcludedAccount(it, excludeKeyword) }
@@ -593,31 +609,67 @@ object RmManagerHelper {
             }
         }
 
-        // Filter by category
+        // Resolve effective orthogonal source & status filters (preserving legacy filterCategory callers)
+        val effectiveSource = when {
+            sourceFilter != RmSourceFilter.ALL -> sourceFilter
+            filterCategory == RmFilterCategory.RM_ACCOUNTS -> RmSourceFilter.RM_ACCOUNTS
+            filterCategory == RmFilterCategory.RM_OTHERS -> RmSourceFilter.RM_OTHERS
+            else -> RmSourceFilter.ALL
+        }
+        val effectiveStatus = when {
+            statusFilter != RmStatusFilter.ALL -> statusFilter
+            filterCategory == RmFilterCategory.PENDING_ONLY -> RmStatusFilter.PENDING
+            filterCategory == RmFilterCategory.SETTLED_ONLY -> RmStatusFilter.SETTLED
+            else -> RmStatusFilter.ALL
+        }
+
+        // 1. Apply Source Filter
+        val sourceFiltered = when (effectiveSource) {
+            RmSourceFilter.ALL -> searchFiltered
+            RmSourceFilter.RM_ACCOUNTS -> searchFiltered.filter { it.isAccount }
+            RmSourceFilter.RM_OTHERS -> searchFiltered.filter { !it.isAccount }
+        }
+
+        // 2. Apply Status Filter
+        val statusFiltered = when (effectiveStatus) {
+            RmStatusFilter.ALL -> sourceFiltered
+            RmStatusFilter.PENDING -> sourceFiltered.filter { it.remainingLiability > 0.001 }
+            RmStatusFilter.SETTLED -> sourceFiltered.filter { it.status == RmRepaymentStatus.SETTLED }
+        }
+
+        // 3. Apply Hide 0 Balance Filter
+        val zeroFiltered = if (hideZeroBalance) {
+            statusFiltered.filter { it.remainingLiability > 0.001 || abs(it.netBalance) > 0.001 }
+        } else {
+            statusFiltered
+        }
+
+        // 4. Apply Optional Extra Category Filter (from Unified Filter Dialog)
         val now = System.currentTimeMillis()
         val sevenDaysAgo = now - 7L * 24 * 60 * 60 * 1000L
         val categoryFiltered = when (filterCategory) {
-            RmFilterCategory.ALL -> searchFiltered
-            RmFilterCategory.PENDING_ONLY -> searchFiltered.filter { it.remainingLiability > 0 }
-            RmFilterCategory.RM_ACCOUNTS -> searchFiltered.filter { it.isAccount }
-            RmFilterCategory.RM_OTHERS -> searchFiltered.filter { !it.isAccount }
-            RmFilterCategory.SETTLED_ONLY -> searchFiltered.filter { it.status == RmRepaymentStatus.SETTLED }
-            RmFilterCategory.UNRECONCILED -> searchFiltered.filter { entity ->
+            RmFilterCategory.UNRECONCILED -> zeroFiltered.filter { entity ->
                 entity.allTransactions.any { !it.isReconciled } || entity.remainingLiability > 0
             }
-            RmFilterCategory.RECONCILED -> searchFiltered.filter { entity ->
+            RmFilterCategory.RECONCILED -> zeroFiltered.filter { entity ->
                 entity.allTransactions.isNotEmpty() && entity.allTransactions.all { it.isReconciled } && entity.remainingLiability <= 0
             }
-            RmFilterCategory.HIGH_LIABILITY -> searchFiltered.filter { it.remainingLiability >= 10000.0 }
-            RmFilterCategory.RECENT_WEEK -> searchFiltered.filter { it.lastActivityEpochMs >= sevenDaysAgo }
+            RmFilterCategory.HIGH_LIABILITY -> zeroFiltered.filter { it.remainingLiability >= 10000.0 }
+            RmFilterCategory.RECENT_WEEK -> zeroFiltered.filter { it.lastActivityEpochMs >= sevenDaysAgo }
+            RmFilterCategory.ALL,
+            RmFilterCategory.PENDING_ONLY,
+            RmFilterCategory.RM_ACCOUNTS,
+            RmFilterCategory.RM_OTHERS,
+            RmFilterCategory.SETTLED_ONLY -> zeroFiltered
         }
 
-        // Apply Sorting
+        // 5. Apply Sorting
         val sortedList = when (sortOption) {
             RmSortOption.HIGHEST_DUE -> categoryFiltered.sortedByDescending { it.remainingLiability }
             RmSortOption.LOWEST_DUE -> categoryFiltered.sortedBy { it.remainingLiability }
             RmSortOption.MOST_REPAID -> categoryFiltered.sortedByDescending { it.totalRepaid }
             RmSortOption.NAME_AZ -> categoryFiltered.sortedBy { it.name.lowercase() }
+            RmSortOption.NAME_ZA -> categoryFiltered.sortedByDescending { it.name.lowercase() }
             RmSortOption.RECENT_ACTIVITY -> categoryFiltered.sortedByDescending { it.lastActivityEpochMs }
         }
 

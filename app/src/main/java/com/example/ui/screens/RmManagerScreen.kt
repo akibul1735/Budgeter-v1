@@ -32,8 +32,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,7 +47,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
@@ -66,6 +73,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -78,6 +86,8 @@ import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -158,6 +168,7 @@ import com.example.ui.components.filter.specs.RmManagerFilterSpec
 import com.example.ui.components.filter.withSearchQuery
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidTransfer
 import com.example.util.FilterStore
 import com.example.util.LanguageHelper
@@ -167,6 +178,8 @@ import com.example.util.RmManagerHelper.RmFilterCategory
 import com.example.util.RmManagerHelper.RmKhatianRow
 import com.example.util.RmManagerHelper.RmRepaymentStatus
 import com.example.util.RmManagerHelper.RmSortOption
+import com.example.util.RmManagerHelper.RmSourceFilter
+import com.example.util.RmManagerHelper.RmStatusFilter
 import com.example.util.RmManagerHelper.RmTransactionItem
 import com.example.util.RmManagerPreferences
 import com.example.util.TabFilterPreferences
@@ -204,11 +217,23 @@ fun RmManagerScreen(
         mutableStateOf<FilterState>(filterStore.loadFilterState(RmManagerFilterSpec.SPEC_KEY))
     }
 
+    val listState = rememberLazyListState()
+    var selectedEntityId by remember { mutableStateOf<String?>(null) }
+
     val updateFilterState: (FilterState) -> Unit = { newState ->
+        val changed = newState != filterState
         filterState = newState
         filterStore.saveFilterState(RmManagerFilterSpec.SPEC_KEY, newState)
+        if (changed && selectedEntityId == null) {
+            coroutineScope.launch {
+                listState.animateScrollToItem(0)
+            }
+        }
     }
 
+    val selectedSourceFilter = remember(filterState) { RmManagerFilterSpec.getSourceFilter(filterState) }
+    val selectedStatusFilter = remember(filterState) { RmManagerFilterSpec.getStatusFilter(filterState) }
+    val hideZeroBalance = remember(filterState) { RmManagerFilterSpec.getHideZero(filterState) }
     val selectedFilterCategory = remember(filterState) { RmManagerFilterSpec.getCategory(filterState) }
     val selectedSortOption = remember(filterState) { RmManagerFilterSpec.getSort(filterState) }
     val searchQuery = remember(filterState) { RmManagerFilterSpec.getSearchQuery(filterState) }
@@ -227,7 +252,6 @@ fun RmManagerScreen(
     }
     var isUnifiedFilterOpen by remember { mutableStateOf(false) }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
-    var selectedEntityId by remember { mutableStateOf<String?>(null) }
     var refreshTrigger by remember { mutableStateOf(0) }
 
     // Reconcile Sheet State
@@ -239,6 +263,9 @@ fun RmManagerScreen(
         allAccounts,
         allTransactions,
         searchQuery,
+        selectedSourceFilter,
+        selectedStatusFilter,
+        hideZeroBalance,
         selectedFilterCategory,
         selectedSortOption,
         languageMode,
@@ -253,7 +280,10 @@ fun RmManagerScreen(
             sortOption = selectedSortOption,
             languageMode = languageMode,
             includeKeyword = filterConfig.includeKeyword,
-            excludeKeyword = filterConfig.excludeKeyword
+            excludeKeyword = filterConfig.excludeKeyword,
+            sourceFilter = selectedSourceFilter,
+            statusFilter = selectedStatusFilter,
+            hideZeroBalance = hideZeroBalance
         )
     }
 
@@ -570,12 +600,25 @@ fun RmManagerScreen(
                 }
             }
 
-            // Unified Active Filter Bar
+            // Unified Active Filter Bar (only displays extra qualifiers & search, keeping inline cycling pills uncluttered)
             val rmActiveBarSpec = remember { RmManagerFilterSpec.createSpec() }
+            val extraBarState = remember(filterState) {
+                filterState
+                    .minus(RmManagerFilterSpec.FIELD_SOURCE)
+                    .minus(RmManagerFilterSpec.FIELD_STATUS)
+                    .minus(RmManagerFilterSpec.FIELD_SORT)
+                    .minus(RmManagerFilterSpec.FIELD_HIDE_ZERO)
+            }
             UnifiedActiveFilterBar(
                 spec = rmActiveBarSpec,
-                state = filterState,
-                onFilterChange = updateFilterState,
+                state = extraBarState,
+                onFilterChange = { updatedExtra ->
+                    val merged = filterState.toMutableMap()
+                    val removedKeys = extraBarState.keys - updatedExtra.keys
+                    for (k in removedKeys) merged.remove(k)
+                    for ((k, v) in updatedExtra) merged[k] = v
+                    updateFilterState(merged)
+                },
                 onOpenFilterDialog = { isUnifiedFilterOpen = true },
                 languageMode = languageMode,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -613,23 +656,41 @@ fun RmManagerScreen(
                 // Main Executive Dashboard & Cards
                 RmModernMainView(
                     rmData = rmData,
+                    listState = listState,
                     languageMode = languageMode,
-                    selectedFilterCategory = selectedFilterCategory,
-                    onSelectFilterCategory = { cat ->
-                        val newMap = filterState.toMutableMap()
-                        val catId = when (cat) {
-                            RmFilterCategory.PENDING_ONLY -> RmManagerFilterSpec.CAT_PENDING_ONLY
-                            RmFilterCategory.RM_ACCOUNTS -> RmManagerFilterSpec.CAT_RM_ACCOUNTS
-                            RmFilterCategory.RM_OTHERS -> RmManagerFilterSpec.CAT_RM_OTHERS
-                            RmFilterCategory.SETTLED_ONLY -> RmManagerFilterSpec.CAT_SETTLED_ONLY
-                            RmFilterCategory.UNRECONCILED -> RmManagerFilterSpec.CAT_UNRECONCILED
-                            RmFilterCategory.RECONCILED -> RmManagerFilterSpec.CAT_RECONCILED
-                            RmFilterCategory.HIGH_LIABILITY -> RmManagerFilterSpec.CAT_HIGH_LIABILITY
-                            RmFilterCategory.RECENT_WEEK -> RmManagerFilterSpec.CAT_RECENT_WEEK
-                            else -> RmManagerFilterSpec.CAT_ALL
+                    selectedSourceFilter = selectedSourceFilter,
+                    selectedStatusFilter = selectedStatusFilter,
+                    selectedSortOption = selectedSortOption,
+                    hideZeroBalance = hideZeroBalance,
+                    onCycleSource = {
+                        val nextSource = when (selectedSourceFilter) {
+                            RmSourceFilter.ALL -> RmSourceFilter.RM_ACCOUNTS
+                            RmSourceFilter.RM_ACCOUNTS -> RmSourceFilter.RM_OTHERS
+                            RmSourceFilter.RM_OTHERS -> RmSourceFilter.ALL
                         }
-                        newMap[RmManagerFilterSpec.FIELD_CATEGORY] = FilterValue.ToggleGroup(setOf(catId))
-                        updateFilterState(newMap)
+                        updateFilterState(RmManagerFilterSpec.withSourceFilter(filterState, nextSource))
+                    },
+                    onCycleStatus = {
+                        val nextStatus = when (selectedStatusFilter) {
+                            RmStatusFilter.ALL -> RmStatusFilter.PENDING
+                            RmStatusFilter.PENDING -> RmStatusFilter.SETTLED
+                            RmStatusFilter.SETTLED -> RmStatusFilter.ALL
+                        }
+                        updateFilterState(RmManagerFilterSpec.withStatusFilter(filterState, nextStatus))
+                    },
+                    onCycleSort = {
+                        val nextSort = when (selectedSortOption) {
+                            RmSortOption.HIGHEST_DUE -> RmSortOption.LOWEST_DUE
+                            RmSortOption.LOWEST_DUE -> RmSortOption.MOST_REPAID
+                            RmSortOption.MOST_REPAID -> RmSortOption.RECENT_ACTIVITY
+                            RmSortOption.RECENT_ACTIVITY -> RmSortOption.NAME_AZ
+                            RmSortOption.NAME_AZ -> RmSortOption.NAME_ZA
+                            RmSortOption.NAME_ZA -> RmSortOption.HIGHEST_DUE
+                        }
+                        updateFilterState(RmManagerFilterSpec.withSort(filterState, nextSort))
+                    },
+                    onToggleHideZero = {
+                        updateFilterState(RmManagerFilterSpec.withHideZero(filterState, !hideZeroBalance))
                     },
                     onSelectEntity = { selectedEntityId = it.id },
                     onRepayEntity = { entity ->
@@ -828,6 +889,9 @@ fun RmManagerScreen(
             countProvider = { candidateState ->
                 val q = RmManagerFilterSpec.getSearchQuery(candidateState)
                 val cat = RmManagerFilterSpec.getCategory(candidateState)
+                val src = RmManagerFilterSpec.getSourceFilter(candidateState)
+                val st = RmManagerFilterSpec.getStatusFilter(candidateState)
+                val hz = RmManagerFilterSpec.getHideZero(candidateState)
                 val s = RmManagerFilterSpec.getSort(candidateState)
                 RmManagerHelper.computeRmManagerData(
                     allAccounts = allAccounts,
@@ -837,7 +901,10 @@ fun RmManagerScreen(
                     sortOption = s,
                     languageMode = languageMode,
                     includeKeyword = filterConfig.includeKeyword,
-                    excludeKeyword = filterConfig.excludeKeyword
+                    excludeKeyword = filterConfig.excludeKeyword,
+                    sourceFilter = src,
+                    statusFilter = st,
+                    hideZeroBalance = hz
                 ).allEntities.size
             }
         )
@@ -850,14 +917,22 @@ fun RmManagerScreen(
 @Composable
 private fun RmModernMainView(
     rmData: RmManagerHelper.RmManagerScreenData,
+    listState: LazyListState,
     languageMode: LanguageMode,
-    selectedFilterCategory: RmFilterCategory,
-    onSelectFilterCategory: (RmFilterCategory) -> Unit,
+    selectedSourceFilter: RmSourceFilter,
+    selectedStatusFilter: RmStatusFilter,
+    selectedSortOption: RmSortOption,
+    hideZeroBalance: Boolean,
+    onCycleSource: () -> Unit,
+    onCycleStatus: () -> Unit,
+    onCycleSort: () -> Unit,
+    onToggleHideZero: () -> Unit,
     onSelectEntity: (RmEntityBreakdown) -> Unit,
     onRepayEntity: (RmEntityBreakdown) -> Unit,
     onReconcileEntity: (RmEntityBreakdown) -> Unit
 ) {
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 96.dp)
     ) {
@@ -877,58 +952,20 @@ private fun RmModernMainView(
             )
         }
 
-        // --- 2. Filter Category Chips ---
+        // --- 2. Compact Cycling Filter & Sort Bar: Source -> Status -> Sort -> Hide 0 ---
         item {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    FilterChip(
-                        selected = selectedFilterCategory == RmFilterCategory.ALL,
-                        onClick = { onSelectFilterCategory(RmFilterCategory.ALL) },
-                        label = { Text("${LanguageHelper.getString("all_entities", languageMode)} (${rmData.totalAllCount})") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedFilterCategory == RmFilterCategory.PENDING_ONLY,
-                        onClick = { onSelectFilterCategory(RmFilterCategory.PENDING_ONLY) },
-                        label = { Text("${LanguageHelper.getString("pending_repayment", languageMode)} (${rmData.totalPendingCount})") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                            selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedFilterCategory == RmFilterCategory.RM_ACCOUNTS,
-                        onClick = { onSelectFilterCategory(RmFilterCategory.RM_ACCOUNTS) },
-                        label = { Text("${LanguageHelper.getString("rm_accounts_tab", languageMode)} (${rmData.totalRmAccountsCount})") }
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedFilterCategory == RmFilterCategory.RM_OTHERS,
-                        onClick = { onSelectFilterCategory(RmFilterCategory.RM_OTHERS) },
-                        label = { Text("${LanguageHelper.getString("rm_others_tab", languageMode)} (${rmData.totalRmOthersCount})") }
-                    )
-                }
-                item {
-                    FilterChip(
-                        selected = selectedFilterCategory == RmFilterCategory.SETTLED_ONLY,
-                        onClick = { onSelectFilterCategory(RmFilterCategory.SETTLED_ONLY) },
-                        label = { Text("${LanguageHelper.getString("fully_settled", languageMode)} (${rmData.totalSettledCount})") }
-                    )
-                }
-            }
+            RmQuickFilterBar(
+                sourceFilter = selectedSourceFilter,
+                statusFilter = selectedStatusFilter,
+                sortOption = selectedSortOption,
+                hideZeroBalance = hideZeroBalance,
+                languageMode = languageMode,
+                onCycleSource = onCycleSource,
+                onCycleStatus = onCycleStatus,
+                onCycleSort = onCycleSort,
+                onToggleHideZero = onToggleHideZero,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
         }
 
         // --- 3. Entities List Header ---
@@ -1009,6 +1046,169 @@ private fun RmModernMainView(
                     onReconcileClick = { onReconcileEntity(entity) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun RmQuickFilterBar(
+    sourceFilter: RmSourceFilter,
+    statusFilter: RmStatusFilter,
+    sortOption: RmSortOption,
+    hideZeroBalance: Boolean,
+    languageMode: LanguageMode,
+    onCycleSource: () -> Unit,
+    onCycleStatus: () -> Unit,
+    onCycleSort: () -> Unit,
+    onToggleHideZero: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isBn = languageMode == LanguageMode.BANGLA
+
+    val consumeHorizontalScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                return Offset(available.x, 0f)
+            }
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return Velocity(available.x, 0f)
+            }
+        }
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .nestedScroll(consumeHorizontalScroll)
+            .horizontalScroll(rememberScrollState())
+            .testTag("rm_quick_filter_bar"),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 1. Source Cycle: All -> RM Accounts -> RM Others -> All
+        val sourceIcon = when (sourceFilter) {
+            RmSourceFilter.RM_ACCOUNTS -> Icons.Default.AccountBalance
+            RmSourceFilter.RM_OTHERS -> Icons.AutoMirrored.Filled.ReceiptLong
+            RmSourceFilter.ALL -> Icons.Default.Layers
+        }
+        val sourceLabel = when (sourceFilter) {
+            RmSourceFilter.RM_ACCOUNTS -> if (isBn) "আরএম অ্যাকাউন্ট" else "RM Accounts"
+            RmSourceFilter.RM_OTHERS -> if (isBn) "আরএম অন্যান্য" else "RM Others"
+            RmSourceFilter.ALL -> if (isBn) "সব" else "All"
+        }
+        RmCompactPill(
+            icon = sourceIcon,
+            label = sourceLabel,
+            isActive = sourceFilter != RmSourceFilter.ALL,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("rm_source_cycle_button"),
+            onClick = onCycleSource
+        )
+
+        // 2. Status Cycle: All -> Pending -> Settled -> All
+        val statusIcon = when (statusFilter) {
+            RmStatusFilter.PENDING -> Icons.AutoMirrored.Filled.TrendingDown
+            RmStatusFilter.SETTLED -> Icons.Default.CheckCircle
+            RmStatusFilter.ALL -> Icons.Default.DoneAll
+        }
+        val statusLabel = when (statusFilter) {
+            RmStatusFilter.PENDING -> if (isBn) "বকেয়া" else "Pending"
+            RmStatusFilter.SETTLED -> if (isBn) "পরিশোধিত" else "Settled"
+            RmStatusFilter.ALL -> if (isBn) "সব" else "All"
+        }
+        val statusActiveColor = if (statusFilter == RmStatusFilter.PENDING) {
+            MaterialTheme.colorScheme.error
+        } else {
+            SolidPrimary
+        }
+        RmCompactPill(
+            icon = statusIcon,
+            label = statusLabel,
+            isActive = statusFilter != RmStatusFilter.ALL,
+            activeColor = statusActiveColor,
+            modifier = Modifier.testTag("rm_status_cycle_button"),
+            onClick = onCycleStatus
+        )
+
+        // 3. Sort Cycle (Combine 3): High -> Low -> Low -> High -> Most Repaid -> Recent -> A -> Z -> Z -> A -> High -> Low
+        val sortIcon = when (sortOption) {
+            RmSortOption.HIGHEST_DUE -> Icons.Default.ArrowDownward
+            RmSortOption.LOWEST_DUE -> Icons.Default.ArrowUpward
+            RmSortOption.MOST_REPAID -> Icons.Default.Payment
+            RmSortOption.RECENT_ACTIVITY -> Icons.Default.History
+            RmSortOption.NAME_AZ, RmSortOption.NAME_ZA -> Icons.Default.Sort
+        }
+        val sortLabel = when (sortOption) {
+            RmSortOption.HIGHEST_DUE -> if (isBn) "বেশি → কম" else "High → Low"
+            RmSortOption.LOWEST_DUE -> if (isBn) "কম → বেশি" else "Low → High"
+            RmSortOption.MOST_REPAID -> if (isBn) "সর্বাধিক পরিশোধ" else "Most Repaid"
+            RmSortOption.RECENT_ACTIVITY -> if (isBn) "সাম্প্রতিক" else "Recent"
+            RmSortOption.NAME_AZ -> "A → Z"
+            RmSortOption.NAME_ZA -> "Z → A"
+        }
+        RmCompactPill(
+            icon = sortIcon,
+            label = sortLabel,
+            isActive = sortOption != RmSortOption.HIGHEST_DUE,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("rm_sort_cycle_button"),
+            onClick = onCycleSort
+        )
+
+        // 4. Hide 0 Toggle
+        RmCompactPill(
+            icon = if (hideZeroBalance) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+            label = if (isBn) "০ লুকান" else "Hide 0",
+            isActive = hideZeroBalance,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("rm_hide_zero_button"),
+            onClick = onToggleHideZero
+        )
+    }
+}
+
+@Composable
+private fun RmCompactPill(
+    icon: ImageVector,
+    label: String,
+    isActive: Boolean = false,
+    activeColor: Color = SolidPrimary,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val bgColor = if (isActive) activeColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    val borderColor = if (isActive) activeColor.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val contentColor = if (isActive) activeColor else MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = bgColor,
+        border = BorderStroke(0.85.dp, borderColor),
+        modifier = modifier
+            .height(30.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.5.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(12.5.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 10.5.sp,
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
