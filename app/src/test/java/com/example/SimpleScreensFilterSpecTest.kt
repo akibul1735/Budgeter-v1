@@ -1867,4 +1867,130 @@ class SimpleScreensFilterSpecTest {
         val banglaMatched = com.example.ui.dialogs.findMatchingLabelsInTransactionName("পূর্ণি ফার্মেসি", available)
         assertEquals(listOf("পূর্ণি"), banglaMatched)
     }
+
+    @Test
+    fun testAccountsQuickCycleAndHideZeroActualBalanceRules() {
+        // 1. Cycle orders
+        assertEquals(
+            AccountViewHierarchyFilter.ONLY_GROUPS,
+            com.example.ui.screens.AccountsListFilterHelper.nextDisplayHierarchy(AccountViewHierarchyFilter.ALL)
+        )
+        assertEquals(
+            AccountViewHierarchyFilter.ONLY_ACCOUNTS,
+            com.example.ui.screens.AccountsListFilterHelper.nextDisplayHierarchy(AccountViewHierarchyFilter.ONLY_GROUPS)
+        )
+        assertEquals(
+            AccountViewHierarchyFilter.ALL,
+            com.example.ui.screens.AccountsListFilterHelper.nextDisplayHierarchy(AccountViewHierarchyFilter.ONLY_ACCOUNTS)
+        )
+
+        assertEquals(
+            com.example.ui.screens.AccountsScopeFilter.INCLUDED,
+            com.example.ui.screens.AccountsListFilterHelper.nextScopeFilter(com.example.ui.screens.AccountsScopeFilter.ACTIVE)
+        )
+        assertEquals(
+            com.example.ui.screens.AccountsScopeFilter.EXCLUDED,
+            com.example.ui.screens.AccountsListFilterHelper.nextScopeFilter(com.example.ui.screens.AccountsScopeFilter.INCLUDED)
+        )
+        assertEquals(
+            com.example.ui.screens.AccountsScopeFilter.ACTIVE,
+            com.example.ui.screens.AccountsListFilterHelper.nextScopeFilter(com.example.ui.screens.AccountsScopeFilter.EXCLUDED)
+        )
+
+        assertEquals(
+            AccountSortFilter.NAME_ZA,
+            com.example.ui.screens.AccountsListFilterHelper.nextSortFilter(AccountSortFilter.NAME_AZ)
+        )
+        assertEquals(
+            AccountSortFilter.AMOUNT_HIGH_TO_LOW,
+            com.example.ui.screens.AccountsListFilterHelper.nextSortFilter(AccountSortFilter.NAME_ZA)
+        )
+        assertEquals(
+            AccountSortFilter.AMOUNT_LOW_TO_HIGH,
+            com.example.ui.screens.AccountsListFilterHelper.nextSortFilter(AccountSortFilter.AMOUNT_HIGH_TO_LOW)
+        )
+        assertEquals(
+            AccountSortFilter.NAME_AZ,
+            com.example.ui.screens.AccountsListFilterHelper.nextSortFilter(AccountSortFilter.AMOUNT_LOW_TO_HIGH)
+        )
+
+        // 2. Actual vs Effective 0-balance filtering in Excluded and Active modes
+        val accIncludedNonZero = Account(id = 1L, nameEn = "Cash", nameBn = "নগদ", type = com.example.data.model.AccountType.ASSET)
+        val accIncludedZero = Account(id = 2L, nameEn = "Empty Included", nameBn = "খালি ১", type = com.example.data.model.AccountType.ASSET)
+        val accExcludedNonZero = Account(id = 3L, nameEn = "FD Vault", nameBn = "এফডি", type = com.example.data.model.AccountType.ASSET)
+        val accExcludedZero = Account(id = 4L, nameEn = "Empty Excluded", nameBn = "খালি ২", type = com.example.data.model.AccountType.ASSET)
+        val accAdjustedToZero = Account(id = 5L, nameEn = "Adjusted Wallet", nameBn = "সমন্বিত", type = com.example.data.model.AccountType.ASSET)
+
+        val groups = listOf(
+            com.example.data.repository.AccountWithBalance(accIncludedNonZero, 2500.0),
+            com.example.data.repository.AccountWithBalance(accIncludedZero, 0.0),
+            com.example.data.repository.AccountWithBalance(accExcludedNonZero, 10000.0),
+            com.example.data.repository.AccountWithBalance(accExcludedZero, 0.0),
+            com.example.data.repository.AccountWithBalance(accAdjustedToZero, 4000.0)
+        )
+        val calcConfig = com.example.util.AccountCalcConfig(
+            settings = mapOf(
+                3L to com.example.util.AccountCalcSetting(isIncluded = false, adjustmentAmount = 0.0),
+                4L to com.example.util.AccountCalcSetting(isIncluded = false, adjustmentAmount = 0.0),
+                5L to com.example.util.AccountCalcSetting(isIncluded = true, adjustmentAmount = -4000.0)
+            )
+        )
+
+        // Excluded + Hide 0 ON: must show FD Vault (10000) & Adjusted Wallet (actual 4000), hide Empty Excluded (0)
+        val excludedGroupsHideZero = com.example.ui.screens.AccountsListFilterHelper.filterGroups(
+            sourceGroups = groups,
+            scope = com.example.ui.screens.AccountsScopeFilter.EXCLUDED,
+            selectedTypeFilter = null,
+            excludeZeroBalance = true,
+            searchQuery = "",
+            sortFilter = AccountSortFilter.NAME_AZ,
+            config = calcConfig,
+            languageMode = LanguageMode.ENGLISH,
+            groupUsageCount = { 0 }
+        )
+        assertEquals(listOf("Adjusted Wallet", "FD Vault"), excludedGroupsHideZero.map { it.account.nameEn })
+
+        val excludedFlatHideZero = com.example.ui.screens.AccountsListFilterHelper.buildFlattenedAccounts(
+            sourceGroups = groups,
+            scope = com.example.ui.screens.AccountsScopeFilter.EXCLUDED,
+            selectedTypeFilter = null,
+            excludeZeroBalance = true,
+            searchQuery = "",
+            sortFilter = AccountSortFilter.AMOUNT_HIGH_TO_LOW,
+            config = calcConfig,
+            languageMode = LanguageMode.ENGLISH,
+            accountUsageCount = { 0 },
+            activeSubsOnly = true
+        )
+        assertEquals(listOf("FD Vault", "Adjusted Wallet"), excludedFlatHideZero.map { it.accountWithBalance.account.nameEn })
+
+        // Active + Hide 0 ON: must show Cash (2500), FD Vault (excluded, actual 10000), Adjusted Wallet (actual 4000),
+        // and hide Empty Included (0) and Empty Excluded (0)
+        val activeGroupsHideZero = com.example.ui.screens.AccountsListFilterHelper.filterGroups(
+            sourceGroups = groups,
+            scope = com.example.ui.screens.AccountsScopeFilter.ACTIVE,
+            selectedTypeFilter = null,
+            excludeZeroBalance = true,
+            searchQuery = "",
+            sortFilter = AccountSortFilter.NAME_AZ,
+            config = calcConfig,
+            languageMode = LanguageMode.ENGLISH,
+            groupUsageCount = { 0 }
+        )
+        assertEquals(listOf("Adjusted Wallet", "Cash", "FD Vault"), activeGroupsHideZero.map { it.account.nameEn })
+
+        // Included + Hide 0 ON: only included with non-zero effective balance -> Cash (2500)
+        val includedGroupsHideZero = com.example.ui.screens.AccountsListFilterHelper.filterGroups(
+            sourceGroups = groups,
+            scope = com.example.ui.screens.AccountsScopeFilter.INCLUDED,
+            selectedTypeFilter = null,
+            excludeZeroBalance = true,
+            searchQuery = "",
+            sortFilter = AccountSortFilter.NAME_AZ,
+            config = calcConfig,
+            languageMode = LanguageMode.ENGLISH,
+            groupUsageCount = { 0 }
+        )
+        assertEquals(listOf("Cash"), includedGroupsHideZero.map { it.account.nameEn })
+    }
 }

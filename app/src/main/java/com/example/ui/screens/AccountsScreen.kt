@@ -33,16 +33,21 @@ import com.example.ui.theme.rememberFluidFlingBehavior
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
@@ -110,7 +115,7 @@ import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
 import com.example.ui.components.filter.specs.AccountsFilterSpec
 import androidx.compose.runtime.saveable.rememberSaveable
-import com.example.ui.components.AccountInclusionToggleBar
+import androidx.compose.ui.unit.Velocity
 import com.example.ui.components.AccountsMoreFilterSheet
 import com.example.ui.components.AccountsSortFilterSheet
 import com.example.util.AccountInclusionViewMode
@@ -119,6 +124,7 @@ import com.example.util.AccountCalcConfig
 import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import kotlin.math.abs
 
 private val SlateText = Color(0xFF64748B)
 
@@ -129,13 +135,10 @@ enum class AccountViewHierarchyFilter {
     ONLY_ACCOUNTS
 }
 
-enum class AccountsViewTab {
-    ALL,
-    GROUPS,
-    ACCOUNTS,
-    EXCLUDED,
-    ALL_ACTIVE,
-    ALL_INCLUDED
+enum class AccountsScopeFilter {
+    ACTIVE,
+    INCLUDED,
+    EXCLUDED
 }
 
 enum class AccountSortFilter {
@@ -160,6 +163,369 @@ data class FlattenedAccountItem(
     val effectiveBalance: Double,
     val usageCount: Int
 )
+
+internal object AccountsListFilterHelper {
+    private const val ZERO_EPSILON = 0.0001
+
+    fun nextDisplayHierarchy(current: AccountViewHierarchyFilter): AccountViewHierarchyFilter =
+        when (current) {
+            AccountViewHierarchyFilter.ALL -> AccountViewHierarchyFilter.ONLY_GROUPS
+            AccountViewHierarchyFilter.ONLY_GROUPS -> AccountViewHierarchyFilter.ONLY_ACCOUNTS
+            AccountViewHierarchyFilter.ONLY_ACCOUNTS,
+            AccountViewHierarchyFilter.EXCLUDED -> AccountViewHierarchyFilter.ALL
+        }
+
+    fun nextScopeFilter(current: AccountsScopeFilter): AccountsScopeFilter =
+        when (current) {
+            AccountsScopeFilter.ACTIVE -> AccountsScopeFilter.INCLUDED
+            AccountsScopeFilter.INCLUDED -> AccountsScopeFilter.EXCLUDED
+            AccountsScopeFilter.EXCLUDED -> AccountsScopeFilter.ACTIVE
+        }
+
+    fun nextSortFilter(current: AccountSortFilter): AccountSortFilter =
+        when (current) {
+            AccountSortFilter.DEFAULT,
+            AccountSortFilter.NAME_AZ -> AccountSortFilter.NAME_ZA
+            AccountSortFilter.NAME_ZA -> AccountSortFilter.AMOUNT_HIGH_TO_LOW
+            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> AccountSortFilter.AMOUNT_LOW_TO_HIGH
+            AccountSortFilter.AMOUNT_LOW_TO_HIGH,
+            AccountSortFilter.MOST_USED,
+            AccountSortFilter.LEAST_USED -> AccountSortFilter.NAME_AZ
+        }
+
+    fun effectiveSortFilter(sort: AccountSortFilter): AccountSortFilter =
+        if (sort == AccountSortFilter.DEFAULT) AccountSortFilter.NAME_AZ else sort
+
+    fun computeEffectiveSubBalance(subItem: AccountWithBalance, config: AccountCalcConfig): Double {
+        val setting = config.getSetting(subItem.account.id)
+        if (!setting.isIncluded) return 0.0
+        return subItem.currentBalance + setting.adjustmentAmount
+    }
+
+    fun computeEffectiveGroupBalance(groupItem: AccountWithBalance, config: AccountCalcConfig): Double {
+        val groupSetting = config.getSetting(groupItem.account.id)
+        if (!groupSetting.isIncluded) return 0.0
+        if (groupItem.subAccounts.isEmpty()) {
+            return groupItem.currentBalance + groupSetting.adjustmentAmount
+        }
+        val activeSubs = groupItem.subAccounts.filter { it.account.isActive }
+        return activeSubs.sumOf { computeEffectiveSubBalance(it, config) } + groupSetting.adjustmentAmount
+    }
+
+    fun computeActualGroupBalance(groupItem: AccountWithBalance, activeSubsOnly: Boolean = true): Double {
+        if (groupItem.subAccounts.isEmpty()) return groupItem.currentBalance
+        val subs = if (activeSubsOnly) groupItem.subAccounts.filter { it.account.isActive } else groupItem.subAccounts
+        return if (subs.isNotEmpty()) subs.sumOf { it.currentBalance } else groupItem.currentBalance
+    }
+
+    fun computeDisplayedSubBalance(subItem: AccountWithBalance, config: AccountCalcConfig): Double {
+        val setting = config.getSetting(subItem.account.id)
+        return if (setting.isIncluded) subItem.currentBalance + setting.adjustmentAmount else subItem.currentBalance
+    }
+
+    fun computeDisplayedGroupBalance(groupItem: AccountWithBalance, config: AccountCalcConfig): Double {
+        val setting = config.getSetting(groupItem.account.id)
+        return if (setting.isIncluded) {
+            computeEffectiveGroupBalance(groupItem, config)
+        } else {
+            computeActualGroupBalance(groupItem, activeSubsOnly = groupItem.account.isActive)
+        }
+    }
+
+    fun isZeroAmount(value: Double): Boolean = abs(value) < ZERO_EPSILON
+
+    fun isItemAssetSide(account: Account, balanceForSide: Double): Boolean {
+        return if (balanceForSide > ZERO_EPSILON) {
+            true
+        } else if (balanceForSide < -ZERO_EPSILON) {
+            false
+        } else {
+            account.type == AccountType.ASSET
+        }
+    }
+
+    fun matchesSearch(account: Account, query: String, languageMode: LanguageMode): Boolean {
+        if (query.isBlank()) return true
+        return account.localizedName(languageMode).contains(query, ignoreCase = true) ||
+            account.nameEn.contains(query, ignoreCase = true) ||
+            account.nameBn.contains(query, ignoreCase = true)
+    }
+
+    fun sortGroups(
+        list: List<AccountWithBalance>,
+        sortFilter: AccountSortFilter,
+        scope: AccountsScopeFilter,
+        config: AccountCalcConfig,
+        languageMode: LanguageMode,
+        groupUsageCount: (AccountWithBalance) -> Int
+    ): List<AccountWithBalance> {
+        val activeSort = effectiveSortFilter(sortFilter)
+        val balanceForSort: (AccountWithBalance) -> Double = { item ->
+            when (scope) {
+                AccountsScopeFilter.INCLUDED -> computeEffectiveGroupBalance(item, config)
+                AccountsScopeFilter.EXCLUDED,
+                AccountsScopeFilter.ACTIVE -> computeDisplayedGroupBalance(item, config)
+            }
+        }
+        return when (activeSort) {
+            AccountSortFilter.DEFAULT -> list
+            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> list.sortedByDescending(balanceForSort)
+            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> list.sortedBy(balanceForSort)
+            AccountSortFilter.MOST_USED -> list.sortedByDescending { groupUsageCount(it) }
+            AccountSortFilter.LEAST_USED -> list.sortedBy { groupUsageCount(it) }
+            AccountSortFilter.NAME_AZ -> list.sortedBy { it.account.localizedName(languageMode).lowercase() }
+            AccountSortFilter.NAME_ZA -> list.sortedByDescending { it.account.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    fun sortSubAccounts(
+        list: List<AccountWithBalance>,
+        sortFilter: AccountSortFilter,
+        scope: AccountsScopeFilter,
+        config: AccountCalcConfig,
+        languageMode: LanguageMode,
+        accountUsageCount: (Long) -> Int
+    ): List<AccountWithBalance> {
+        val activeSort = effectiveSortFilter(sortFilter)
+        val balanceForSort: (AccountWithBalance) -> Double = { item ->
+            when (scope) {
+                AccountsScopeFilter.INCLUDED -> computeEffectiveSubBalance(item, config)
+                AccountsScopeFilter.EXCLUDED,
+                AccountsScopeFilter.ACTIVE -> computeDisplayedSubBalance(item, config)
+            }
+        }
+        return when (activeSort) {
+            AccountSortFilter.DEFAULT -> list
+            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> list.sortedByDescending(balanceForSort)
+            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> list.sortedBy(balanceForSort)
+            AccountSortFilter.MOST_USED -> list.sortedByDescending { accountUsageCount(it.account.id) }
+            AccountSortFilter.LEAST_USED -> list.sortedBy { accountUsageCount(it.account.id) }
+            AccountSortFilter.NAME_AZ -> list.sortedBy { it.account.localizedName(languageMode).lowercase() }
+            AccountSortFilter.NAME_ZA -> list.sortedByDescending { it.account.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    fun filterGroups(
+        sourceGroups: List<AccountWithBalance>,
+        scope: AccountsScopeFilter,
+        selectedTypeFilter: AccountType?,
+        excludeZeroBalance: Boolean,
+        searchQuery: String,
+        sortFilter: AccountSortFilter,
+        config: AccountCalcConfig,
+        languageMode: LanguageMode,
+        groupUsageCount: (AccountWithBalance) -> Int,
+        isInactiveSource: Boolean = false
+    ): List<AccountWithBalance> {
+        val typeFiltered = when (selectedTypeFilter) {
+            AccountType.ASSET -> sourceGroups.filter {
+                val bal = if (scope == AccountsScopeFilter.INCLUDED) {
+                    computeEffectiveGroupBalance(it, config)
+                } else {
+                    computeActualGroupBalance(it, activeSubsOnly = !isInactiveSource)
+                }
+                isItemAssetSide(it.account, bal)
+            }
+            AccountType.LIABILITY -> sourceGroups.filter {
+                val bal = if (scope == AccountsScopeFilter.INCLUDED) {
+                    computeEffectiveGroupBalance(it, config)
+                } else {
+                    computeActualGroupBalance(it, activeSubsOnly = !isInactiveSource)
+                }
+                !isItemAssetSide(it.account, bal)
+            }
+            else -> sourceGroups
+        }
+
+        val scopeFiltered = when (scope) {
+            AccountsScopeFilter.ACTIVE -> typeFiltered
+            AccountsScopeFilter.INCLUDED -> typeFiltered.mapNotNull { group ->
+                if (!config.isIncluded(group.account.id)) return@mapNotNull null
+                if (group.subAccounts.isEmpty()) {
+                    group
+                } else {
+                    val includedSubs = group.subAccounts.filter { config.isIncluded(it.account.id) }
+                    if (includedSubs.isNotEmpty()) group.copy(subAccounts = includedSubs) else null
+                }
+            }
+            AccountsScopeFilter.EXCLUDED -> typeFiltered.mapNotNull { group ->
+                val isGroupExcludedOrAdjusted = !config.isIncluded(group.account.id) ||
+                    config.getSetting(group.account.id).adjustmentAmount != 0.0
+                if (group.subAccounts.isEmpty()) {
+                    if (isGroupExcludedOrAdjusted) group else null
+                } else {
+                    val candidateSubs = if (isGroupExcludedOrAdjusted) {
+                        group.subAccounts
+                    } else {
+                        group.subAccounts.filter {
+                            !config.isIncluded(it.account.id) || config.getSetting(it.account.id).adjustmentAmount != 0.0
+                        }
+                    }
+                    if (isGroupExcludedOrAdjusted || candidateSubs.isNotEmpty()) {
+                        group.copy(subAccounts = candidateSubs)
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
+
+        // Hide 0 rule:
+        // - In ACTIVE and EXCLUDED, Hide 0 checks ACTUAL balance (`currentBalance`) so excluded/adjusted
+        //   accounts with non-zero actual balances remain visible while actual 0 balances are hidden.
+        // - In INCLUDED, Hide 0 checks effective included balance.
+        val zeroFiltered = if (!excludeZeroBalance) {
+            scopeFiltered
+        } else {
+            scopeFiltered.mapNotNull { group ->
+                if (group.subAccounts.isEmpty()) {
+                    val bal = if (scope == AccountsScopeFilter.INCLUDED) {
+                        computeEffectiveGroupBalance(group, config)
+                    } else {
+                        group.currentBalance
+                    }
+                    if (isZeroAmount(bal)) null else group
+                } else {
+                    val nonZeroSubs = group.subAccounts.filter { sub ->
+                        val subBal = if (scope == AccountsScopeFilter.INCLUDED) {
+                            computeEffectiveSubBalance(sub, config)
+                        } else {
+                            sub.currentBalance
+                        }
+                        !isZeroAmount(subBal)
+                    }
+                    val groupBal = if (scope == AccountsScopeFilter.INCLUDED) {
+                        computeEffectiveGroupBalance(group, config)
+                    } else {
+                        computeActualGroupBalance(group, activeSubsOnly = !isInactiveSource)
+                    }
+                    if (nonZeroSubs.isEmpty() && isZeroAmount(groupBal)) {
+                        null
+                    } else {
+                        group.copy(subAccounts = nonZeroSubs)
+                    }
+                }
+            }
+        }
+
+        val searchFiltered = if (searchQuery.isBlank()) {
+            zeroFiltered
+        } else {
+            zeroFiltered.mapNotNull { group ->
+                val groupMatches = matchesSearch(group.account, searchQuery, languageMode)
+                val matchingSubs = group.subAccounts.filter { matchesSearch(it.account, searchQuery, languageMode) }
+                if (groupMatches) group
+                else if (matchingSubs.isNotEmpty()) group.copy(subAccounts = matchingSubs)
+                else null
+            }
+        }
+
+        return sortGroups(searchFiltered, sortFilter, scope, config, languageMode, groupUsageCount)
+    }
+
+    fun buildFlattenedAccounts(
+        sourceGroups: List<AccountWithBalance>,
+        scope: AccountsScopeFilter,
+        selectedTypeFilter: AccountType?,
+        excludeZeroBalance: Boolean,
+        searchQuery: String,
+        sortFilter: AccountSortFilter,
+        config: AccountCalcConfig,
+        languageMode: LanguageMode,
+        accountUsageCount: (Long) -> Int,
+        activeSubsOnly: Boolean
+    ): List<FlattenedAccountItem> {
+        val items = mutableListOf<FlattenedAccountItem>()
+        for (group in sourceGroups) {
+            val isParentExcludedOrAdjusted = !config.isIncluded(group.account.id) ||
+                config.getSetting(group.account.id).adjustmentAmount != 0.0
+            val isParentIncluded = config.isIncluded(group.account.id)
+
+            if (group.subAccounts.isEmpty()) {
+                val matchesScope = when (scope) {
+                    AccountsScopeFilter.ACTIVE -> true
+                    AccountsScopeFilter.INCLUDED -> isParentIncluded
+                    AccountsScopeFilter.EXCLUDED -> isParentExcludedOrAdjusted
+                }
+                if (!matchesScope) continue
+
+                val eff = computeEffectiveGroupBalance(group, config)
+                val balForSide = if (scope == AccountsScopeFilter.INCLUDED) eff else computeDisplayedGroupBalance(group, config)
+                val isAssetSide = isItemAssetSide(group.account, balForSide)
+                val matchesType = when (selectedTypeFilter) {
+                    AccountType.ASSET -> isAssetSide
+                    AccountType.LIABILITY -> !isAssetSide
+                    else -> true
+                }
+                val balForZeroCheck = if (scope == AccountsScopeFilter.INCLUDED) eff else group.currentBalance
+                if (matchesType && (!excludeZeroBalance || !isZeroAmount(balForZeroCheck))) {
+                    items.add(
+                        FlattenedAccountItem(
+                            accountWithBalance = group,
+                            parentGroup = null,
+                            effectiveBalance = if (scope == AccountsScopeFilter.ACTIVE || scope == AccountsScopeFilter.INCLUDED) eff else group.currentBalance,
+                            usageCount = accountUsageCount(group.account.id)
+                        )
+                    )
+                }
+            } else {
+                val subs = if (activeSubsOnly) group.subAccounts.filter { it.account.isActive } else group.subAccounts
+                for (sub in subs) {
+                    val subSetting = config.getSetting(sub.account.id)
+                    val isSubIncluded = isParentIncluded && subSetting.isIncluded
+                    val isSubExcludedOrAdjusted = isParentExcludedOrAdjusted || !subSetting.isIncluded || subSetting.adjustmentAmount != 0.0
+                    val matchesScope = when (scope) {
+                        AccountsScopeFilter.ACTIVE -> true
+                        AccountsScopeFilter.INCLUDED -> isSubIncluded
+                        AccountsScopeFilter.EXCLUDED -> isSubExcludedOrAdjusted
+                    }
+                    if (!matchesScope) continue
+
+                    val eff = computeEffectiveSubBalance(sub, config)
+                    val balForSide = if (scope == AccountsScopeFilter.INCLUDED) eff else computeDisplayedSubBalance(sub, config)
+                    val isAssetSide = isItemAssetSide(sub.account, balForSide)
+                    val matchesType = when (selectedTypeFilter) {
+                        AccountType.ASSET -> isAssetSide
+                        AccountType.LIABILITY -> !isAssetSide
+                        else -> true
+                    }
+                    val balForZeroCheck = if (scope == AccountsScopeFilter.INCLUDED) eff else sub.currentBalance
+                    if (matchesType && (!excludeZeroBalance || !isZeroAmount(balForZeroCheck))) {
+                        items.add(
+                            FlattenedAccountItem(
+                                accountWithBalance = sub,
+                                parentGroup = group.account,
+                                effectiveBalance = eff,
+                                usageCount = accountUsageCount(sub.account.id)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        val searchFiltered = if (searchQuery.isBlank()) {
+            items
+        } else {
+            items.filter { matchesSearch(it.accountWithBalance.account, searchQuery, languageMode) }
+        }
+
+        val activeSort = effectiveSortFilter(sortFilter)
+        val sortBalance: (FlattenedAccountItem) -> Double = { item ->
+            if (scope == AccountsScopeFilter.INCLUDED) item.effectiveBalance
+            else computeDisplayedSubBalance(item.accountWithBalance, config)
+        }
+        return when (activeSort) {
+            AccountSortFilter.DEFAULT -> searchFiltered
+            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> searchFiltered.sortedByDescending(sortBalance)
+            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> searchFiltered.sortedBy(sortBalance)
+            AccountSortFilter.MOST_USED -> searchFiltered.sortedByDescending { it.usageCount }
+            AccountSortFilter.LEAST_USED -> searchFiltered.sortedBy { it.usageCount }
+            AccountSortFilter.NAME_AZ -> searchFiltered.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+            AccountSortFilter.NAME_ZA -> searchFiltered.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+        }
+    }
+}
 
 @Composable
 fun AccountsScreen(
@@ -190,11 +556,6 @@ fun AccountsScreen(
     val context = LocalContext.current
     val calcPrefs = remember { AccountCalculationPreferences.getInstance(context) }
     var inclusionViewMode by rememberSaveable { mutableStateOf<AccountInclusionViewMode>(calcPrefs.getInclusionViewMode()) }
-    val isAllActiveView = inclusionViewMode == AccountInclusionViewMode.ALL_ACTIVE
-
-    val activeViewConfig = remember(inclusionViewMode, accountCalcConfig) {
-        if (isAllActiveView) AccountCalcConfig() else accountCalcConfig
-    }
 
     val filterStore = remember { FilterStore.getInstance(context) }
     var filterState by remember {
@@ -223,6 +584,29 @@ fun AccountsScreen(
     val excludeZeroBalance = remember(filterState) { AccountsFilterSpec.getExcludeZeroBalance(filterState) }
     val accountsSpec = remember { AccountsFilterSpec.createSpec() }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
+
+    var scopeFilter by rememberSaveable {
+        mutableStateOf(
+            when {
+                hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED -> AccountsScopeFilter.EXCLUDED
+                inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED -> AccountsScopeFilter.INCLUDED
+                else -> AccountsScopeFilter.ACTIVE
+            }
+        )
+    }
+    var displayHierarchy by rememberSaveable {
+        mutableStateOf(
+            if (hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS ||
+                hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS
+            ) {
+                hierarchyFilter
+            } else {
+                AccountViewHierarchyFilter.ALL
+            }
+        )
+    }
+
+    val activeViewConfig = accountCalcConfig
 
     // State for Adjust Calculation Dialog
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
@@ -256,32 +640,15 @@ fun AccountsScreen(
         accountsWithBalances.filter { !it.account.isActive }
     }
 
-    // Helper to compute effective balance for a sub-account
-    fun computeEffectiveSubBalance(subItem: AccountWithBalance): Double {
-        val setting = activeViewConfig.getSetting(subItem.account.id)
-        if (!setting.isIncluded) return 0.0
-        return subItem.currentBalance + setting.adjustmentAmount
-    }
+    fun computeEffectiveSubBalance(subItem: AccountWithBalance): Double =
+        AccountsListFilterHelper.computeEffectiveSubBalance(subItem, activeViewConfig)
 
-    // Helper to compute effective balance for a group
-    fun computeEffectiveGroupBalance(groupItem: AccountWithBalance): Double {
-        val groupSetting = activeViewConfig.getSetting(groupItem.account.id)
-        if (!groupSetting.isIncluded) return 0.0
+    fun computeEffectiveGroupBalance(groupItem: AccountWithBalance): Double =
+        AccountsListFilterHelper.computeEffectiveGroupBalance(groupItem, activeViewConfig)
 
-        if (groupItem.subAccounts.isEmpty()) {
-            return groupItem.currentBalance + groupSetting.adjustmentAmount
-        }
-
-        val activeSubs = groupItem.subAccounts.filter { it.account.isActive }
-        val sumSubs = activeSubs.sumOf { computeEffectiveSubBalance(it) }
-        return sumSubs + groupSetting.adjustmentAmount
-    }
-
-    // Helper to compute actual balance for an account/group (strictly active only)
     fun computeActualGroupBalance(groupItem: AccountWithBalance): Double {
         if (!groupItem.account.isActive) return 0.0
-        if (groupItem.subAccounts.isEmpty()) return groupItem.currentBalance
-        return groupItem.subAccounts.filter { it.account.isActive }.sumOf { it.currentBalance }
+        return AccountsListFilterHelper.computeActualGroupBalance(groupItem, activeSubsOnly = true)
     }
 
     // Actual Totals (Unmodified active accounts)
@@ -312,125 +679,46 @@ fun AccountsScreen(
     // Calculated Totals (Reflecting Include/Exclude & Adjustments)
     val calculatedTotalAssets = remember(activeAccounts, accountCalcConfig) {
         val assetPos = activeAccounts.filter { it.account.type == AccountType.ASSET }
-            .map { computeEffectiveGroupBalance(it) }
+            .map { AccountsListFilterHelper.computeEffectiveGroupBalance(it, accountCalcConfig) }
             .filter { it > 0 }
             .sumOf { it }
         val liabPos = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
-            .map { computeEffectiveGroupBalance(it) }
+            .map { AccountsListFilterHelper.computeEffectiveGroupBalance(it, accountCalcConfig) }
             .filter { it > 0 }
             .sumOf { it }
         assetPos + liabPos
     }
     val calculatedTotalLiabilities = remember(activeAccounts, accountCalcConfig) {
         val liabNeg = activeAccounts.filter { it.account.type == AccountType.LIABILITY }
-            .map { computeEffectiveGroupBalance(it) }
+            .map { AccountsListFilterHelper.computeEffectiveGroupBalance(it, accountCalcConfig) }
             .filter { it < 0 }
             .sumOf { -it }
         val assetNeg = activeAccounts.filter { it.account.type == AccountType.ASSET }
-            .map { computeEffectiveGroupBalance(it) }
+            .map { AccountsListFilterHelper.computeEffectiveGroupBalance(it, accountCalcConfig) }
             .filter { it < 0 }
             .sumOf { -it }
         liabNeg + assetNeg
     }
     val calculatedNetWorth = calculatedTotalAssets - calculatedTotalLiabilities
 
-    // Helper to sort a list of groups
-    fun sortGroups(list: List<AccountWithBalance>): List<AccountWithBalance> {
-        return when (sortFilter) {
-            AccountSortFilter.DEFAULT -> list
-            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> list.sortedByDescending { computeEffectiveGroupBalance(it) }
-            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> list.sortedBy { computeEffectiveGroupBalance(it) }
-            AccountSortFilter.MOST_USED -> list.sortedByDescending { groupUsageCount(it) }
-            AccountSortFilter.LEAST_USED -> list.sortedBy { groupUsageCount(it) }
-            AccountSortFilter.NAME_AZ -> list.sortedBy { it.account.localizedName(languageMode).lowercase() }
-            AccountSortFilter.NAME_ZA -> list.sortedByDescending { it.account.localizedName(languageMode).lowercase() }
-        }
-    }
-
-    // Helper to sort sub-accounts within a group
-    fun sortSubAccounts(list: List<AccountWithBalance>): List<AccountWithBalance> {
-        return when (sortFilter) {
-            AccountSortFilter.DEFAULT -> list
-            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> list.sortedByDescending { computeEffectiveSubBalance(it) }
-            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> list.sortedBy { computeEffectiveSubBalance(it) }
-            AccountSortFilter.MOST_USED -> list.sortedByDescending { accountUsageCount(it.account.id) }
-            AccountSortFilter.LEAST_USED -> list.sortedBy { accountUsageCount(it.account.id) }
-            AccountSortFilter.NAME_AZ -> list.sortedBy { it.account.localizedName(languageMode).lowercase() }
-            AccountSortFilter.NAME_ZA -> list.sortedByDescending { it.account.localizedName(languageMode).lowercase() }
-        }
-    }
-
-    // Helper to check if an account / sub-account has 0 balance after adjustments
-    fun isZeroBalance(accWithBalance: AccountWithBalance, effectiveBal: Double): Boolean {
-        return Math.abs(effectiveBal) < 0.0001
-    }
-
-    // Helper to filter zero balance in a list of groups
-    fun filterZeroBalanceGroups(groups: List<AccountWithBalance>): List<AccountWithBalance> {
-        if (!excludeZeroBalance) return groups
-        return groups.mapNotNull { group ->
-            if (group.subAccounts.isEmpty()) {
-                val effBal = computeEffectiveGroupBalance(group)
-                if (isZeroBalance(group, effBal)) null else group
-            } else {
-                val nonZeroSubs = group.subAccounts.filter { sub ->
-                    val effSubBal = computeEffectiveSubBalance(sub)
-                    !isZeroBalance(sub, effSubBal)
-                }
-                val groupEffBal = computeEffectiveGroupBalance(group)
-                val isGroupZero = Math.abs(groupEffBal) < 0.0001
-                if (nonZeroSubs.isEmpty() && isGroupZero) {
-                    null
-                } else {
-                    group.copy(subAccounts = nonZeroSubs)
-                }
-            }
-        }
-    }
-
-    // Helper to determine if an active group belongs to the Asset side (positive balance or declared Asset)
-    fun isGroupAssetSide(groupItem: AccountWithBalance): Boolean {
-        val eff = computeEffectiveGroupBalance(groupItem)
-        return if (eff > 0.0001) {
-            true // Positive balance -> Asset side (including overpaid liabilities)
-        } else if (eff < -0.0001) {
-            false // Negative balance -> Liability side (including overdraft assets)
-        } else {
-            groupItem.account.type == AccountType.ASSET
-        }
-    }
-
-    // Helper to determine if an inactive group belongs to the Asset side
-    fun isInactiveGroupAssetSide(groupItem: AccountWithBalance): Boolean {
-        val bal = if (groupItem.subAccounts.isEmpty()) groupItem.currentBalance else groupItem.subAccounts.sumOf { it.currentBalance }
-        return if (bal > 0.0001) {
-            true
-        } else if (bal < -0.0001) {
-            false
-        } else {
-            groupItem.account.type == AccountType.ASSET
-        }
-    }
-
-    // Helper to determine if an individual item (sub-account or single account) belongs to the Asset side
-    fun isItemAssetSide(item: AccountWithBalance, effBal: Double): Boolean {
-        return if (effBal > 0.0001) {
-            true
-        } else if (effBal < -0.0001) {
-            false
-        } else {
-            item.account.type == AccountType.ASSET
-        }
-    }
+    fun sortSubAccounts(list: List<AccountWithBalance>): List<AccountWithBalance> =
+        AccountsListFilterHelper.sortSubAccounts(
+            list = list,
+            sortFilter = sortFilter,
+            scope = scopeFilter,
+            config = activeViewConfig,
+            languageMode = languageMode,
+            accountUsageCount = accountUsageCount
+        )
 
     val displayedActiveGroups = remember(
         activeAccounts,
+        scopeFilter,
         selectedTypeFilter,
         sortFilter,
         statusFilter,
         excludeZeroBalance,
         activeViewConfig,
-        inclusionViewMode,
         allTransactions,
         searchQuery,
         languageMode
@@ -438,50 +726,29 @@ fun AccountsScreen(
         if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
             emptyList()
         } else {
-            val base = when (selectedTypeFilter) {
-                AccountType.ASSET -> activeAccounts.filter { isGroupAssetSide(it) }
-                AccountType.LIABILITY -> activeAccounts.filter { !isGroupAssetSide(it) }
-                else -> activeAccounts
-            }
-            val inclusionFiltered = if (inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED) {
-                base.mapNotNull { group ->
-                    if (group.subAccounts.isEmpty()) {
-                        if (accountCalcConfig.isIncluded(group.account.id)) group else null
-                    } else {
-                        val includedSubs = group.subAccounts.filter { accountCalcConfig.isIncluded(it.account.id) }
-                        if (includedSubs.isNotEmpty() || accountCalcConfig.isIncluded(group.account.id)) {
-                            group.copy(subAccounts = includedSubs)
-                        } else null
-                    }
-                }
-            } else {
-                base
-            }
-            val zeroFiltered = filterZeroBalanceGroups(inclusionFiltered)
-            val searchFiltered = if (searchQuery.isBlank()) zeroFiltered else zeroFiltered.mapNotNull { group ->
-                val groupMatches = group.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
-                    group.account.nameEn.contains(searchQuery, ignoreCase = true) ||
-                    group.account.nameBn.contains(searchQuery, ignoreCase = true)
-                val matchingSubs = group.subAccounts.filter { sub ->
-                    sub.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
-                    sub.account.nameEn.contains(searchQuery, ignoreCase = true) ||
-                    sub.account.nameBn.contains(searchQuery, ignoreCase = true)
-                }
-                if (groupMatches) group
-                else if (matchingSubs.isNotEmpty()) group.copy(subAccounts = matchingSubs)
-                else null
-            }
-            sortGroups(searchFiltered)
+            AccountsListFilterHelper.filterGroups(
+                sourceGroups = activeAccounts,
+                scope = scopeFilter,
+                selectedTypeFilter = selectedTypeFilter,
+                excludeZeroBalance = excludeZeroBalance,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                config = activeViewConfig,
+                languageMode = languageMode,
+                groupUsageCount = groupUsageCount,
+                isInactiveSource = false
+            )
         }
     }
 
     val displayedInactiveGroups = remember(
         inactiveAccounts,
+        scopeFilter,
         selectedTypeFilter,
         sortFilter,
         statusFilter,
         excludeZeroBalance,
-        accountCalcConfig,
+        activeViewConfig,
         allTransactions,
         searchQuery,
         languageMode
@@ -489,67 +756,53 @@ fun AccountsScreen(
         if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
             emptyList()
         } else {
-            val base = when (selectedTypeFilter) {
-                AccountType.ASSET -> inactiveAccounts.filter { isInactiveGroupAssetSide(it) }
-                AccountType.LIABILITY -> inactiveAccounts.filter { !isInactiveGroupAssetSide(it) }
-                else -> inactiveAccounts
-            }
-            val zeroFiltered = filterZeroBalanceGroups(base)
-            val searchFiltered = if (searchQuery.isBlank()) zeroFiltered else zeroFiltered.mapNotNull { group ->
-                val groupMatches = group.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
-                    group.account.nameEn.contains(searchQuery, ignoreCase = true) ||
-                    group.account.nameBn.contains(searchQuery, ignoreCase = true)
-                val matchingSubs = group.subAccounts.filter { sub ->
-                    sub.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
-                    sub.account.nameEn.contains(searchQuery, ignoreCase = true) ||
-                    sub.account.nameBn.contains(searchQuery, ignoreCase = true)
-                }
-                if (groupMatches) group
-                else if (matchingSubs.isNotEmpty()) group.copy(subAccounts = matchingSubs)
-                else null
-            }
-            sortGroups(searchFiltered)
+            AccountsListFilterHelper.filterGroups(
+                sourceGroups = inactiveAccounts,
+                scope = scopeFilter,
+                selectedTypeFilter = selectedTypeFilter,
+                excludeZeroBalance = excludeZeroBalance,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                config = activeViewConfig,
+                languageMode = languageMode,
+                groupUsageCount = groupUsageCount,
+                isInactiveSource = true
+            )
         }
     }
 
-    // Excluded accounts view filter (both fully excluded and accounts with balance adjustments)
+    // Combined excluded groups (active + inactive per statusFilter) for ALL / ONLY_GROUPS in EXCLUDED scope
     val displayedExcludedGroups = remember(
         displayedActiveGroups,
         displayedInactiveGroups,
-        accountCalcConfig,
+        scopeFilter,
         sortFilter,
-        statusFilter
+        activeViewConfig,
+        languageMode
     ) {
-        val baseGroups = when (statusFilter) {
-            AccountActiveStatusFilter.ALL -> displayedActiveGroups + displayedInactiveGroups
-            AccountActiveStatusFilter.ACTIVE_ONLY -> displayedActiveGroups
-            AccountActiveStatusFilter.INACTIVE_ONLY -> displayedInactiveGroups
-        }
-        baseGroups.mapNotNull { groupItem ->
-            val isGroupExcluded = !accountCalcConfig.isIncluded(groupItem.account.id)
-            val isGroupAdjusted = accountCalcConfig.getSetting(groupItem.account.id).adjustmentAmount != 0.0
-            val excludedSubs = groupItem.subAccounts.filter {
-                !accountCalcConfig.isIncluded(it.account.id) || accountCalcConfig.getSetting(it.account.id).adjustmentAmount != 0.0
-            }
-            if (isGroupExcluded || isGroupAdjusted) {
-                groupItem
-            } else if (excludedSubs.isNotEmpty()) {
-                groupItem.copy(subAccounts = sortSubAccounts(excludedSubs))
-            } else {
-                null
-            }
+        if (scopeFilter != AccountsScopeFilter.EXCLUDED) {
+            emptyList()
+        } else {
+            AccountsListFilterHelper.sortGroups(
+                list = displayedActiveGroups + displayedInactiveGroups,
+                sortFilter = sortFilter,
+                scope = AccountsScopeFilter.EXCLUDED,
+                config = activeViewConfig,
+                languageMode = languageMode,
+                groupUsageCount = groupUsageCount
+            )
         }
     }
 
-    // Flattened Accounts for ONLY_ACCOUNTS mode
+    // Flattened Accounts for ONLY_ACCOUNTS mode (supports Active, Included, and Excluded)
     val flattenedActiveAccounts = remember(
         activeAccounts,
+        scopeFilter,
         selectedTypeFilter,
         sortFilter,
         statusFilter,
         excludeZeroBalance,
         activeViewConfig,
-        inclusionViewMode,
         allTransactions,
         searchQuery,
         languageMode
@@ -557,76 +810,29 @@ fun AccountsScreen(
         if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
             emptyList()
         } else {
-            val items = mutableListOf<FlattenedAccountItem>()
-            for (group in activeAccounts) {
-                if (group.subAccounts.isEmpty()) {
-                    val eff = computeEffectiveGroupBalance(group)
-                    val isAssetSide = isItemAssetSide(group, eff)
-                    val matchesTypeFilter = when (selectedTypeFilter) {
-                        AccountType.ASSET -> isAssetSide
-                        AccountType.LIABILITY -> !isAssetSide
-                        else -> true
-                    }
-                    if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(group, eff))) {
-                        items.add(
-                            FlattenedAccountItem(
-                                accountWithBalance = group,
-                                parentGroup = null,
-                                effectiveBalance = eff,
-                                usageCount = accountUsageCount(group.account.id)
-                            )
-                        )
-                    }
-                } else {
-                    val activeSubs = group.subAccounts.filter { it.account.isActive }
-                    for (sub in activeSubs) {
-                        val eff = computeEffectiveSubBalance(sub)
-                        val isAssetSide = isItemAssetSide(sub, eff)
-                        val matchesTypeFilter = when (selectedTypeFilter) {
-                            AccountType.ASSET -> isAssetSide
-                            AccountType.LIABILITY -> !isAssetSide
-                            else -> true
-                        }
-                        if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(sub, eff))) {
-                            items.add(
-                                FlattenedAccountItem(
-                                    accountWithBalance = sub,
-                                    parentGroup = group.account,
-                                    effectiveBalance = eff,
-                                    usageCount = accountUsageCount(sub.account.id)
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-            if (inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED) {
-                items.retainAll { accountCalcConfig.isIncluded(it.accountWithBalance.account.id) }
-            }
-            val searchFiltered = if (searchQuery.isBlank()) items else items.filter {
-                it.accountWithBalance.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
-                it.accountWithBalance.account.nameEn.contains(searchQuery, ignoreCase = true) ||
-                it.accountWithBalance.account.nameBn.contains(searchQuery, ignoreCase = true)
-            }
-            when (sortFilter) {
-                AccountSortFilter.DEFAULT -> searchFiltered
-                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> searchFiltered.sortedByDescending { it.effectiveBalance }
-                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> searchFiltered.sortedBy { it.effectiveBalance }
-                AccountSortFilter.MOST_USED -> searchFiltered.sortedByDescending { it.usageCount }
-                AccountSortFilter.LEAST_USED -> searchFiltered.sortedBy { it.usageCount }
-                AccountSortFilter.NAME_AZ -> searchFiltered.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-                AccountSortFilter.NAME_ZA -> searchFiltered.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-            }
+            AccountsListFilterHelper.buildFlattenedAccounts(
+                sourceGroups = activeAccounts,
+                scope = scopeFilter,
+                selectedTypeFilter = selectedTypeFilter,
+                excludeZeroBalance = excludeZeroBalance,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                config = activeViewConfig,
+                languageMode = languageMode,
+                accountUsageCount = accountUsageCount,
+                activeSubsOnly = true
+            )
         }
     }
 
     val flattenedInactiveAccounts = remember(
         inactiveAccounts,
+        scopeFilter,
         selectedTypeFilter,
         sortFilter,
         statusFilter,
         excludeZeroBalance,
-        accountCalcConfig,
+        activeViewConfig,
         allTransactions,
         searchQuery,
         languageMode
@@ -634,62 +840,18 @@ fun AccountsScreen(
         if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
             emptyList()
         } else {
-            val items = mutableListOf<FlattenedAccountItem>()
-            for (group in inactiveAccounts) {
-                if (group.subAccounts.isEmpty()) {
-                    val eff = computeEffectiveGroupBalance(group)
-                    val isAssetSide = isItemAssetSide(group, eff)
-                    val matchesTypeFilter = when (selectedTypeFilter) {
-                        AccountType.ASSET -> isAssetSide
-                        AccountType.LIABILITY -> !isAssetSide
-                        else -> true
-                    }
-                    if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(group, eff))) {
-                        items.add(
-                            FlattenedAccountItem(
-                                accountWithBalance = group,
-                                parentGroup = null,
-                                effectiveBalance = eff,
-                                usageCount = accountUsageCount(group.account.id)
-                            )
-                        )
-                    }
-                } else {
-                    for (sub in group.subAccounts) {
-                        val eff = computeEffectiveSubBalance(sub)
-                        val isAssetSide = isItemAssetSide(sub, eff)
-                        val matchesTypeFilter = when (selectedTypeFilter) {
-                            AccountType.ASSET -> isAssetSide
-                            AccountType.LIABILITY -> !isAssetSide
-                            else -> true
-                        }
-                        if (matchesTypeFilter && (!excludeZeroBalance || !isZeroBalance(sub, eff))) {
-                            items.add(
-                                FlattenedAccountItem(
-                                    accountWithBalance = sub,
-                                    parentGroup = group.account,
-                                    effectiveBalance = eff,
-                                    usageCount = accountUsageCount(sub.account.id)
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-            val searchFiltered = if (searchQuery.isBlank()) items else items.filter {
-                it.accountWithBalance.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
-                it.accountWithBalance.account.nameEn.contains(searchQuery, ignoreCase = true) ||
-                it.accountWithBalance.account.nameBn.contains(searchQuery, ignoreCase = true)
-            }
-            when (sortFilter) {
-                AccountSortFilter.DEFAULT -> searchFiltered
-                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> searchFiltered.sortedByDescending { it.effectiveBalance }
-                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> searchFiltered.sortedBy { it.effectiveBalance }
-                AccountSortFilter.MOST_USED -> searchFiltered.sortedByDescending { it.usageCount }
-                AccountSortFilter.LEAST_USED -> searchFiltered.sortedBy { it.usageCount }
-                AccountSortFilter.NAME_AZ -> searchFiltered.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-                AccountSortFilter.NAME_ZA -> searchFiltered.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-            }
+            AccountsListFilterHelper.buildFlattenedAccounts(
+                sourceGroups = inactiveAccounts,
+                scope = scopeFilter,
+                selectedTypeFilter = selectedTypeFilter,
+                excludeZeroBalance = excludeZeroBalance,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                config = activeViewConfig,
+                languageMode = languageMode,
+                accountUsageCount = accountUsageCount,
+                activeSubsOnly = false
+            )
         }
     }
 
@@ -791,7 +953,7 @@ fun AccountsScreen(
     }
 
     if (showFilterDialog) {
-        val resultMatchCount = remember(filterState, accountsWithBalances, activeAccounts, inactiveAccounts) {
+        val resultMatchCount = remember(filterState, accountsWithBalances, activeAccounts, inactiveAccounts, scopeFilter, activeViewConfig) {
             val type = AccountsFilterSpec.getType(filterState)
             val st = AccountsFilterSpec.getStatus(filterState)
             val ex0 = AccountsFilterSpec.getExcludeZeroBalance(filterState)
@@ -801,12 +963,17 @@ fun AccountsScreen(
                 AccountActiveStatusFilter.ACTIVE_ONLY -> activeAccounts
                 else -> accountsWithBalances
             }
-            val typeFiltered = when (type) {
-                AccountType.ASSET -> base.filter { isGroupAssetSide(it) }
-                AccountType.LIABILITY -> base.filter { !isGroupAssetSide(it) }
-                else -> base
-            }
-            if (ex0) filterZeroBalanceGroups(typeFiltered).size else typeFiltered.size
+            AccountsListFilterHelper.filterGroups(
+                sourceGroups = base,
+                scope = scopeFilter,
+                selectedTypeFilter = type,
+                excludeZeroBalance = ex0,
+                searchQuery = "",
+                sortFilter = sortFilter,
+                config = activeViewConfig,
+                languageMode = languageMode,
+                groupUsageCount = groupUsageCount
+            ).size
         }
 
         AccountsMoreFilterSheet(
@@ -814,6 +981,17 @@ fun AccountsScreen(
             languageMode = languageMode,
             resultCount = resultMatchCount,
             onApply = { newFilter ->
+                val newHierarchy = AccountsFilterSpec.getHierarchy(newFilter)
+                if (newHierarchy == AccountViewHierarchyFilter.EXCLUDED) {
+                    scopeFilter = AccountsScopeFilter.EXCLUDED
+                    inclusionViewMode = AccountInclusionViewMode.NORMAL
+                    calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
+                } else {
+                    displayHierarchy = newHierarchy
+                    if (scopeFilter == AccountsScopeFilter.EXCLUDED) {
+                        scopeFilter = AccountsScopeFilter.ACTIVE
+                    }
+                }
                 updateFilterState(newFilter)
                 showFilterDialog = false
             },
@@ -836,6 +1014,10 @@ fun AccountsScreen(
                 showFilterDialog = true
             },
             onClearFilters = {
+                scopeFilter = AccountsScopeFilter.ACTIVE
+                displayHierarchy = AccountViewHierarchyFilter.ALL
+                inclusionViewMode = AccountInclusionViewMode.NORMAL
+                calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
                 updateFilterState(emptyMap())
                 showSortFilterSheet = false
             },
@@ -864,52 +1046,47 @@ fun AccountsScreen(
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts..."
             )
 
-            val displayedNetWorth = if (isAllActiveView) actualNetWorth else calculatedNetWorth
-            val displayedAssets = if (isAllActiveView) actualTotalAssets else calculatedTotalAssets
-            val displayedLiabilities = if (isAllActiveView) actualTotalLiabilities else calculatedTotalLiabilities
+            val displayedNetWorth = calculatedNetWorth
+            val displayedAssets = calculatedTotalAssets
+            val displayedLiabilities = calculatedTotalLiabilities
 
-            val currentTab = when {
-                inclusionViewMode == AccountInclusionViewMode.ALL_ACTIVE -> AccountsViewTab.ALL_ACTIVE
-                inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED -> AccountsViewTab.ALL_INCLUDED
-                hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS -> AccountsViewTab.GROUPS
-                hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS -> AccountsViewTab.ACCOUNTS
-                hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED -> AccountsViewTab.EXCLUDED
-                else -> AccountsViewTab.ALL
+            val onCycleHierarchy: () -> Unit = {
+                val nextHierarchy = AccountsListFilterHelper.nextDisplayHierarchy(displayHierarchy)
+                displayHierarchy = nextHierarchy
+                if (scopeFilter != AccountsScopeFilter.EXCLUDED) {
+                    updateFilterState(AccountsFilterSpec.withHierarchy(filterState, nextHierarchy))
+                }
             }
 
-            val onSelectTab: (AccountsViewTab) -> Unit = { tab ->
-                when (tab) {
-                    AccountsViewTab.ALL -> {
+            val onCycleScope: () -> Unit = {
+                val nextScope = AccountsListFilterHelper.nextScopeFilter(scopeFilter)
+                scopeFilter = nextScope
+                when (nextScope) {
+                    AccountsScopeFilter.ACTIVE -> {
                         inclusionViewMode = AccountInclusionViewMode.NORMAL
                         calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
-                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL))
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, displayHierarchy))
                     }
-                    AccountsViewTab.GROUPS -> {
-                        inclusionViewMode = AccountInclusionViewMode.NORMAL
-                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
-                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_GROUPS))
+                    AccountsScopeFilter.INCLUDED -> {
+                        inclusionViewMode = AccountInclusionViewMode.ALL_INCLUDED
+                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.ALL_INCLUDED)
+                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, displayHierarchy))
                     }
-                    AccountsViewTab.ACCOUNTS -> {
-                        inclusionViewMode = AccountInclusionViewMode.NORMAL
-                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
-                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ONLY_ACCOUNTS))
-                    }
-                    AccountsViewTab.EXCLUDED -> {
+                    AccountsScopeFilter.EXCLUDED -> {
                         inclusionViewMode = AccountInclusionViewMode.NORMAL
                         calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
                         updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.EXCLUDED))
                     }
-                    AccountsViewTab.ALL_ACTIVE -> {
-                        inclusionViewMode = AccountInclusionViewMode.ALL_ACTIVE
-                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.ALL_ACTIVE)
-                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL))
-                    }
-                    AccountsViewTab.ALL_INCLUDED -> {
-                        inclusionViewMode = AccountInclusionViewMode.ALL_INCLUDED
-                        calcPrefs.setInclusionViewMode(AccountInclusionViewMode.ALL_INCLUDED)
-                        updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.ALL))
-                    }
                 }
+            }
+
+            val onCycleSort: () -> Unit = {
+                val nextSort = AccountsListFilterHelper.nextSortFilter(sortFilter)
+                updateFilterState(AccountsFilterSpec.withSort(filterState, nextSort))
+            }
+
+            val onToggleHideZero: () -> Unit = {
+                updateFilterState(AccountsFilterSpec.withExcludeZero(filterState, !excludeZeroBalance))
             }
 
             LazyColumn(
@@ -1153,79 +1330,84 @@ fun AccountsScreen(
                     }
                 }
 
-                // --- 2. Pills Row: All, Groups, Accounts, Excluded, All Active, All Included ---
+                // --- 2. Compact Cycling Filter & Sort Bar: Hierarchy -> Scope -> Sort -> Hide 0 ---
                 item {
-                    val isBn = languageMode == LanguageMode.BANGLA
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AccountsSummaryPill(
-                            selected = currentTab == AccountsViewTab.ALL,
-                            label = if (isBn) "সব" else "All",
-                            tag = "pill_all",
-                            onClick = { onSelectTab(AccountsViewTab.ALL) }
-                        )
-                        AccountsSummaryPill(
-                            selected = currentTab == AccountsViewTab.GROUPS,
-                            label = if (isBn) "গ্রুপ" else "Groups",
-                            tag = "pill_groups",
-                            onClick = { onSelectTab(AccountsViewTab.GROUPS) }
-                        )
-                        AccountsSummaryPill(
-                            selected = currentTab == AccountsViewTab.ACCOUNTS,
-                            label = if (isBn) "অ্যাকাউন্ট" else "Accounts",
-                            tag = "pill_accounts",
-                            onClick = { onSelectTab(AccountsViewTab.ACCOUNTS) }
-                        )
-                        AccountsSummaryPill(
-                            selected = currentTab == AccountsViewTab.EXCLUDED,
-                            label = if (isBn) "বর্জিত" else "Excluded",
-                            tag = "pill_excluded",
-                            onClick = { onSelectTab(AccountsViewTab.EXCLUDED) }
-                        )
-                        AccountsSummaryPill(
-                            selected = currentTab == AccountsViewTab.ALL_ACTIVE,
-                            label = if (isBn) "সকল সক্রিয়" else "All Active",
-                            tag = "pill_all_active",
-                            onClick = { onSelectTab(AccountsViewTab.ALL_ACTIVE) }
-                        )
-                        AccountsSummaryPill(
-                            selected = currentTab == AccountsViewTab.ALL_INCLUDED,
-                            label = if (isBn) "সকল অন্তর্ভুক্ত" else "All Included",
-                            tag = "pill_all_included",
-                            onClick = { onSelectTab(AccountsViewTab.ALL_INCLUDED) }
-                        )
-                    }
+                    AccountsQuickFilterBar(
+                        displayHierarchy = displayHierarchy,
+                        scopeFilter = scopeFilter,
+                        sortFilter = sortFilter,
+                        excludeZeroBalance = excludeZeroBalance,
+                        languageMode = languageMode,
+                        onCycleHierarchy = onCycleHierarchy,
+                        onCycleScope = onCycleScope,
+                        onCycleSort = onCycleSort,
+                        onToggleHideZero = onToggleHideZero
+                    )
                 }
 
-                // --- 2. Accounts List Based on Hierarchy Filter ---
-                if (hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED) {
-                    // Excluded Accounts Mode (both fully excluded and accounts with balance adjustments)
-                    if (displayedExcludedGroups.isEmpty()) {
+                // --- 3. Accounts List Based on Scope & Display Hierarchy ---
+                val isOnlyGroups = displayHierarchy == AccountViewHierarchyFilter.ONLY_GROUPS
+                val isOnlyAccounts = displayHierarchy == AccountViewHierarchyFilter.ONLY_ACCOUNTS
+
+                if (scopeFilter == AccountsScopeFilter.EXCLUDED) {
+                    val hasExcludedItems = if (isOnlyAccounts) {
+                        flattenedActiveAccounts.isNotEmpty() || flattenedInactiveAccounts.isNotEmpty()
+                    } else {
+                        displayedExcludedGroups.isNotEmpty()
+                    }
+                    if (!hasExcludedItems) {
                         item {
                             EmptyExcludedCard(languageMode)
                         }
                     } else {
                         item {
-                            val totalExcludedCount = remember(displayedExcludedGroups, accountCalcConfig) {
-                                displayedExcludedGroups.sumOf { g ->
-                                    (if (!accountCalcConfig.isIncluded(g.account.id) || accountCalcConfig.getSetting(g.account.id).adjustmentAmount != 0.0) 1 else 0) +
-                                    g.subAccounts.count { !accountCalcConfig.isIncluded(it.account.id) || accountCalcConfig.getSetting(it.account.id).adjustmentAmount != 0.0 }
+                            val totalExcludedCount = remember(
+                                isOnlyAccounts,
+                                flattenedActiveAccounts,
+                                flattenedInactiveAccounts,
+                                displayedExcludedGroups,
+                                accountCalcConfig
+                            ) {
+                                if (isOnlyAccounts) {
+                                    flattenedActiveAccounts.size + flattenedInactiveAccounts.size
+                                } else {
+                                    displayedExcludedGroups.sumOf { g ->
+                                        (if (!accountCalcConfig.isIncluded(g.account.id) || accountCalcConfig.getSetting(g.account.id).adjustmentAmount != 0.0) 1 else 0) +
+                                            g.subAccounts.count { !accountCalcConfig.isIncluded(it.account.id) || accountCalcConfig.getSetting(it.account.id).adjustmentAmount != 0.0 }
+                                    }
                                 }
                             }
-                            val totalExcludedSum = remember(displayedExcludedGroups, accountCalcConfig) {
-                                displayedExcludedGroups.sumOf { g ->
-                                    val gExcluded = if (!accountCalcConfig.isIncluded(g.account.id)) g.currentBalance
-                                        else kotlin.math.abs(accountCalcConfig.getSetting(g.account.id).adjustmentAmount)
-                                    val subsExcluded = g.subAccounts.sumOf { sub ->
-                                        if (!accountCalcConfig.isIncluded(sub.account.id)) sub.currentBalance
-                                        else kotlin.math.abs(accountCalcConfig.getSetting(sub.account.id).adjustmentAmount)
+                            val totalExcludedSum = remember(
+                                isOnlyAccounts,
+                                flattenedActiveAccounts,
+                                flattenedInactiveAccounts,
+                                displayedExcludedGroups,
+                                accountCalcConfig
+                            ) {
+                                if (isOnlyAccounts) {
+                                    (flattenedActiveAccounts + flattenedInactiveAccounts).sumOf { flat ->
+                                        val accId = flat.accountWithBalance.account.id
+                                        if (!accountCalcConfig.isIncluded(accId)) flat.accountWithBalance.currentBalance
+                                        else kotlin.math.abs(accountCalcConfig.getSetting(accId).adjustmentAmount)
                                     }
-                                    gExcluded + subsExcluded
+                                } else {
+                                    displayedExcludedGroups.sumOf { g ->
+                                        val gExcluded = if (!accountCalcConfig.isIncluded(g.account.id)) {
+                                            if (g.subAccounts.isEmpty()) g.currentBalance
+                                            else AccountsListFilterHelper.computeActualGroupBalance(g, activeSubsOnly = g.account.isActive)
+                                        } else {
+                                            kotlin.math.abs(accountCalcConfig.getSetting(g.account.id).adjustmentAmount)
+                                        }
+                                        val subsExcluded = if (!accountCalcConfig.isIncluded(g.account.id)) {
+                                            0.0
+                                        } else {
+                                            g.subAccounts.sumOf { sub ->
+                                                if (!accountCalcConfig.isIncluded(sub.account.id)) sub.currentBalance
+                                                else kotlin.math.abs(accountCalcConfig.getSetting(sub.account.id).adjustmentAmount)
+                                            }
+                                        }
+                                        gExcluded + subsExcluded
+                                    }
                                 }
                             }
 
@@ -1280,30 +1462,67 @@ fun AccountsScreen(
                             }
                         }
 
-                        items(displayedExcludedGroups, key = { "excl_${it.account.id}" }) { groupItem ->
-                            val sortedGroupItem = remember(groupItem, sortFilter) {
-                                groupItem.copy(subAccounts = sortSubAccounts(groupItem.subAccounts))
+                        if (isOnlyAccounts) {
+                            items(flattenedActiveAccounts, key = { "excl_flat_${it.accountWithBalance.account.id}" }) { flatItem ->
+                                SingleAccountCard(
+                                    item = flatItem,
+                                    accountCalcConfig = activeViewConfig,
+                                    isEditMode = isEditMode,
+                                    languageMode = languageMode,
+                                    onEditAccount = onEditAccountClick,
+                                    onAccountClick = onAccountClick,
+                                    onToggleActiveStatus = onToggleActiveStatus,
+                                    onToggleIncludeStatus = onToggleIncludeStatus,
+                                    onRequestAdjustCalculation = { acc, bal -> calcDialogTarget = Pair(acc, bal) }
+                                )
                             }
-                            AccountGroupCard(
-                                groupItem = sortedGroupItem,
-                                accountCalcConfig = accountCalcConfig,
-                                effectiveBalance = computeEffectiveGroupBalance(groupItem),
-                                isEditMode = isEditMode,
-                                isExpanded = expandedMap[groupItem.account.id] ?: true,
-                                isOnlyGroupsView = false,
-                                languageMode = languageMode,
-                                onToggleExpand = { expandedMap[groupItem.account.id] = !(expandedMap[groupItem.account.id] ?: true) },
-                                onEditAccount = onEditAccountClick,
-                                onAccountClick = onAccountClick,
-                                onAddSubAccount = onAddSubAccountClick,
-                                onToggleActiveStatus = onToggleActiveStatus,
-                                onToggleIncludeStatus = onToggleIncludeStatus,
-                                onRequestAdjustCalculation = { acc, bal -> calcDialogTarget = Pair(acc, bal) }
-                            )
+                            if (flattenedInactiveAccounts.isNotEmpty()) {
+                                item {
+                                    InactiveHeader(count = flattenedInactiveAccounts.size)
+                                }
+                                items(flattenedInactiveAccounts, key = { "excl_flat_inactive_${it.accountWithBalance.account.id}" }) { flatItem ->
+                                    SingleAccountCard(
+                                        item = flatItem,
+                                        accountCalcConfig = activeViewConfig,
+                                        isEditMode = isEditMode,
+                                        isInactiveSection = true,
+                                        languageMode = languageMode,
+                                        onEditAccount = onEditAccountClick,
+                                        onAccountClick = onAccountClick,
+                                        onToggleActiveStatus = onToggleActiveStatus,
+                                        onToggleIncludeStatus = onToggleIncludeStatus,
+                                        onRequestAdjustCalculation = { acc, bal -> calcDialogTarget = Pair(acc, bal) }
+                                    )
+                                }
+                            }
+                        } else {
+                            items(displayedExcludedGroups, key = { "excl_${it.account.id}" }) { groupItem ->
+                                val sortedGroupItem = remember(groupItem, sortFilter, scopeFilter, languageMode) {
+                                    if (isOnlyGroups) groupItem
+                                    else groupItem.copy(subAccounts = sortSubAccounts(groupItem.subAccounts))
+                                }
+                                AccountGroupCard(
+                                    groupItem = sortedGroupItem,
+                                    accountCalcConfig = accountCalcConfig,
+                                    effectiveBalance = computeEffectiveGroupBalance(groupItem),
+                                    isEditMode = isEditMode,
+                                    isExpanded = expandedMap[groupItem.account.id] ?: true,
+                                    isInactiveSection = !groupItem.account.isActive,
+                                    isOnlyGroupsView = isOnlyGroups,
+                                    languageMode = languageMode,
+                                    onToggleExpand = { expandedMap[groupItem.account.id] = !(expandedMap[groupItem.account.id] ?: true) },
+                                    onEditAccount = onEditAccountClick,
+                                    onAccountClick = onAccountClick,
+                                    onAddSubAccount = onAddSubAccountClick,
+                                    onToggleActiveStatus = onToggleActiveStatus,
+                                    onToggleIncludeStatus = onToggleIncludeStatus,
+                                    onRequestAdjustCalculation = { acc, bal -> calcDialogTarget = Pair(acc, bal) }
+                                )
+                            }
                         }
                     }
-                } else if (hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS) {
-                    // Flattened Accounts Mode
+                } else if (isOnlyAccounts) {
+                    // Flattened Accounts Mode (Active or Included)
                     if (flattenedActiveAccounts.isEmpty() && flattenedInactiveAccounts.isEmpty()) {
                         item {
                             EmptyAccountsCard(languageMode, statusFilter, excludeZeroBalance)
@@ -1345,14 +1564,13 @@ fun AccountsScreen(
                     }
                 } else {
                     // ALL (Group + Sub-accounts) or ONLY_GROUPS
-                    val isOnlyGroups = hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS
                     if (displayedActiveGroups.isEmpty() && displayedInactiveGroups.isEmpty()) {
                         item {
                             EmptyAccountsCard(languageMode, statusFilter, excludeZeroBalance)
                         }
                     } else {
                         items(displayedActiveGroups, key = { it.account.id }) { groupItem ->
-                            val sortedGroupItem = remember(groupItem, sortFilter) {
+                            val sortedGroupItem = remember(groupItem, sortFilter, scopeFilter, languageMode, isOnlyGroups) {
                                 if (isOnlyGroups) groupItem
                                 else groupItem.copy(subAccounts = sortSubAccounts(groupItem.subAccounts))
                             }
@@ -1565,85 +1783,156 @@ fun AccountsScreen(
 }
 
 @Composable
-private fun AccountsSummaryPill(
-    selected: Boolean,
-    label: String,
-    tag: String,
-    onClick: () -> Unit
+private fun AccountsQuickFilterBar(
+    displayHierarchy: AccountViewHierarchyFilter,
+    scopeFilter: AccountsScopeFilter,
+    sortFilter: AccountSortFilter,
+    excludeZeroBalance: Boolean,
+    languageMode: LanguageMode,
+    onCycleHierarchy: () -> Unit,
+    onCycleScope: () -> Unit,
+    onCycleSort: () -> Unit,
+    onToggleHideZero: () -> Unit
 ) {
-    Surface(
+    val isBn = languageMode == LanguageMode.BANGLA
+
+    val consumeHorizontalScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                return Offset(available.x, 0f)
+            }
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return Velocity(available.x, 0f)
+            }
+        }
+    }
+
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .testTag(tag),
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+            .fillMaxWidth()
+            .nestedScroll(consumeHorizontalScroll)
+            .horizontalScroll(rememberScrollState())
+            .testTag("accounts_quick_filter_bar"),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp)
+        // 1. Hierarchy Cycle: All -> Groups -> Accounts -> All
+        val hierarchyIcon = when (displayHierarchy) {
+            AccountViewHierarchyFilter.ONLY_GROUPS -> Icons.Default.Folder
+            AccountViewHierarchyFilter.ONLY_ACCOUNTS -> Icons.Default.AccountBalanceWallet
+            else -> Icons.Default.Layers
+        }
+        val hierarchyLabel = when (displayHierarchy) {
+            AccountViewHierarchyFilter.ONLY_GROUPS -> if (isBn) "গ্রুপ" else "Groups"
+            AccountViewHierarchyFilter.ONLY_ACCOUNTS -> if (isBn) "অ্যাকাউন্ট" else "Accounts"
+            else -> if (isBn) "সব" else "All"
+        }
+        AccountsCompactPill(
+            icon = hierarchyIcon,
+            label = hierarchyLabel,
+            isActive = displayHierarchy != AccountViewHierarchyFilter.ALL,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("accounts_hierarchy_cycle_button"),
+            onClick = onCycleHierarchy
+        )
+
+        // 2. Scope Cycle: Active -> Included -> Excluded -> Active
+        val scopeIcon = when (scopeFilter) {
+            AccountsScopeFilter.ACTIVE -> Icons.Default.CheckCircle
+            AccountsScopeFilter.INCLUDED -> Icons.Default.Visibility
+            AccountsScopeFilter.EXCLUDED -> Icons.Default.VisibilityOff
+        }
+        val scopeLabel = when (scopeFilter) {
+            AccountsScopeFilter.ACTIVE -> if (isBn) "সক্রিয়" else "Active"
+            AccountsScopeFilter.INCLUDED -> if (isBn) "অন্তর্ভুক্ত" else "Included"
+            AccountsScopeFilter.EXCLUDED -> if (isBn) "বর্জিত" else "Excluded"
+        }
+        AccountsCompactPill(
+            icon = scopeIcon,
+            label = scopeLabel,
+            isActive = scopeFilter != AccountsScopeFilter.ACTIVE,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("accounts_scope_cycle_button"),
+            onClick = onCycleScope
+        )
+
+        // 3. Sort Cycle: A -> Z > Z -> A > High -> Low > Low -> High > A -> Z
+        val effectiveSort = AccountsListFilterHelper.effectiveSortFilter(sortFilter)
+        val sortIcon = when (effectiveSort) {
+            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> Icons.Default.ArrowDownward
+            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> Icons.Default.ArrowUpward
+            else -> Icons.AutoMirrored.Filled.Sort
+        }
+        val sortLabel = when (effectiveSort) {
+            AccountSortFilter.NAME_ZA -> "Z → A"
+            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> if (isBn) "বেশি → কম" else "High → Low"
+            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> if (isBn) "কম → বেশি" else "Low → High"
+            AccountSortFilter.MOST_USED -> if (isBn) "বেশি ব্যবহৃত" else "Most Used"
+            AccountSortFilter.LEAST_USED -> if (isBn) "কম ব্যবহৃত" else "Least Used"
+            AccountSortFilter.NAME_AZ, AccountSortFilter.DEFAULT -> "A → Z"
+        }
+        AccountsCompactPill(
+            icon = sortIcon,
+            label = sortLabel,
+            isActive = effectiveSort != AccountSortFilter.NAME_AZ,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("accounts_sort_cycle_button"),
+            onClick = onCycleSort
+        )
+
+        // 4. Hide 0 Toggle
+        AccountsCompactPill(
+            icon = if (excludeZeroBalance) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+            label = if (isBn) "০ লুকান" else "Hide 0",
+            isActive = excludeZeroBalance,
+            activeColor = SolidPrimary,
+            modifier = Modifier.testTag("accounts_hide_zero_button"),
+            onClick = onToggleHideZero
         )
     }
 }
 
 @Composable
-private fun ViewScopePill(
-    selected: Boolean,
-    label: String,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 7.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun BottomFilterPill(
-    selected: Boolean,
-    label: String,
+private fun AccountsCompactPill(
     icon: ImageVector,
-    selectedColor: Color,
+    label: String,
+    isActive: Boolean = false,
+    activeColor: Color = SolidPrimary,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val bgColor = if (isActive) activeColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    val borderColor = if (isActive) activeColor.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val contentColor = if (isActive) activeColor else MaterialTheme.colorScheme.onSurface
+
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = if (selected) selectedColor else Color.Transparent,
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
+        shape = RoundedCornerShape(16.dp),
+        color = bgColor,
+        border = BorderStroke(0.85.dp, borderColor),
+        modifier = modifier
+            .height(30.dp)
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(3.5.dp)
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = label,
-                tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(13.dp)
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(12.5.dp)
             )
             Text(
                 text = label,
-                fontSize = 11.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 10.5.sp,
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
