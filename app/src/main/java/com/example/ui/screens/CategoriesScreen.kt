@@ -9,8 +9,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,46 +24,46 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,9 +74,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Category
@@ -85,20 +89,21 @@ import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.LocalHeaderScrollState
-import com.example.ui.theme.SolidExpense
-import com.example.ui.theme.SolidIncome
-import com.example.ui.theme.SolidPrimary
-import androidx.compose.ui.platform.LocalContext
 import com.example.ui.components.filter.FilterState
 import com.example.ui.components.filter.FilterValue
-import com.example.ui.components.filter.UnifiedActiveFilterBar
 import com.example.ui.components.filter.UnifiedFilterDialog
 import com.example.ui.components.filter.activeFilterCount
 import com.example.ui.components.filter.isActive
+import com.example.ui.components.filter.specs.CategoriesFilterSpec
 import com.example.ui.components.filter.withSearchQuery
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidPrimary
 import com.example.util.FilterStore
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import kotlin.math.abs
+import kotlinx.coroutines.launch
 
 private val SlateText = Color(0xFF64748B)
 
@@ -106,6 +111,12 @@ enum class CategoryViewHierarchyFilter {
     ALL,
     ONLY_GROUPS,
     ONLY_CATEGORIES
+}
+
+enum class CategoryActiveStatusFilter {
+    ALL,
+    ACTIVE_ONLY,
+    INACTIVE_ONLY
 }
 
 enum class CategorySortFilter {
@@ -124,6 +135,233 @@ data class FlattenedCategoryItem(
     val budgetAmount: Double,
     val usageCount: Int
 )
+
+internal object CategoriesListFilterHelper {
+    private const val ZERO_EPSILON = 0.0001
+
+    fun nextHierarchyFilter(current: CategoryViewHierarchyFilter): CategoryViewHierarchyFilter =
+        when (current) {
+            CategoryViewHierarchyFilter.ALL -> CategoryViewHierarchyFilter.ONLY_GROUPS
+            CategoryViewHierarchyFilter.ONLY_GROUPS -> CategoryViewHierarchyFilter.ONLY_CATEGORIES
+            CategoryViewHierarchyFilter.ONLY_CATEGORIES -> CategoryViewHierarchyFilter.ALL
+        }
+
+    fun nextStatusFilter(current: CategoryActiveStatusFilter): CategoryActiveStatusFilter =
+        when (current) {
+            CategoryActiveStatusFilter.ALL -> CategoryActiveStatusFilter.ACTIVE_ONLY
+            CategoryActiveStatusFilter.ACTIVE_ONLY -> CategoryActiveStatusFilter.INACTIVE_ONLY
+            CategoryActiveStatusFilter.INACTIVE_ONLY -> CategoryActiveStatusFilter.ALL
+        }
+
+    fun nextSortFilter(current: CategorySortFilter): CategorySortFilter =
+        when (current) {
+            CategorySortFilter.DEFAULT,
+            CategorySortFilter.NAME_AZ -> CategorySortFilter.NAME_ZA
+            CategorySortFilter.NAME_ZA -> CategorySortFilter.BUDGET_HIGH_TO_LOW
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> CategorySortFilter.BUDGET_LOW_TO_HIGH
+            CategorySortFilter.BUDGET_LOW_TO_HIGH,
+            CategorySortFilter.MOST_USED,
+            CategorySortFilter.LEAST_USED -> CategorySortFilter.NAME_AZ
+        }
+
+    fun effectiveSortFilter(sort: CategorySortFilter): CategorySortFilter =
+        if (sort == CategorySortFilter.DEFAULT) CategorySortFilter.NAME_AZ else sort
+
+    fun isZeroBudget(value: Double): Boolean = abs(value) < ZERO_EPSILON
+
+    fun matchesSearch(cat: Category, query: String): Boolean {
+        if (query.isBlank()) return true
+        val clean = query.trim().lowercase()
+        return cat.nameEn.lowercase().contains(clean) ||
+            cat.nameBn.lowercase().contains(clean)
+    }
+
+    fun computeEffectiveGroupBudget(
+        parent: Category,
+        subCategoriesMap: Map<Long, List<Category>>,
+        activeSubsOnly: Boolean = parent.isActive
+    ): Double {
+        val subs = subCategoriesMap[parent.id] ?: emptyList()
+        if (subs.isEmpty()) return parent.budgetLimit
+        val relevantSubs = if (activeSubsOnly) subs.filter { it.isActive } else subs
+        return if (relevantSubs.isNotEmpty()) relevantSubs.sumOf { it.budgetLimit } else parent.budgetLimit
+    }
+
+    fun sortGroups(
+        list: List<Category>,
+        sortFilter: CategorySortFilter,
+        languageMode: LanguageMode,
+        subCategoriesMap: Map<Long, List<Category>>,
+        groupUsageCount: (Category) -> Int
+    ): List<Category> {
+        return when (effectiveSortFilter(sortFilter)) {
+            CategorySortFilter.DEFAULT -> list
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> list.sortedByDescending {
+                computeEffectiveGroupBudget(it, subCategoriesMap, activeSubsOnly = it.isActive)
+            }
+            CategorySortFilter.BUDGET_LOW_TO_HIGH -> list.sortedBy {
+                computeEffectiveGroupBudget(it, subCategoriesMap, activeSubsOnly = it.isActive)
+            }
+            CategorySortFilter.MOST_USED -> list.sortedByDescending { groupUsageCount(it) }
+            CategorySortFilter.LEAST_USED -> list.sortedBy { groupUsageCount(it) }
+            CategorySortFilter.NAME_AZ -> list.sortedBy { it.localizedName(languageMode).lowercase() }
+            CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    fun sortSubCategories(
+        list: List<Category>,
+        sortFilter: CategorySortFilter,
+        languageMode: LanguageMode,
+        categoryUsageCount: (Long) -> Int
+    ): List<Category> {
+        return when (effectiveSortFilter(sortFilter)) {
+            CategorySortFilter.DEFAULT -> list
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> list.sortedByDescending { it.budgetLimit }
+            CategorySortFilter.BUDGET_LOW_TO_HIGH -> list.sortedBy { it.budgetLimit }
+            CategorySortFilter.MOST_USED -> list.sortedByDescending { categoryUsageCount(it.id) }
+            CategorySortFilter.LEAST_USED -> list.sortedBy { categoryUsageCount(it.id) }
+            CategorySortFilter.NAME_AZ -> list.sortedBy { it.localizedName(languageMode).lowercase() }
+            CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    fun sortFlattened(
+        list: List<FlattenedCategoryItem>,
+        sortFilter: CategorySortFilter,
+        languageMode: LanguageMode
+    ): List<FlattenedCategoryItem> {
+        return when (effectiveSortFilter(sortFilter)) {
+            CategorySortFilter.DEFAULT -> list
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> list.sortedByDescending { it.budgetAmount }
+            CategorySortFilter.BUDGET_LOW_TO_HIGH -> list.sortedBy { it.budgetAmount }
+            CategorySortFilter.MOST_USED -> list.sortedByDescending { it.usageCount }
+            CategorySortFilter.LEAST_USED -> list.sortedBy { it.usageCount }
+            CategorySortFilter.NAME_AZ -> list.sortedBy { it.category.localizedName(languageMode).lowercase() }
+            CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.category.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    fun filterParentGroups(
+        parentGroups: List<Category>,
+        subCategoriesMap: Map<Long, List<Category>>,
+        selectedTypeFilter: CategoryType?,
+        hierarchyFilter: CategoryViewHierarchyFilter,
+        excludeZeroBudget: Boolean,
+        searchQuery: String,
+        sortFilter: CategorySortFilter,
+        languageMode: LanguageMode,
+        groupUsageCount: (Category) -> Int,
+        activeSubsOnly: Boolean
+    ): List<Category> {
+        val isOnlyGroups = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_GROUPS
+        val filtered = parentGroups.filter { parent ->
+            if (selectedTypeFilter != null && parent.type != selectedTypeFilter) return@filter false
+
+            val subs = subCategoriesMap[parent.id] ?: emptyList()
+            val relevantSubs = if (activeSubsOnly) subs.filter { it.isActive } else subs
+
+            val matchesSearch = if (searchQuery.isBlank()) {
+                true
+            } else {
+                matchesSearch(parent, searchQuery) ||
+                    (!isOnlyGroups && relevantSubs.any { matchesSearch(it, searchQuery) })
+            }
+            if (!matchesSearch) return@filter false
+
+            if (!excludeZeroBudget) return@filter true
+
+            if (isOnlyGroups || relevantSubs.isEmpty()) {
+                val effectiveBudget = computeEffectiveGroupBudget(parent, subCategoriesMap, activeSubsOnly)
+                !isZeroBudget(effectiveBudget)
+            } else {
+                val parentMatchedDirectly = searchQuery.isNotBlank() && matchesSearch(parent, searchQuery)
+                val searchMatchedSubs = if (searchQuery.isBlank() || parentMatchedDirectly) {
+                    relevantSubs
+                } else {
+                    relevantSubs.filter { matchesSearch(it, searchQuery) }
+                }
+                searchMatchedSubs.any { !isZeroBudget(it.budgetLimit) }
+            }
+        }
+        return sortGroups(filtered, sortFilter, languageMode, subCategoriesMap, groupUsageCount)
+    }
+
+    fun filterFlattenedCategories(
+        allCategories: List<Category>,
+        subCategoriesMap: Map<Long, List<Category>>,
+        activeStatusTarget: Boolean,
+        selectedTypeFilter: CategoryType?,
+        excludeZeroBudget: Boolean,
+        searchQuery: String,
+        sortFilter: CategorySortFilter,
+        languageMode: LanguageMode,
+        categoryUsageCount: (Long) -> Int
+    ): List<FlattenedCategoryItem> {
+        val items = mutableListOf<FlattenedCategoryItem>()
+        if (activeStatusTarget) {
+            val activeParents = allCategories.filter {
+                it.isActive && it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter)
+            }
+            for (parent in activeParents) {
+                val activeSubs = (subCategoriesMap[parent.id] ?: emptyList()).filter { it.isActive }
+                if (activeSubs.isEmpty()) {
+                    if (!excludeZeroBudget || !isZeroBudget(parent.budgetLimit)) {
+                        items.add(
+                            FlattenedCategoryItem(
+                                category = parent,
+                                parentGroup = null,
+                                budgetAmount = parent.budgetLimit,
+                                usageCount = categoryUsageCount(parent.id)
+                            )
+                        )
+                    }
+                } else {
+                    activeSubs.forEach { sub ->
+                        if (!excludeZeroBudget || !isZeroBudget(sub.budgetLimit)) {
+                            items.add(
+                                FlattenedCategoryItem(
+                                    category = sub,
+                                    parentGroup = parent,
+                                    budgetAmount = sub.budgetLimit,
+                                    usageCount = categoryUsageCount(sub.id)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            val inactiveLeafs = allCategories.filter {
+                !it.isActive && (selectedTypeFilter == null || it.type == selectedTypeFilter)
+            }
+            for (cat in inactiveLeafs) {
+                if (!excludeZeroBudget || !isZeroBudget(cat.budgetLimit)) {
+                    val parent = cat.parentId?.let { pId -> allCategories.firstOrNull { it.id == pId } }
+                    items.add(
+                        FlattenedCategoryItem(
+                            category = cat,
+                            parentGroup = parent,
+                            budgetAmount = cat.budgetLimit,
+                            usageCount = categoryUsageCount(cat.id)
+                        )
+                    )
+                }
+            }
+        }
+
+        val searched = if (searchQuery.isBlank()) {
+            items
+        } else {
+            items.filter { item ->
+                matchesSearch(item.category, searchQuery) ||
+                    (item.parentGroup?.let { matchesSearch(it, searchQuery) } == true)
+            }
+        }
+
+        return sortFlattened(searched, sortFilter, languageMode)
+    }
+}
 
 @Composable
 fun CategoriesScreen(
@@ -177,16 +415,22 @@ fun CategoriesScreen(
     var isEditMode by remember { mutableStateOf(false) }
 
     val selectedTypeFilter = remember(filterState) {
-        com.example.ui.components.filter.specs.CategoriesFilterSpec.getTypeFilter(filterState)
+        CategoriesFilterSpec.getTypeFilter(filterState)
     }
     val hierarchyFilter = remember(filterState) {
-        com.example.ui.components.filter.specs.CategoriesFilterSpec.getHierarchyFilter(filterState)
+        CategoriesFilterSpec.getHierarchyFilter(filterState)
+    }
+    val statusFilter = remember(filterState) {
+        CategoriesFilterSpec.getStatusFilter(filterState)
+    }
+    val excludeZeroBudget = remember(filterState) {
+        CategoriesFilterSpec.getExcludeZeroBudget(filterState)
     }
     val sortFilter = remember(filterState) {
-        com.example.ui.components.filter.specs.CategoriesFilterSpec.getSortFilter(filterState)
+        CategoriesFilterSpec.getSortFilter(filterState)
     }
     val searchQuery = remember(filterState) {
-        com.example.ui.components.filter.specs.CategoriesFilterSpec.getSearchQuery(filterState)
+        CategoriesFilterSpec.getSearchQuery(filterState)
     }
 
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
@@ -194,13 +438,13 @@ fun CategoriesScreen(
     LaunchedEffect(initialTab) {
         if (initialTab != null) {
             val targetType = when (initialTab) {
-                1 -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_INCOME
-                else -> com.example.ui.components.filter.specs.CategoriesFilterSpec.TYPE_EXPENSE
+                1 -> CategoriesFilterSpec.TYPE_INCOME
+                else -> CategoriesFilterSpec.TYPE_EXPENSE
             }
-            val currentType = (filterState[com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE] as? FilterValue.ToggleGroup)?.activeIds?.firstOrNull()
+            val currentType = (filterState[CategoriesFilterSpec.FIELD_TYPE_MODE] as? FilterValue.ToggleGroup)?.activeIds?.firstOrNull()
             if (currentType != targetType) {
                 updateFilterState(
-                    filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(targetType)))
+                    filterState + (CategoriesFilterSpec.FIELD_TYPE_MODE to FilterValue.ToggleGroup(setOf(targetType)))
                 )
             }
         }
@@ -249,154 +493,138 @@ fun CategoriesScreen(
         categories.filter { it.parentId != null }.groupBy { it.parentId!! }
     }
 
-    fun computeEffectiveCategoryBudget(cat: Category): Double {
-        val subs = subCategoriesMap[cat.id] ?: emptyList()
-        return if (subs.isNotEmpty()) {
-            subs.filter { it.isActive }.sumOf { it.budgetLimit }
-        } else {
-            cat.budgetLimit
-        }
-    }
-
     fun groupUsageCount(groupCat: Category): Int {
         val subs = subCategoriesMap[groupCat.id] ?: emptyList()
         return (categoryUsageMap[groupCat.id] ?: 0) + subs.sumOf { categoryUsageMap[it.id] ?: 0 }
     }
 
-    // Sorting logic
-    fun sortGroups(list: List<Category>): List<Category> {
-        return when (sortFilter) {
-            CategorySortFilter.DEFAULT -> list
-            CategorySortFilter.BUDGET_HIGH_TO_LOW -> list.sortedByDescending { computeEffectiveCategoryBudget(it) }
-            CategorySortFilter.BUDGET_LOW_TO_HIGH -> list.sortedBy { computeEffectiveCategoryBudget(it) }
-            CategorySortFilter.MOST_USED -> list.sortedByDescending { groupUsageCount(it) }
-            CategorySortFilter.LEAST_USED -> list.sortedBy { groupUsageCount(it) }
-            CategorySortFilter.NAME_AZ -> list.sortedBy { it.localizedName(languageMode).lowercase() }
-            CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.localizedName(languageMode).lowercase() }
-        }
-    }
-
-    fun sortSubCategories(list: List<Category>): List<Category> {
-        return when (sortFilter) {
-            CategorySortFilter.DEFAULT -> list
-            CategorySortFilter.BUDGET_HIGH_TO_LOW -> list.sortedByDescending { it.budgetLimit }
-            CategorySortFilter.BUDGET_LOW_TO_HIGH -> list.sortedBy { it.budgetLimit }
-            CategorySortFilter.MOST_USED -> list.sortedByDescending { categoryUsageCount(it.id) }
-            CategorySortFilter.LEAST_USED -> list.sortedBy { categoryUsageCount(it.id) }
-            CategorySortFilter.NAME_AZ -> list.sortedBy { it.localizedName(languageMode).lowercase() }
-            CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.localizedName(languageMode).lowercase() }
-        }
-    }
-
-    fun matchesCategorySearch(cat: Category, query: String): Boolean {
-        if (query.isBlank()) return true
-        val clean = query.trim().lowercase()
-        return cat.nameEn.lowercase().contains(clean) ||
-                cat.nameBn.lowercase().contains(clean)
-    }
-
-    val parentActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
-        val base = activeCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
-        val searched = if (searchQuery.isBlank()) {
-            base
+    val parentActiveCategories = remember(
+        activeCategories,
+        subCategoriesMap,
+        selectedTypeFilter,
+        hierarchyFilter,
+        statusFilter,
+        excludeZeroBudget,
+        sortFilter,
+        allTransactions,
+        searchQuery,
+        languageMode
+    ) {
+        if (statusFilter == CategoryActiveStatusFilter.INACTIVE_ONLY) {
+            emptyList()
         } else {
-            base.filter { parent ->
-                matchesCategorySearch(parent, searchQuery) ||
-                        (subCategoriesMap[parent.id] ?: emptyList()).any { it.isActive && matchesCategorySearch(it, searchQuery) }
-            }
+            CategoriesListFilterHelper.filterParentGroups(
+                parentGroups = activeCategories.filter { it.parentId == null },
+                subCategoriesMap = subCategoriesMap,
+                selectedTypeFilter = selectedTypeFilter,
+                hierarchyFilter = hierarchyFilter,
+                excludeZeroBudget = excludeZeroBudget,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                languageMode = languageMode,
+                groupUsageCount = ::groupUsageCount,
+                activeSubsOnly = true
+            )
         }
-        sortGroups(searched)
     }
 
-    val parentInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
-        val base = inactiveCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
-        val searched = if (searchQuery.isBlank()) {
-            base
+    val parentInactiveCategories = remember(
+        inactiveCategories,
+        subCategoriesMap,
+        selectedTypeFilter,
+        hierarchyFilter,
+        statusFilter,
+        excludeZeroBudget,
+        sortFilter,
+        allTransactions,
+        searchQuery,
+        languageMode
+    ) {
+        if (statusFilter == CategoryActiveStatusFilter.ACTIVE_ONLY) {
+            emptyList()
         } else {
-            base.filter { parent ->
-                matchesCategorySearch(parent, searchQuery) ||
-                        (subCategoriesMap[parent.id] ?: emptyList()).any { matchesCategorySearch(it, searchQuery) }
-            }
+            CategoriesListFilterHelper.filterParentGroups(
+                parentGroups = inactiveCategories.filter { it.parentId == null },
+                subCategoriesMap = subCategoriesMap,
+                selectedTypeFilter = selectedTypeFilter,
+                hierarchyFilter = hierarchyFilter,
+                excludeZeroBudget = excludeZeroBudget,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                languageMode = languageMode,
+                groupUsageCount = ::groupUsageCount,
+                activeSubsOnly = false
+            )
         }
-        sortGroups(searched)
     }
 
     // Flattened Categories for ONLY_CATEGORIES mode
-    val flattenedActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
-        val items = mutableListOf<FlattenedCategoryItem>()
-        val filteredParents = activeCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
-        for (parent in filteredParents) {
-            val subs = (subCategoriesMap[parent.id] ?: emptyList()).filter { it.isActive }
-            if (subs.isEmpty()) {
-                items.add(
-                    FlattenedCategoryItem(
-                        category = parent,
-                        parentGroup = null,
-                        budgetAmount = parent.budgetLimit,
-                        usageCount = categoryUsageCount(parent.id)
-                    )
-                )
-            } else {
-                subs.forEach { sub ->
-                    items.add(
-                        FlattenedCategoryItem(
-                            category = sub,
-                            parentGroup = parent,
-                            budgetAmount = sub.budgetLimit,
-                            usageCount = categoryUsageCount(sub.id)
-                        )
-                    )
-                }
-            }
-        }
-
-        val searched = if (searchQuery.isBlank()) {
-            items
+    val flattenedActiveCategories = remember(
+        categories,
+        subCategoriesMap,
+        selectedTypeFilter,
+        statusFilter,
+        excludeZeroBudget,
+        sortFilter,
+        allTransactions,
+        searchQuery,
+        languageMode
+    ) {
+        if (statusFilter == CategoryActiveStatusFilter.INACTIVE_ONLY) {
+            emptyList()
         } else {
-            items.filter { item ->
-                matchesCategorySearch(item.category, searchQuery) ||
-                        (item.parentGroup?.let { matchesCategorySearch(it, searchQuery) } == true)
-            }
-        }
-
-        when (sortFilter) {
-            CategorySortFilter.DEFAULT -> searched
-            CategorySortFilter.BUDGET_HIGH_TO_LOW -> searched.sortedByDescending { it.budgetAmount }
-            CategorySortFilter.BUDGET_LOW_TO_HIGH -> searched.sortedBy { it.budgetAmount }
-            CategorySortFilter.MOST_USED -> searched.sortedByDescending { it.usageCount }
-            CategorySortFilter.LEAST_USED -> searched.sortedBy { it.usageCount }
-            CategorySortFilter.NAME_AZ -> searched.sortedBy { it.category.localizedName(languageMode).lowercase() }
-            CategorySortFilter.NAME_ZA -> searched.sortedByDescending { it.category.localizedName(languageMode).lowercase() }
+            CategoriesListFilterHelper.filterFlattenedCategories(
+                allCategories = categories,
+                subCategoriesMap = subCategoriesMap,
+                activeStatusTarget = true,
+                selectedTypeFilter = selectedTypeFilter,
+                excludeZeroBudget = excludeZeroBudget,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                languageMode = languageMode,
+                categoryUsageCount = categoryUsageCount
+            )
         }
     }
 
-    val flattenedInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
-        val items = mutableListOf<FlattenedCategoryItem>()
-        val filteredInactive = inactiveCategories.filter { selectedTypeFilter == null || it.type == selectedTypeFilter }
-        for (cat in filteredInactive) {
-            val parent = cat.parentId?.let { pId -> categories.firstOrNull { it.id == pId } }
-            items.add(
-                FlattenedCategoryItem(
-                    category = cat,
-                    parentGroup = parent,
-                    budgetAmount = cat.budgetLimit,
-                    usageCount = categoryUsageCount(cat.id)
-                )
-            )
-        }
-        if (searchQuery.isBlank()) {
-            items
+    val flattenedInactiveCategories = remember(
+        categories,
+        subCategoriesMap,
+        selectedTypeFilter,
+        statusFilter,
+        excludeZeroBudget,
+        sortFilter,
+        allTransactions,
+        searchQuery,
+        languageMode
+    ) {
+        if (statusFilter == CategoryActiveStatusFilter.ACTIVE_ONLY) {
+            emptyList()
         } else {
-            items.filter { item ->
-                matchesCategorySearch(item.category, searchQuery) ||
-                        (item.parentGroup?.let { matchesCategorySearch(it, searchQuery) } == true)
-            }
+            CategoriesListFilterHelper.filterFlattenedCategories(
+                allCategories = categories,
+                subCategoriesMap = subCategoriesMap,
+                activeStatusTarget = false,
+                selectedTypeFilter = selectedTypeFilter,
+                excludeZeroBudget = excludeZeroBudget,
+                searchQuery = searchQuery,
+                sortFilter = sortFilter,
+                languageMode = languageMode,
+                categoryUsageCount = categoryUsageCount
+            )
         }
     }
 
     // Scroll state & Bottom Nav visibility
     val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
     var isBottomNavVisible by remember { mutableStateOf(true) }
+
+    fun scrollToListTop() {
+        coroutineScope.launch {
+            listState.animateScrollToItem(0)
+        }
+    }
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
@@ -424,7 +652,7 @@ fun CategoriesScreen(
                 title = LanguageHelper.getString("categories", languageMode),
                 searchQuery = searchQuery,
                 onSearchQueryChange = { newQuery ->
-                    updateFilterState(filterState.withSearchQuery(newQuery, com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SEARCH))
+                    updateFilterState(filterState.withSearchQuery(newQuery, CategoriesFilterSpec.FIELD_SEARCH))
                 },
                 searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি খুঁজুন..." else "Search categories...",
                 showSearchButton = true,
@@ -435,23 +663,12 @@ fun CategoriesScreen(
                 onOpenDrawer = onOpenDrawer
             )
 
-            // Unified Active Filter Bar
-            UnifiedActiveFilterBar(
-                spec = categoriesSpec,
-                state = filterState,
-                onFilterChange = updateFilterState,
-                onOpenFilterDialog = { showFilterDialog = true },
-                accentColor = Color(0xFF10B981),
-                languageMode = languageMode,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 125.dp),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // --- 1. Compact Net Earnings Top Card ---
@@ -465,7 +682,7 @@ fun CategoriesScreen(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(14.dp)
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                         ) {
                             // Top Row: Net Earnings & Edit Mode Toggle
                             Row(
@@ -621,116 +838,38 @@ fun CategoriesScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Bottom Controls: Hierarchy Scope Pill & Mini Sort Filter
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // View Scope Selector (All | Only Groups | Only Categories)
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                        .padding(2.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    ScopePill(
-                                        selected = hierarchyFilter == CategoryViewHierarchyFilter.ALL,
-                                        label = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
-                                        onClick = {
-                                            updateFilterState(
-                                                filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ALL)))
-                                            )
-                                        }
-                                    )
-                                    ScopePill(
-                                        selected = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_GROUPS,
-                                        label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র গ্রুপ" else "Only Groups",
-                                        onClick = {
-                                            updateFilterState(
-                                                filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ONLY_GROUPS)))
-                                            )
-                                        }
-                                    )
-                                    ScopePill(
-                                        selected = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_CATEGORIES,
-                                        label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
-                                        onClick = {
-                                            updateFilterState(
-                                                filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_HIERARCHY to FilterValue.ToggleGroup(setOf(com.example.ui.components.filter.specs.CategoriesFilterSpec.HIERARCHY_ONLY_CATEGORIES)))
-                                            )
-                                        }
-                                    )
-                                }
-
-                                // Mini Sort Filter
-                                Box {
-                                    var showFilterMenu by remember { mutableStateOf(false) }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = if (sortFilter != CategorySortFilter.DEFAULT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { showFilterMenu = true }
-                                            .testTag("categories_sort_btn")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Sort,
-                                                contentDescription = "Sort",
-                                                tint = if (sortFilter != CategorySortFilter.DEFAULT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.size(13.dp)
-                                            )
-                                            Text(
-                                                text = getCategorySortLabel(sortFilter, languageMode),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (sortFilter != CategorySortFilter.DEFAULT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                    }
-
-                                    DropdownMenu(
-                                        expanded = showFilterMenu,
-                                        onDismissRequest = { showFilterMenu = false }
-                                    ) {
-                                        CategorySortFilter.values().forEach { filter ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = getCategorySortMenuLabel(filter, languageMode),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = if (sortFilter == filter) FontWeight.Bold else FontWeight.Normal
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    if (sortFilter == filter) {
-                                                        Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
-                                                    }
-                                                },
-                                                onClick = {
-                                                    val sortId = filter.name.lowercase()
-                                                    updateFilterState(
-                                                        filterState + (com.example.ui.components.filter.specs.CategoriesFilterSpec.FIELD_SORT to FilterValue.Sort(sortId))
-                                                    )
-                                                    showFilterMenu = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
+                }
+
+                // --- 2. Compact 4-Item Cycling Filter & Sort Bar: Hierarchy -> Status -> Sort -> Hide 0 ---
+                item {
+                    CategoriesQuickFilterBar(
+                        hierarchyFilter = hierarchyFilter,
+                        statusFilter = statusFilter,
+                        sortFilter = sortFilter,
+                        excludeZeroBudget = excludeZeroBudget,
+                        languageMode = languageMode,
+                        onCycleHierarchy = {
+                            val next = CategoriesListFilterHelper.nextHierarchyFilter(hierarchyFilter)
+                            updateFilterState(CategoriesFilterSpec.withHierarchy(filterState, next))
+                            scrollToListTop()
+                        },
+                        onCycleStatus = {
+                            val next = CategoriesListFilterHelper.nextStatusFilter(statusFilter)
+                            updateFilterState(CategoriesFilterSpec.withStatus(filterState, next))
+                            scrollToListTop()
+                        },
+                        onCycleSort = {
+                            val next = CategoriesListFilterHelper.nextSortFilter(sortFilter)
+                            updateFilterState(CategoriesFilterSpec.withSort(filterState, next))
+                            scrollToListTop()
+                        },
+                        onToggleHideZero = {
+                            updateFilterState(CategoriesFilterSpec.withExcludeZero(filterState, !excludeZeroBudget))
+                            scrollToListTop()
+                        }
+                    )
                 }
 
                 // --- 2. Categories List Based on Hierarchy Scope ---
@@ -777,13 +916,18 @@ fun CategoriesScreen(
                     } else {
                         items(parentActiveCategories, key = { it.id }) { parent ->
                             val subs = (subCategoriesMap[parent.id] ?: emptyList()).filter { it.isActive }
-                            val displayedSubs = if (searchQuery.isBlank()) {
+                            val searchFilteredSubs = if (searchQuery.isBlank()) {
                                 subs
                             } else {
-                                val parentMatches = matchesCategorySearch(parent, searchQuery)
-                                if (parentMatches) subs else subs.filter { matchesCategorySearch(it, searchQuery) }
+                                val parentMatches = CategoriesListFilterHelper.matchesSearch(parent, searchQuery)
+                                if (parentMatches) subs else subs.filter { CategoriesListFilterHelper.matchesSearch(it, searchQuery) }
                             }
-                            val sortedSubs = sortSubCategories(displayedSubs)
+                            val displayedSubs = if (excludeZeroBudget) {
+                                searchFilteredSubs.filter { !CategoriesListFilterHelper.isZeroBudget(it.budgetLimit) }
+                            } else {
+                                searchFilteredSubs
+                            }
+                            val sortedSubs = CategoriesListFilterHelper.sortSubCategories(displayedSubs, sortFilter, languageMode, categoryUsageCount)
                             val isExpanded = if (searchQuery.isNotBlank()) true else (expandedMap[parent.id] ?: true)
 
                             val parentColor = remember(parent.colorHex) {
@@ -1034,11 +1178,18 @@ fun CategoriesScreen(
 
                         // Inactive Categories Section
                         if (parentInactiveCategories.isNotEmpty()) {
-                            item {
-                                InactiveCategoryHeader(count = parentInactiveCategories.size)
+                            if (statusFilter != CategoryActiveStatusFilter.INACTIVE_ONLY || parentActiveCategories.isNotEmpty()) {
+                                item {
+                                    InactiveCategoryHeader(count = parentInactiveCategories.size)
+                                }
                             }
                             items(parentInactiveCategories, key = { "inactive_${it.id}" }) { parent ->
                                 val subs = (subCategoriesMap[parent.id] ?: emptyList())
+                                val inactiveGroupBudget = CategoriesListFilterHelper.computeEffectiveGroupBudget(
+                                    parent = parent,
+                                    subCategoriesMap = subCategoriesMap,
+                                    activeSubsOnly = false
+                                )
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1082,17 +1233,34 @@ fun CategoriesScreen(
                                             }
                                         }
 
-                                        if (isEditMode) {
-                                            IconButton(
-                                                onClick = { onEditCategoryClick(parent) },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Edit,
-                                                    contentDescription = "Edit",
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (inactiveGroupBudget > 0) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                                ) {
+                                                    Text(
+                                                        text = "Limit: ${LanguageHelper.formatCurrency(inactiveGroupBudget, languageMode)}",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.outline,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                            if (isEditMode) {
+                                                IconButton(
+                                                    onClick = { onEditCategoryClick(parent) },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Edit,
+                                                        contentDescription = "Edit",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1279,26 +1447,70 @@ fun CategoriesScreen(
             spec = categoriesSpec,
             initialState = filterState,
             countProvider = { draftState ->
-                val draftType = com.example.ui.components.filter.specs.CategoriesFilterSpec.getTypeFilter(draftState)
-                val draftHierarchy = com.example.ui.components.filter.specs.CategoriesFilterSpec.getHierarchyFilter(draftState)
-                val draftSearch = com.example.ui.components.filter.specs.CategoriesFilterSpec.getSearchQuery(draftState)
+                val draftType = CategoriesFilterSpec.getTypeFilter(draftState)
+                val draftHierarchy = CategoriesFilterSpec.getHierarchyFilter(draftState)
+                val draftStatus = CategoriesFilterSpec.getStatusFilter(draftState)
+                val draftExcludeZero = CategoriesFilterSpec.getExcludeZeroBudget(draftState)
+                val draftSearch = CategoriesFilterSpec.getSearchQuery(draftState)
 
                 if (draftHierarchy == CategoryViewHierarchyFilter.ONLY_CATEGORIES) {
-                    val matchingSubs = categories.filter { it.parentId != null && (draftType == null || it.type == draftType) }
-                    if (draftSearch.isBlank()) matchingSubs.size else matchingSubs.count { matchesCategorySearch(it, draftSearch) }
-                } else if (draftHierarchy == CategoryViewHierarchyFilter.ONLY_GROUPS) {
-                    val matchingGroups = categories.filter { it.parentId == null && (draftType == null || it.type == draftType) }
-                    if (draftSearch.isBlank()) matchingGroups.size else matchingGroups.count { matchesCategorySearch(it, draftSearch) }
-                } else {
-                    val matchingGroups = categories.filter { it.parentId == null && (draftType == null || it.type == draftType) }
-                    if (draftSearch.isBlank()) {
-                        matchingGroups.size
-                    } else {
-                        matchingGroups.count { group ->
-                            val subs = (subCategoriesMap[group.id] ?: emptyList()).filter { draftType == null || it.type == draftType }
-                            matchesCategorySearch(group, draftSearch) || subs.any { matchesCategorySearch(it, draftSearch) }
-                        }
+                    val activeCount = if (draftStatus == CategoryActiveStatusFilter.INACTIVE_ONLY) 0 else {
+                        CategoriesListFilterHelper.filterFlattenedCategories(
+                            allCategories = categories,
+                            subCategoriesMap = subCategoriesMap,
+                            activeStatusTarget = true,
+                            selectedTypeFilter = draftType,
+                            excludeZeroBudget = draftExcludeZero,
+                            searchQuery = draftSearch,
+                            sortFilter = sortFilter,
+                            languageMode = languageMode,
+                            categoryUsageCount = categoryUsageCount
+                        ).size
                     }
+                    val inactiveCount = if (draftStatus == CategoryActiveStatusFilter.ACTIVE_ONLY) 0 else {
+                        CategoriesListFilterHelper.filterFlattenedCategories(
+                            allCategories = categories,
+                            subCategoriesMap = subCategoriesMap,
+                            activeStatusTarget = false,
+                            selectedTypeFilter = draftType,
+                            excludeZeroBudget = draftExcludeZero,
+                            searchQuery = draftSearch,
+                            sortFilter = sortFilter,
+                            languageMode = languageMode,
+                            categoryUsageCount = categoryUsageCount
+                        ).size
+                    }
+                    activeCount + inactiveCount
+                } else {
+                    val activeGroupCount = if (draftStatus == CategoryActiveStatusFilter.INACTIVE_ONLY) 0 else {
+                        CategoriesListFilterHelper.filterParentGroups(
+                            parentGroups = activeCategories.filter { it.parentId == null },
+                            subCategoriesMap = subCategoriesMap,
+                            selectedTypeFilter = draftType,
+                            hierarchyFilter = draftHierarchy,
+                            excludeZeroBudget = draftExcludeZero,
+                            searchQuery = draftSearch,
+                            sortFilter = sortFilter,
+                            languageMode = languageMode,
+                            groupUsageCount = ::groupUsageCount,
+                            activeSubsOnly = true
+                        ).size
+                    }
+                    val inactiveGroupCount = if (draftStatus == CategoryActiveStatusFilter.ACTIVE_ONLY) 0 else {
+                        CategoriesListFilterHelper.filterParentGroups(
+                            parentGroups = inactiveCategories.filter { it.parentId == null },
+                            subCategoriesMap = subCategoriesMap,
+                            selectedTypeFilter = draftType,
+                            hierarchyFilter = draftHierarchy,
+                            excludeZeroBudget = draftExcludeZero,
+                            searchQuery = draftSearch,
+                            sortFilter = sortFilter,
+                            languageMode = languageMode,
+                            groupUsageCount = ::groupUsageCount,
+                            activeSubsOnly = false
+                        ).size
+                    }
+                    activeGroupCount + inactiveGroupCount
                 }
             },
             languageMode = languageMode,
@@ -1312,59 +1524,164 @@ fun CategoriesScreen(
 }
 
 @Composable
-private fun ScopePill(
-    selected: Boolean,
-    label: String,
-    onClick: () -> Unit
+private fun CategoriesQuickFilterBar(
+    hierarchyFilter: CategoryViewHierarchyFilter,
+    statusFilter: CategoryActiveStatusFilter,
+    sortFilter: CategorySortFilter,
+    excludeZeroBudget: Boolean,
+    languageMode: LanguageMode,
+    onCycleHierarchy: () -> Unit,
+    onCycleStatus: () -> Unit,
+    onCycleSort: () -> Unit,
+    onToggleHideZero: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 7.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    val isBn = languageMode == LanguageMode.BANGLA
+
+    val consumeHorizontalScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                return Offset(available.x, 0f)
+            }
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                return Velocity(available.x, 0f)
+            }
+        }
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val isCompactWidth = maxWidth < 360.dp
+
+        Row(
+            modifier = Modifier
+                .widthIn(min = maxWidth)
+                .nestedScroll(consumeHorizontalScroll)
+                .horizontalScroll(rememberScrollState())
+                .testTag("categories_quick_filter_bar"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 1. Hierarchy Cycle: All -> Groups -> Categories -> All
+            val hierarchyIcon = when (hierarchyFilter) {
+                CategoryViewHierarchyFilter.ONLY_GROUPS -> Icons.Default.Folder
+                CategoryViewHierarchyFilter.ONLY_CATEGORIES -> Icons.Default.Category
+                CategoryViewHierarchyFilter.ALL -> Icons.Default.Layers
+            }
+            val hierarchyLabel = when (hierarchyFilter) {
+                CategoryViewHierarchyFilter.ONLY_GROUPS -> if (isBn) "গ্রুপ" else "Groups"
+                CategoryViewHierarchyFilter.ONLY_CATEGORIES -> if (isBn) "ক্যাটাগরি" else "Categories"
+                CategoryViewHierarchyFilter.ALL -> if (isBn) "সব" else "All"
+            }
+            CategoriesCompactPill(
+                icon = hierarchyIcon,
+                label = hierarchyLabel,
+                isActive = hierarchyFilter != CategoryViewHierarchyFilter.ALL,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("categories_hierarchy_cycle_button"),
+                onClick = onCycleHierarchy
+            )
+
+            // 2. Status Cycle: All -> Active -> Inactive -> All
+            val statusIcon = when (statusFilter) {
+                CategoryActiveStatusFilter.ACTIVE_ONLY -> Icons.Default.CheckCircle
+                CategoryActiveStatusFilter.INACTIVE_ONLY -> Icons.Default.VisibilityOff
+                CategoryActiveStatusFilter.ALL -> Icons.Default.Tune
+            }
+            val statusLabel = when (statusFilter) {
+                CategoryActiveStatusFilter.ACTIVE_ONLY -> if (isBn) "সক্রিয়" else "Active"
+                CategoryActiveStatusFilter.INACTIVE_ONLY -> if (isBn) "নিষ্ক্রিয়" else "Inactive"
+                CategoryActiveStatusFilter.ALL -> if (isBn) "সব" else "All"
+            }
+            CategoriesCompactPill(
+                icon = statusIcon,
+                label = statusLabel,
+                isActive = statusFilter != CategoryActiveStatusFilter.ALL,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("categories_status_cycle_button"),
+                onClick = onCycleStatus
+            )
+
+            // 3. Short Sort Cycle: A -> Z -> Z -> A -> High -> Low -> Low -> High -> A -> Z
+            val effectiveSort = CategoriesListFilterHelper.effectiveSortFilter(sortFilter)
+            val sortIcon = when (effectiveSort) {
+                CategorySortFilter.BUDGET_HIGH_TO_LOW -> Icons.Default.ArrowDownward
+                CategorySortFilter.BUDGET_LOW_TO_HIGH -> Icons.Default.ArrowUpward
+                else -> Icons.AutoMirrored.Filled.Sort
+            }
+            val sortLabel = when (effectiveSort) {
+                CategorySortFilter.NAME_ZA -> "Z → A"
+                CategorySortFilter.BUDGET_HIGH_TO_LOW -> if (isBn) "বেশি → কম" else "High → Low"
+                CategorySortFilter.BUDGET_LOW_TO_HIGH -> if (isBn) "কম → বেশি" else "Low → High"
+                CategorySortFilter.MOST_USED -> if (isBn) "বেশি ব্যবহৃত" else "Most Used"
+                CategorySortFilter.LEAST_USED -> if (isBn) "কম ব্যবহৃত" else "Least Used"
+                CategorySortFilter.NAME_AZ, CategorySortFilter.DEFAULT -> "A → Z"
+            }
+            CategoriesCompactPill(
+                icon = sortIcon,
+                label = sortLabel,
+                isActive = effectiveSort != CategorySortFilter.NAME_AZ,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("categories_sort_cycle_button"),
+                onClick = onCycleSort
+            )
+
+            // 4. Hide 0 Toggle (Budget limit = 0)
+            CategoriesCompactPill(
+                icon = if (excludeZeroBudget) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                label = if (isBn) "০ লুকান" else "Hide 0",
+                isActive = excludeZeroBudget,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("categories_hide_zero_button"),
+                onClick = onToggleHideZero
+            )
+        }
     }
 }
 
 @Composable
-private fun CategoryBottomFilterPill(
-    selected: Boolean,
-    label: String,
+private fun CategoriesCompactPill(
     icon: ImageVector,
-    selectedColor: Color,
+    label: String,
+    isActive: Boolean = false,
+    activeColor: Color = SolidPrimary,
+    isCompactWidth: Boolean = false,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val bgColor = if (isActive) activeColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    val borderColor = if (isActive) activeColor.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val contentColor = if (isActive) activeColor else MaterialTheme.colorScheme.onSurface
+    val horizontalPad = if (isCompactWidth) 6.dp else 8.dp
+    val iconSize = if (isCompactWidth) 11.dp else 12.dp
+    val fontSize = if (isCompactWidth) 10.sp else 10.5.sp
+
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = if (selected) selectedColor else Color.Transparent,
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
+        shape = RoundedCornerShape(14.dp),
+        color = bgColor,
+        border = BorderStroke(0.85.dp, borderColor),
+        modifier = modifier
+            .height(29.dp)
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = horizontalPad),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = label,
-                tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(13.dp)
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(iconSize)
             )
             Text(
                 text = label,
-                fontSize = 11.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = fontSize,
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
+                color = contentColor,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -1519,29 +1836,5 @@ private fun InactiveCategoryHeader(count: Int) {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.outline
         )
-    }
-}
-
-private fun getCategorySortLabel(filter: CategorySortFilter, languageMode: LanguageMode): String {
-    return when (filter) {
-        CategorySortFilter.DEFAULT -> if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter"
-        CategorySortFilter.BUDGET_HIGH_TO_LOW -> if (languageMode == LanguageMode.BANGLA) "বাজেট ↓" else "Budget ↓"
-        CategorySortFilter.BUDGET_LOW_TO_HIGH -> if (languageMode == LanguageMode.BANGLA) "বাজেট ↑" else "Budget ↑"
-        CategorySortFilter.MOST_USED -> if (languageMode == LanguageMode.BANGLA) "বেশি ব্যবহৃত" else "Most Used"
-        CategorySortFilter.LEAST_USED -> if (languageMode == LanguageMode.BANGLA) "কম ব্যবহৃত" else "Least Used"
-        CategorySortFilter.NAME_AZ -> if (languageMode == LanguageMode.BANGLA) "নাম A-Z" else "Name A-Z"
-        CategorySortFilter.NAME_ZA -> if (languageMode == LanguageMode.BANGLA) "নাম Z-A" else "Name Z-A"
-    }
-}
-
-private fun getCategorySortMenuLabel(filter: CategorySortFilter, languageMode: LanguageMode): String {
-    return when (filter) {
-        CategorySortFilter.DEFAULT -> if (languageMode == LanguageMode.BANGLA) "স্বাভাবিক ক্রম" else "Default Order"
-        CategorySortFilter.BUDGET_HIGH_TO_LOW -> if (languageMode == LanguageMode.BANGLA) "বাজেট সীমা: বেশি থেকে কম" else "Budget Limit: High to Low"
-        CategorySortFilter.BUDGET_LOW_TO_HIGH -> if (languageMode == LanguageMode.BANGLA) "বাজেট সীমা: কম থেকে বেশি" else "Budget Limit: Low to High"
-        CategorySortFilter.MOST_USED -> if (languageMode == LanguageMode.BANGLA) "সর্বাধিক ব্যবহৃত" else "Most Used / Frequent"
-        CategorySortFilter.LEAST_USED -> if (languageMode == LanguageMode.BANGLA) "কম ব্যবহৃত" else "Least Used"
-        CategorySortFilter.NAME_AZ -> if (languageMode == LanguageMode.BANGLA) "নাম: A থেকে Z" else "Name: A to Z"
-        CategorySortFilter.NAME_ZA -> if (languageMode == LanguageMode.BANGLA) "নাম: Z থেকে A" else "Name: Z to A"
     }
 }

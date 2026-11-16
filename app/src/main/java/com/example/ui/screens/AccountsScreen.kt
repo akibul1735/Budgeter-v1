@@ -243,6 +243,32 @@ internal object AccountsListFilterHelper {
         }
     }
 
+    fun computeExcludedGroupBalance(groupItem: AccountWithBalance, config: AccountCalcConfig): Double {
+        val groupSetting = config.getSetting(groupItem.account.id)
+        if (!groupSetting.isIncluded) {
+            return if (groupItem.subAccounts.isEmpty()) {
+                groupItem.currentBalance
+            } else {
+                computeActualGroupBalance(groupItem, activeSubsOnly = groupItem.account.isActive)
+            }
+        }
+        if (groupItem.subAccounts.isEmpty()) {
+            return -groupSetting.adjustmentAmount
+        }
+        val subs = if (groupItem.account.isActive) {
+            groupItem.subAccounts.filter { it.account.isActive }
+        } else {
+            groupItem.subAccounts
+        }
+        val subsExcluded = subs.sumOf { sub ->
+            val subSetting = config.getSetting(sub.account.id)
+            if (!subSetting.isIncluded) sub.currentBalance
+            else if (subSetting.adjustmentAmount != 0.0) -subSetting.adjustmentAmount
+            else 0.0
+        }
+        return subsExcluded - groupSetting.adjustmentAmount
+    }
+
     fun isZeroAmount(value: Double): Boolean = abs(value) < ZERO_EPSILON
 
     fun isItemAssetSide(account: Account, balanceForSide: Double): Boolean {
@@ -274,7 +300,7 @@ internal object AccountsListFilterHelper {
         val balanceForSort: (AccountWithBalance) -> Double = { item ->
             when (scope) {
                 AccountsScopeFilter.INCLUDED -> computeEffectiveGroupBalance(item, config)
-                AccountsScopeFilter.EXCLUDED,
+                AccountsScopeFilter.EXCLUDED -> computeExcludedGroupBalance(item, config)
                 AccountsScopeFilter.ALL -> computeDisplayedGroupBalance(item, config)
             }
         }
@@ -1534,10 +1560,13 @@ fun AccountsScreen(
                                     if (isOnlyGroups) groupItem
                                     else groupItem.copy(subAccounts = sortSubAccounts(groupItem.subAccounts))
                                 }
+                                val excludedGroupTotal = remember(sortedGroupItem, activeViewConfig) {
+                                    AccountsListFilterHelper.computeExcludedGroupBalance(sortedGroupItem, activeViewConfig)
+                                }
                                 AccountGroupCard(
                                     groupItem = sortedGroupItem,
                                     accountCalcConfig = accountCalcConfig,
-                                    effectiveBalance = computeEffectiveGroupBalance(groupItem),
+                                    effectiveBalance = excludedGroupTotal,
                                     isEditMode = isEditMode,
                                     isExpanded = expandedMap[groupItem.account.id] ?: true,
                                     isInactiveSection = !groupItem.account.isActive,

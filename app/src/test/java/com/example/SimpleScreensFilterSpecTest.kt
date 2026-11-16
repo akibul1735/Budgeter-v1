@@ -2145,5 +2145,137 @@ class SimpleScreensFilterSpecTest {
             groupUsageCount = { 0 }
         )
         assertEquals(listOf("Cash"), includedGroupsHideZero.map { it.account.nameEn })
+
+        // 3. Per-group excluded totals when group itself is included and sub-accounts are excluded
+        val subNagad = Account(id = 101L, nameEn = "Nagad", nameBn = "নগদ", type = com.example.data.model.AccountType.ASSET, parentId = 100L)
+        val subRocket = Account(id = 102L, nameEn = "Rocket", nameBn = "রকেট", type = com.example.data.model.AccountType.ASSET, parentId = 100L)
+        val subBkash = Account(id = 103L, nameEn = "bKash", nameBn = "বিকাশ", type = com.example.data.model.AccountType.ASSET, parentId = 100L)
+        val groupMobile = Account(id = 100L, nameEn = "Mobile Banking Accounts", nameBn = "মোবাইল", type = com.example.data.model.AccountType.ASSET)
+
+        val subSonaliSav = Account(id = 201L, nameEn = "Sonali Bank Savings", nameBn = "সোনালী", type = com.example.data.model.AccountType.ASSET, parentId = 200L)
+        val subInterest = Account(id = 202L, nameEn = "Interest", nameBn = "সুদ", type = com.example.data.model.AccountType.ASSET, parentId = 200L)
+        val groupSonali = Account(id = 200L, nameEn = "Sonali Bank Group", nameBn = "সোনালী গ্রুপ", type = com.example.data.model.AccountType.ASSET)
+
+        val nestedGroups = listOf(
+            com.example.data.repository.AccountWithBalance(
+                account = groupMobile,
+                currentBalance = 1039.51,
+                subAccounts = listOf(
+                    com.example.data.repository.AccountWithBalance(subNagad, 38.30),
+                    com.example.data.repository.AccountWithBalance(subRocket, 1.21),
+                    com.example.data.repository.AccountWithBalance(subBkash, 1000.0)
+                ),
+                isParent = true
+            ),
+            com.example.data.repository.AccountWithBalance(
+                account = groupSonali,
+                currentBalance = 797.0,
+                subAccounts = listOf(
+                    com.example.data.repository.AccountWithBalance(subSonaliSav, 500.0),
+                    com.example.data.repository.AccountWithBalance(subInterest, 297.0)
+                ),
+                isParent = true
+            )
+        )
+        val nestedConfig = com.example.util.AccountCalcConfig(
+            settings = mapOf(
+                101L to com.example.util.AccountCalcSetting(isIncluded = false),
+                102L to com.example.util.AccountCalcSetting(isIncluded = false),
+                201L to com.example.util.AccountCalcSetting(isIncluded = false),
+                202L to com.example.util.AccountCalcSetting(isIncluded = false)
+            )
+        )
+        val excludedGroupsSortedDesc = com.example.ui.screens.AccountsListFilterHelper.filterGroups(
+            sourceGroups = nestedGroups,
+            scope = com.example.ui.screens.AccountsScopeFilter.EXCLUDED,
+            selectedTypeFilter = null,
+            excludeZeroBalance = true,
+            searchQuery = "",
+            sortFilter = AccountSortFilter.AMOUNT_HIGH_TO_LOW,
+            config = nestedConfig,
+            languageMode = LanguageMode.ENGLISH,
+            groupUsageCount = { 0 }
+        )
+        assertEquals(listOf("Sonali Bank Group", "Mobile Banking Accounts"), excludedGroupsSortedDesc.map { it.account.nameEn })
+        assertEquals(797.0, com.example.ui.screens.AccountsListFilterHelper.computeExcludedGroupBalance(excludedGroupsSortedDesc[0], nestedConfig), 0.001)
+        assertEquals(39.51, com.example.ui.screens.AccountsListFilterHelper.computeExcludedGroupBalance(excludedGroupsSortedDesc[1], nestedConfig), 0.001)
+    }
+
+    @Test
+    fun testCategoriesQuickCycleShortSortAndHideZeroRules() {
+        // 1. Verify exact 4-item cycle sequences:
+        // Hierarchy: All -> Groups -> Categories -> All
+        var hierarchy = CategoryViewHierarchyFilter.ALL
+        hierarchy = com.example.ui.screens.CategoriesListFilterHelper.nextHierarchyFilter(hierarchy)
+        assertEquals(CategoryViewHierarchyFilter.ONLY_GROUPS, hierarchy)
+        hierarchy = com.example.ui.screens.CategoriesListFilterHelper.nextHierarchyFilter(hierarchy)
+        assertEquals(CategoryViewHierarchyFilter.ONLY_CATEGORIES, hierarchy)
+        hierarchy = com.example.ui.screens.CategoriesListFilterHelper.nextHierarchyFilter(hierarchy)
+        assertEquals(CategoryViewHierarchyFilter.ALL, hierarchy)
+
+        // Status: All -> Active -> Inactive -> All
+        var status = com.example.ui.screens.CategoryActiveStatusFilter.ALL
+        status = com.example.ui.screens.CategoriesListFilterHelper.nextStatusFilter(status)
+        assertEquals(com.example.ui.screens.CategoryActiveStatusFilter.ACTIVE_ONLY, status)
+        status = com.example.ui.screens.CategoriesListFilterHelper.nextStatusFilter(status)
+        assertEquals(com.example.ui.screens.CategoryActiveStatusFilter.INACTIVE_ONLY, status)
+        status = com.example.ui.screens.CategoriesListFilterHelper.nextStatusFilter(status)
+        assertEquals(com.example.ui.screens.CategoryActiveStatusFilter.ALL, status)
+
+        // Short Sort: A -> Z -> Z -> A -> High -> Low -> Low -> High -> A -> Z
+        var sort = com.example.ui.screens.CategoriesListFilterHelper.nextSortFilter(CategorySortFilter.DEFAULT)
+        assertEquals(CategorySortFilter.NAME_ZA, sort)
+        sort = com.example.ui.screens.CategoriesListFilterHelper.nextSortFilter(sort)
+        assertEquals(CategorySortFilter.BUDGET_HIGH_TO_LOW, sort)
+        sort = com.example.ui.screens.CategoriesListFilterHelper.nextSortFilter(sort)
+        assertEquals(CategorySortFilter.BUDGET_LOW_TO_HIGH, sort)
+        sort = com.example.ui.screens.CategoriesListFilterHelper.nextSortFilter(sort)
+        assertEquals(CategorySortFilter.NAME_AZ, sort)
+
+        // 2. Verify CategoriesFilterSpec status + excludeZero getters/setters
+        var state: FilterState = emptyMap()
+        assertEquals(com.example.ui.screens.CategoryActiveStatusFilter.ALL, CategoriesFilterSpec.getStatusFilter(state))
+        assertFalse(CategoriesFilterSpec.getExcludeZeroBudget(state))
+        state = CategoriesFilterSpec.withStatus(state, com.example.ui.screens.CategoryActiveStatusFilter.INACTIVE_ONLY)
+        state = CategoriesFilterSpec.withExcludeZero(state, true)
+        assertEquals(com.example.ui.screens.CategoryActiveStatusFilter.INACTIVE_ONLY, CategoriesFilterSpec.getStatusFilter(state))
+        assertTrue(CategoriesFilterSpec.getExcludeZeroBudget(state))
+
+        // 3. Verify Hide 0 & sorting on groups and flattened categories
+        val grpFood = Category(id = 1L, nameEn = "Food", nameBn = "খাবার", type = CategoryType.EXPENSE, budgetLimit = 0.0, isActive = true)
+        val subGroceries = Category(id = 11L, nameEn = "Groceries", nameBn = "বাজার", type = CategoryType.EXPENSE, parentId = 1L, budgetLimit = 5000.0, isActive = true)
+        val subSnacks = Category(id = 12L, nameEn = "Snacks", nameBn = "নাস্তা", type = CategoryType.EXPENSE, parentId = 1L, budgetLimit = 0.0, isActive = true)
+        val grpZero = Category(id = 2L, nameEn = "Misc", nameBn = "বিবিধ", type = CategoryType.EXPENSE, budgetLimit = 0.0, isActive = true)
+        val grpInactive = Category(id = 3L, nameEn = "Archived", nameBn = "সংরক্ষিত", type = CategoryType.EXPENSE, budgetLimit = 1200.0, isActive = false)
+
+        val allCats = listOf(grpFood, subGroceries, subSnacks, grpZero, grpInactive)
+        val subMap = allCats.filter { it.parentId != null }.groupBy { it.parentId!! }
+
+        val activeGroupsHideZero = com.example.ui.screens.CategoriesListFilterHelper.filterParentGroups(
+            parentGroups = allCats.filter { it.isActive && it.parentId == null },
+            subCategoriesMap = subMap,
+            selectedTypeFilter = CategoryType.EXPENSE,
+            hierarchyFilter = CategoryViewHierarchyFilter.ALL,
+            excludeZeroBudget = true,
+            searchQuery = "",
+            sortFilter = CategorySortFilter.BUDGET_HIGH_TO_LOW,
+            languageMode = LanguageMode.ENGLISH,
+            groupUsageCount = { 0 },
+            activeSubsOnly = true
+        )
+        assertEquals(listOf("Food"), activeGroupsHideZero.map { it.nameEn })
+
+        val flattenedHideZero = com.example.ui.screens.CategoriesListFilterHelper.filterFlattenedCategories(
+            allCategories = allCats,
+            subCategoriesMap = subMap,
+            activeStatusTarget = true,
+            selectedTypeFilter = CategoryType.EXPENSE,
+            excludeZeroBudget = true,
+            searchQuery = "",
+            sortFilter = CategorySortFilter.BUDGET_LOW_TO_HIGH,
+            languageMode = LanguageMode.ENGLISH,
+            categoryUsageCount = { 0 }
+        )
+        assertEquals(listOf("Groceries"), flattenedHideZero.map { it.category.nameEn })
     }
 }
