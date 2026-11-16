@@ -13,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -78,7 +80,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -136,7 +140,7 @@ enum class AccountViewHierarchyFilter {
 }
 
 enum class AccountsScopeFilter {
-    ACTIVE,
+    ALL,
     INCLUDED,
     EXCLUDED
 }
@@ -175,11 +179,18 @@ internal object AccountsListFilterHelper {
             AccountViewHierarchyFilter.EXCLUDED -> AccountViewHierarchyFilter.ALL
         }
 
+    fun nextStatusFilter(current: AccountActiveStatusFilter): AccountActiveStatusFilter =
+        when (current) {
+            AccountActiveStatusFilter.ALL -> AccountActiveStatusFilter.ACTIVE_ONLY
+            AccountActiveStatusFilter.ACTIVE_ONLY -> AccountActiveStatusFilter.INACTIVE_ONLY
+            AccountActiveStatusFilter.INACTIVE_ONLY -> AccountActiveStatusFilter.ALL
+        }
+
     fun nextScopeFilter(current: AccountsScopeFilter): AccountsScopeFilter =
         when (current) {
-            AccountsScopeFilter.ACTIVE -> AccountsScopeFilter.INCLUDED
+            AccountsScopeFilter.ALL -> AccountsScopeFilter.INCLUDED
             AccountsScopeFilter.INCLUDED -> AccountsScopeFilter.EXCLUDED
-            AccountsScopeFilter.EXCLUDED -> AccountsScopeFilter.ACTIVE
+            AccountsScopeFilter.EXCLUDED -> AccountsScopeFilter.ALL
         }
 
     fun nextSortFilter(current: AccountSortFilter): AccountSortFilter =
@@ -264,7 +275,7 @@ internal object AccountsListFilterHelper {
             when (scope) {
                 AccountsScopeFilter.INCLUDED -> computeEffectiveGroupBalance(item, config)
                 AccountsScopeFilter.EXCLUDED,
-                AccountsScopeFilter.ACTIVE -> computeDisplayedGroupBalance(item, config)
+                AccountsScopeFilter.ALL -> computeDisplayedGroupBalance(item, config)
             }
         }
         return when (activeSort) {
@@ -291,7 +302,7 @@ internal object AccountsListFilterHelper {
             when (scope) {
                 AccountsScopeFilter.INCLUDED -> computeEffectiveSubBalance(item, config)
                 AccountsScopeFilter.EXCLUDED,
-                AccountsScopeFilter.ACTIVE -> computeDisplayedSubBalance(item, config)
+                AccountsScopeFilter.ALL -> computeDisplayedSubBalance(item, config)
             }
         }
         return when (activeSort) {
@@ -338,7 +349,7 @@ internal object AccountsListFilterHelper {
         }
 
         val scopeFiltered = when (scope) {
-            AccountsScopeFilter.ACTIVE -> typeFiltered
+            AccountsScopeFilter.ALL -> typeFiltered
             AccountsScopeFilter.INCLUDED -> typeFiltered.mapNotNull { group ->
                 if (!config.isIncluded(group.account.id)) return@mapNotNull null
                 if (group.subAccounts.isEmpty()) {
@@ -443,7 +454,7 @@ internal object AccountsListFilterHelper {
 
             if (group.subAccounts.isEmpty()) {
                 val matchesScope = when (scope) {
-                    AccountsScopeFilter.ACTIVE -> true
+                    AccountsScopeFilter.ALL -> true
                     AccountsScopeFilter.INCLUDED -> isParentIncluded
                     AccountsScopeFilter.EXCLUDED -> isParentExcludedOrAdjusted
                 }
@@ -463,7 +474,7 @@ internal object AccountsListFilterHelper {
                         FlattenedAccountItem(
                             accountWithBalance = group,
                             parentGroup = null,
-                            effectiveBalance = if (scope == AccountsScopeFilter.ACTIVE || scope == AccountsScopeFilter.INCLUDED) eff else group.currentBalance,
+                            effectiveBalance = if (scope == AccountsScopeFilter.ALL || scope == AccountsScopeFilter.INCLUDED) eff else group.currentBalance,
                             usageCount = accountUsageCount(group.account.id)
                         )
                     )
@@ -475,7 +486,7 @@ internal object AccountsListFilterHelper {
                     val isSubIncluded = isParentIncluded && subSetting.isIncluded
                     val isSubExcludedOrAdjusted = isParentExcludedOrAdjusted || !subSetting.isIncluded || subSetting.adjustmentAmount != 0.0
                     val matchesScope = when (scope) {
-                        AccountsScopeFilter.ACTIVE -> true
+                        AccountsScopeFilter.ALL -> true
                         AccountsScopeFilter.INCLUDED -> isSubIncluded
                         AccountsScopeFilter.EXCLUDED -> isSubExcludedOrAdjusted
                     }
@@ -572,9 +583,22 @@ fun AccountsScreen(
     var showFilterDialog by remember { mutableStateOf(false) }
     var showSortFilterSheet by remember { mutableStateOf(false) }
 
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+    fun scrollToListTop() {
+        coroutineScope.launch {
+            listState.animateScrollToItem(0)
+        }
+    }
+
     val updateFilterState: (FilterState) -> Unit = { newState ->
+        val changed = newState != filterState
         filterState = newState
         filterStore.saveFilterState(AccountsFilterSpec.SPEC_KEY, newState)
+        if (changed) {
+            scrollToListTop()
+        }
     }
 
     val selectedTypeFilter = remember(filterState) { AccountsFilterSpec.getType(filterState) }
@@ -590,7 +614,7 @@ fun AccountsScreen(
             when {
                 hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED -> AccountsScopeFilter.EXCLUDED
                 inclusionViewMode == AccountInclusionViewMode.ALL_INCLUDED -> AccountsScopeFilter.INCLUDED
-                else -> AccountsScopeFilter.ACTIVE
+                else -> AccountsScopeFilter.ALL
             }
         )
     }
@@ -858,7 +882,6 @@ fun AccountsScreen(
     val hasCustomizations = accountCalcConfig.hasAnyCustomizations
 
     // Auto Hide/Show on scrolling for bottom buttons
-    val listState = rememberLazyListState()
     var isBottomNavVisible by remember { mutableStateOf(true) }
 
     val nestedScrollConnection = remember {
@@ -989,7 +1012,7 @@ fun AccountsScreen(
                 } else {
                     displayHierarchy = newHierarchy
                     if (scopeFilter == AccountsScopeFilter.EXCLUDED) {
-                        scopeFilter = AccountsScopeFilter.ACTIVE
+                        scopeFilter = AccountsScopeFilter.ALL
                     }
                 }
                 updateFilterState(newFilter)
@@ -1014,7 +1037,7 @@ fun AccountsScreen(
                 showFilterDialog = true
             },
             onClearFilters = {
-                scopeFilter = AccountsScopeFilter.ACTIVE
+                scopeFilter = AccountsScopeFilter.ALL
                 displayHierarchy = AccountViewHierarchyFilter.ALL
                 inclusionViewMode = AccountInclusionViewMode.NORMAL
                 calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
@@ -1055,14 +1078,21 @@ fun AccountsScreen(
                 displayHierarchy = nextHierarchy
                 if (scopeFilter != AccountsScopeFilter.EXCLUDED) {
                     updateFilterState(AccountsFilterSpec.withHierarchy(filterState, nextHierarchy))
+                } else {
+                    scrollToListTop()
                 }
+            }
+
+            val onCycleStatus: () -> Unit = {
+                val nextStatus = AccountsListFilterHelper.nextStatusFilter(statusFilter)
+                updateFilterState(AccountsFilterSpec.withStatus(filterState, nextStatus))
             }
 
             val onCycleScope: () -> Unit = {
                 val nextScope = AccountsListFilterHelper.nextScopeFilter(scopeFilter)
                 scopeFilter = nextScope
                 when (nextScope) {
-                    AccountsScopeFilter.ACTIVE -> {
+                    AccountsScopeFilter.ALL -> {
                         inclusionViewMode = AccountInclusionViewMode.NORMAL
                         calcPrefs.setInclusionViewMode(AccountInclusionViewMode.NORMAL)
                         updateFilterState(AccountsFilterSpec.withHierarchy(filterState, displayHierarchy))
@@ -1078,6 +1108,7 @@ fun AccountsScreen(
                         updateFilterState(AccountsFilterSpec.withHierarchy(filterState, AccountViewHierarchyFilter.EXCLUDED))
                     }
                 }
+                scrollToListTop()
             }
 
             val onCycleSort: () -> Unit = {
@@ -1099,20 +1130,20 @@ fun AccountsScreen(
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // --- 1. Net Worth Summary Card (Themed for Day & Night) ---
+                // --- 1. Compact Net Worth Summary Card (Themed for Day & Night) ---
                 item {
                     val isBn = languageMode == LanguageMode.BANGLA
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("net_worth_card"),
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(20.dp)
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                         ) {
                             // Top Row: Title + Adjusted badge (if any) + Edit button
                             Row(
@@ -1127,7 +1158,7 @@ fun AccountsScreen(
                                         if (isBn) "মোট সম্পদ" else "Net worth"
                                     },
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                                    fontSize = 14.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -1135,30 +1166,30 @@ fun AccountsScreen(
                                 )
 
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     if (hasCustomizations) {
                                         Surface(
-                                            shape = RoundedCornerShape(12.dp),
+                                            shape = RoundedCornerShape(10.dp),
                                             color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(12.dp))
+                                                .clip(RoundedCornerShape(10.dp))
                                                 .clickable { showResetAllConfirmDialog = true }
                                                 .testTag("net_worth_adjusted_badge")
                                         ) {
                                             Text(
                                                 text = if (isBn) "সমন্বিত" else "Adjusted",
                                                 color = MaterialTheme.colorScheme.onPrimary,
-                                                fontSize = 12.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
                                         }
                                     }
 
                                     Surface(
-                                        shape = RoundedCornerShape(12.dp),
+                                        shape = RoundedCornerShape(10.dp),
                                         color = if (isEditMode) {
                                             MaterialTheme.colorScheme.primary
                                         } else {
@@ -1170,14 +1201,14 @@ fun AccountsScreen(
                                             BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                         },
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(12.dp))
+                                            .clip(RoundedCornerShape(10.dp))
                                             .clickable { isEditMode = !isEditMode }
                                             .testTag("net_worth_edit_btn")
                                     ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(3.5.dp),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                         ) {
                                             Icon(
                                                 imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Edit,
@@ -1187,7 +1218,7 @@ fun AccountsScreen(
                                                 } else {
                                                     MaterialTheme.colorScheme.onSurface
                                                 },
-                                                modifier = Modifier.size(13.dp)
+                                                modifier = Modifier.size(11.5.dp)
                                             )
                                             Text(
                                                 text = if (isEditMode) {
@@ -1200,7 +1231,7 @@ fun AccountsScreen(
                                                 } else {
                                                     MaterialTheme.colorScheme.onSurface
                                                 },
-                                                fontSize = 12.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         }
@@ -1208,27 +1239,27 @@ fun AccountsScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
 
                             // Main Net Worth amount
                             Text(
                                 text = LanguageHelper.formatCurrency(displayedNetWorth, languageMode),
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontSize = 34.sp,
+                                fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold
                             )
 
                             // Original amount sub-caption
                             if (hasCustomizations && displayedNetWorth != actualNetWorth) {
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(1.dp))
                                 Text(
                                     text = "${if (isBn) "আসল" else "Original"}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f),
-                                    fontSize = 13.sp
+                                    fontSize = 11.sp
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             // Proportional split bar: Assets portion & Liabilities portion
                             val safeAssets = displayedAssets.coerceAtLeast(0.0)
@@ -1243,20 +1274,20 @@ fun AccountsScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(7.dp)
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .height(5.dp)
+                                    .clip(RoundedCornerShape(3.dp))
                                     .background(SolidExpense.copy(alpha = 0.45f))
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth(fraction = assetFraction)
                                         .fillMaxHeight()
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .clip(RoundedCornerShape(3.dp))
                                         .background(SolidIncome)
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             // Bottom row: Assets and Liabilities
                             Row(
@@ -1277,20 +1308,20 @@ fun AccountsScreen(
                                     Text(
                                         text = if (isBn) "সম্পদ" else "Assets",
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                                        fontSize = 13.sp
+                                        fontSize = 11.5.sp
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(modifier = Modifier.height(1.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(displayedAssets, languageMode),
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        fontSize = 20.sp,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     if (hasCustomizations && calculatedTotalAssets != actualTotalAssets) {
                                         Text(
                                             text = "${if (isBn) "ছিল" else "was"} ${LanguageHelper.formatCurrency(actualTotalAssets, languageMode)}",
                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f),
-                                            fontSize = 11.5.sp
+                                            fontSize = 10.sp
                                         )
                                     }
                                 }
@@ -1308,20 +1339,20 @@ fun AccountsScreen(
                                     Text(
                                         text = if (isBn) "দায়" else "Liabilities",
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                                        fontSize = 13.sp
+                                        fontSize = 11.5.sp
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Spacer(modifier = Modifier.height(1.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(displayedLiabilities, languageMode),
                                         color = SolidExpense,
-                                        fontSize = 20.sp,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                     if (hasCustomizations && calculatedTotalLiabilities != actualTotalLiabilities) {
                                         Text(
                                             text = "${if (isBn) "ছিল" else "was"} ${LanguageHelper.formatCurrency(actualTotalLiabilities, languageMode)}",
                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.70f),
-                                            fontSize = 11.5.sp
+                                            fontSize = 10.sp
                                         )
                                     }
                                 }
@@ -1330,15 +1361,17 @@ fun AccountsScreen(
                     }
                 }
 
-                // --- 2. Compact Cycling Filter & Sort Bar: Hierarchy -> Scope -> Sort -> Hide 0 ---
+                // --- 2. Compact Cycling Filter & Sort Bar: Hierarchy -> Status -> Inclusion -> Sort -> Hide 0 ---
                 item {
                     AccountsQuickFilterBar(
                         displayHierarchy = displayHierarchy,
+                        statusFilter = statusFilter,
                         scopeFilter = scopeFilter,
                         sortFilter = sortFilter,
                         excludeZeroBalance = excludeZeroBalance,
                         languageMode = languageMode,
                         onCycleHierarchy = onCycleHierarchy,
+                        onCycleStatus = onCycleStatus,
                         onCycleScope = onCycleScope,
                         onCycleSort = onCycleSort,
                         onToggleHideZero = onToggleHideZero
@@ -1785,11 +1818,13 @@ fun AccountsScreen(
 @Composable
 private fun AccountsQuickFilterBar(
     displayHierarchy: AccountViewHierarchyFilter,
+    statusFilter: AccountActiveStatusFilter,
     scopeFilter: AccountsScopeFilter,
     sortFilter: AccountSortFilter,
     excludeZeroBalance: Boolean,
     languageMode: LanguageMode,
     onCycleHierarchy: () -> Unit,
+    onCycleStatus: () -> Unit,
     onCycleScope: () -> Unit,
     onCycleSort: () -> Unit,
     onToggleHideZero: () -> Unit
@@ -1807,88 +1842,117 @@ private fun AccountsQuickFilterBar(
         }
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .nestedScroll(consumeHorizontalScroll)
-            .horizontalScroll(rememberScrollState())
-            .testTag("accounts_quick_filter_bar"),
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 1. Hierarchy Cycle: All -> Groups -> Accounts -> All
-        val hierarchyIcon = when (displayHierarchy) {
-            AccountViewHierarchyFilter.ONLY_GROUPS -> Icons.Default.Folder
-            AccountViewHierarchyFilter.ONLY_ACCOUNTS -> Icons.Default.AccountBalanceWallet
-            else -> Icons.Default.Layers
-        }
-        val hierarchyLabel = when (displayHierarchy) {
-            AccountViewHierarchyFilter.ONLY_GROUPS -> if (isBn) "গ্রুপ" else "Groups"
-            AccountViewHierarchyFilter.ONLY_ACCOUNTS -> if (isBn) "অ্যাকাউন্ট" else "Accounts"
-            else -> if (isBn) "সব" else "All"
-        }
-        AccountsCompactPill(
-            icon = hierarchyIcon,
-            label = hierarchyLabel,
-            isActive = displayHierarchy != AccountViewHierarchyFilter.ALL,
-            activeColor = SolidPrimary,
-            modifier = Modifier.testTag("accounts_hierarchy_cycle_button"),
-            onClick = onCycleHierarchy
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val isCompactWidth = maxWidth < 360.dp
 
-        // 2. Scope Cycle: Active -> Included -> Excluded -> Active
-        val scopeIcon = when (scopeFilter) {
-            AccountsScopeFilter.ACTIVE -> Icons.Default.CheckCircle
-            AccountsScopeFilter.INCLUDED -> Icons.Default.Visibility
-            AccountsScopeFilter.EXCLUDED -> Icons.Default.VisibilityOff
-        }
-        val scopeLabel = when (scopeFilter) {
-            AccountsScopeFilter.ACTIVE -> if (isBn) "সক্রিয়" else "Active"
-            AccountsScopeFilter.INCLUDED -> if (isBn) "অন্তর্ভুক্ত" else "Included"
-            AccountsScopeFilter.EXCLUDED -> if (isBn) "বর্জিত" else "Excluded"
-        }
-        AccountsCompactPill(
-            icon = scopeIcon,
-            label = scopeLabel,
-            isActive = scopeFilter != AccountsScopeFilter.ACTIVE,
-            activeColor = SolidPrimary,
-            modifier = Modifier.testTag("accounts_scope_cycle_button"),
-            onClick = onCycleScope
-        )
+        Row(
+            modifier = Modifier
+                .widthIn(min = maxWidth)
+                .nestedScroll(consumeHorizontalScroll)
+                .horizontalScroll(rememberScrollState())
+                .testTag("accounts_quick_filter_bar"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 1. Hierarchy Cycle: All -> Groups -> Accounts -> All
+            val hierarchyIcon = when (displayHierarchy) {
+                AccountViewHierarchyFilter.ONLY_GROUPS -> Icons.Default.Folder
+                AccountViewHierarchyFilter.ONLY_ACCOUNTS -> Icons.Default.AccountBalanceWallet
+                else -> Icons.Default.Layers
+            }
+            val hierarchyLabel = when (displayHierarchy) {
+                AccountViewHierarchyFilter.ONLY_GROUPS -> if (isBn) "গ্রুপ" else "Groups"
+                AccountViewHierarchyFilter.ONLY_ACCOUNTS -> if (isBn) "অ্যাকাউন্ট" else "Accounts"
+                else -> if (isBn) "সব" else "All"
+            }
+            AccountsCompactPill(
+                icon = hierarchyIcon,
+                label = hierarchyLabel,
+                isActive = displayHierarchy != AccountViewHierarchyFilter.ALL,
+                activeColor = SolidPrimary,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("accounts_hierarchy_cycle_button"),
+                onClick = onCycleHierarchy
+            )
 
-        // 3. Sort Cycle: A -> Z > Z -> A > High -> Low > Low -> High > A -> Z
-        val effectiveSort = AccountsListFilterHelper.effectiveSortFilter(sortFilter)
-        val sortIcon = when (effectiveSort) {
-            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> Icons.Default.ArrowDownward
-            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> Icons.Default.ArrowUpward
-            else -> Icons.AutoMirrored.Filled.Sort
-        }
-        val sortLabel = when (effectiveSort) {
-            AccountSortFilter.NAME_ZA -> "Z → A"
-            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> if (isBn) "বেশি → কম" else "High → Low"
-            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> if (isBn) "কম → বেশি" else "Low → High"
-            AccountSortFilter.MOST_USED -> if (isBn) "বেশি ব্যবহৃত" else "Most Used"
-            AccountSortFilter.LEAST_USED -> if (isBn) "কম ব্যবহৃত" else "Least Used"
-            AccountSortFilter.NAME_AZ, AccountSortFilter.DEFAULT -> "A → Z"
-        }
-        AccountsCompactPill(
-            icon = sortIcon,
-            label = sortLabel,
-            isActive = effectiveSort != AccountSortFilter.NAME_AZ,
-            activeColor = SolidPrimary,
-            modifier = Modifier.testTag("accounts_sort_cycle_button"),
-            onClick = onCycleSort
-        )
+            // 2. Status Cycle: All -> Active -> Inactive -> All
+            val statusIcon = when (statusFilter) {
+                AccountActiveStatusFilter.ACTIVE_ONLY -> Icons.Default.CheckCircle
+                AccountActiveStatusFilter.INACTIVE_ONLY -> Icons.Default.VisibilityOff
+                AccountActiveStatusFilter.ALL -> Icons.Default.Tune
+            }
+            val statusLabel = when (statusFilter) {
+                AccountActiveStatusFilter.ACTIVE_ONLY -> if (isBn) "সক্রিয়" else "Active"
+                AccountActiveStatusFilter.INACTIVE_ONLY -> if (isBn) "নিষ্ক্রিয়" else "Inactive"
+                AccountActiveStatusFilter.ALL -> if (isBn) "সব" else "All"
+            }
+            AccountsCompactPill(
+                icon = statusIcon,
+                label = statusLabel,
+                isActive = statusFilter != AccountActiveStatusFilter.ALL,
+                activeColor = SolidPrimary,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("accounts_status_cycle_button"),
+                onClick = onCycleStatus
+            )
 
-        // 4. Hide 0 Toggle
-        AccountsCompactPill(
-            icon = if (excludeZeroBalance) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-            label = if (isBn) "০ লুকান" else "Hide 0",
-            isActive = excludeZeroBalance,
-            activeColor = SolidPrimary,
-            modifier = Modifier.testTag("accounts_hide_zero_button"),
-            onClick = onToggleHideZero
-        )
+            // 3. Inclusion Scope Cycle: All -> Included -> Excluded -> All
+            val scopeIcon = when (scopeFilter) {
+                AccountsScopeFilter.ALL -> Icons.Default.FilterList
+                AccountsScopeFilter.INCLUDED -> Icons.Default.Visibility
+                AccountsScopeFilter.EXCLUDED -> Icons.Default.VisibilityOff
+            }
+            val scopeLabel = when (scopeFilter) {
+                AccountsScopeFilter.ALL -> if (isBn) "সব" else "All"
+                AccountsScopeFilter.INCLUDED -> if (isBn) "অন্তর্ভুক্ত" else "Included"
+                AccountsScopeFilter.EXCLUDED -> if (isBn) "বর্জিত" else "Excluded"
+            }
+            AccountsCompactPill(
+                icon = scopeIcon,
+                label = scopeLabel,
+                isActive = scopeFilter != AccountsScopeFilter.ALL,
+                activeColor = SolidPrimary,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("accounts_scope_cycle_button"),
+                onClick = onCycleScope
+            )
+
+            // 4. Sort Cycle: A -> Z > Z -> A > High -> Low > Low -> High > A -> Z
+            val effectiveSort = AccountsListFilterHelper.effectiveSortFilter(sortFilter)
+            val sortIcon = when (effectiveSort) {
+                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> Icons.Default.ArrowDownward
+                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> Icons.Default.ArrowUpward
+                else -> Icons.AutoMirrored.Filled.Sort
+            }
+            val sortLabel = when (effectiveSort) {
+                AccountSortFilter.NAME_ZA -> "Z → A"
+                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> if (isBn) "বেশি → কম" else "High → Low"
+                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> if (isBn) "কম → বেশি" else "Low → High"
+                AccountSortFilter.MOST_USED -> if (isBn) "বেশি ব্যবহৃত" else "Most Used"
+                AccountSortFilter.LEAST_USED -> if (isBn) "কম ব্যবহৃত" else "Least Used"
+                AccountSortFilter.NAME_AZ, AccountSortFilter.DEFAULT -> "A → Z"
+            }
+            AccountsCompactPill(
+                icon = sortIcon,
+                label = sortLabel,
+                isActive = effectiveSort != AccountSortFilter.NAME_AZ,
+                activeColor = SolidPrimary,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("accounts_sort_cycle_button"),
+                onClick = onCycleSort
+            )
+
+            // 5. Hide 0 Toggle
+            AccountsCompactPill(
+                icon = if (excludeZeroBalance) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                label = if (isBn) "০ লুকান" else "Hide 0",
+                isActive = excludeZeroBalance,
+                activeColor = SolidPrimary,
+                isCompactWidth = isCompactWidth,
+                modifier = Modifier.testTag("accounts_hide_zero_button"),
+                onClick = onToggleHideZero
+            )
+        }
     }
 }
 
@@ -1898,36 +1962,40 @@ private fun AccountsCompactPill(
     label: String,
     isActive: Boolean = false,
     activeColor: Color = SolidPrimary,
+    isCompactWidth: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val bgColor = if (isActive) activeColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
     val borderColor = if (isActive) activeColor.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
     val contentColor = if (isActive) activeColor else MaterialTheme.colorScheme.onSurface
+    val horizontalPad = if (isCompactWidth) 4.5.dp else 5.5.dp
+    val iconSize = if (isCompactWidth) 10.dp else 11.dp
+    val fontSize = if (isCompactWidth) 9.5.sp else 10.sp
 
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = bgColor,
         border = BorderStroke(0.85.dp, borderColor),
         modifier = modifier
-            .height(30.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(28.dp)
+            .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
+            modifier = Modifier.padding(horizontal = horizontalPad),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.5.dp)
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = contentColor,
-                modifier = Modifier.size(12.5.dp)
+                modifier = Modifier.size(iconSize)
             )
             Text(
                 text = label,
-                fontSize = 10.5.sp,
+                fontSize = fontSize,
                 fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Medium,
                 color = contentColor,
                 maxLines = 1,

@@ -2025,15 +2025,28 @@ class SimpleScreensFilterSpecTest {
         )
 
         assertEquals(
+            AccountActiveStatusFilter.ACTIVE_ONLY,
+            com.example.ui.screens.AccountsListFilterHelper.nextStatusFilter(AccountActiveStatusFilter.ALL)
+        )
+        assertEquals(
+            AccountActiveStatusFilter.INACTIVE_ONLY,
+            com.example.ui.screens.AccountsListFilterHelper.nextStatusFilter(AccountActiveStatusFilter.ACTIVE_ONLY)
+        )
+        assertEquals(
+            AccountActiveStatusFilter.ALL,
+            com.example.ui.screens.AccountsListFilterHelper.nextStatusFilter(AccountActiveStatusFilter.INACTIVE_ONLY)
+        )
+
+        assertEquals(
             com.example.ui.screens.AccountsScopeFilter.INCLUDED,
-            com.example.ui.screens.AccountsListFilterHelper.nextScopeFilter(com.example.ui.screens.AccountsScopeFilter.ACTIVE)
+            com.example.ui.screens.AccountsListFilterHelper.nextScopeFilter(com.example.ui.screens.AccountsScopeFilter.ALL)
         )
         assertEquals(
             com.example.ui.screens.AccountsScopeFilter.EXCLUDED,
             com.example.ui.screens.AccountsListFilterHelper.nextScopeFilter(com.example.ui.screens.AccountsScopeFilter.INCLUDED)
         )
         assertEquals(
-            com.example.ui.screens.AccountsScopeFilter.ACTIVE,
+            com.example.ui.screens.AccountsScopeFilter.ALL,
             com.example.ui.screens.AccountsListFilterHelper.nextScopeFilter(com.example.ui.screens.AccountsScopeFilter.EXCLUDED)
         )
 
@@ -2054,7 +2067,7 @@ class SimpleScreensFilterSpecTest {
             com.example.ui.screens.AccountsListFilterHelper.nextSortFilter(AccountSortFilter.AMOUNT_LOW_TO_HIGH)
         )
 
-        // 2. Actual vs Effective 0-balance filtering in Excluded and Active modes
+        // 2. Actual vs Effective 0-balance filtering in Excluded and All modes
         val accIncludedNonZero = Account(id = 1L, nameEn = "Cash", nameBn = "নগদ", type = com.example.data.model.AccountType.ASSET)
         val accIncludedZero = Account(id = 2L, nameEn = "Empty Included", nameBn = "খালি ১", type = com.example.data.model.AccountType.ASSET)
         val accExcludedNonZero = Account(id = 3L, nameEn = "FD Vault", nameBn = "এফডি", type = com.example.data.model.AccountType.ASSET)
@@ -2104,11 +2117,11 @@ class SimpleScreensFilterSpecTest {
         )
         assertEquals(listOf("FD Vault", "Adjusted Wallet"), excludedFlatHideZero.map { it.accountWithBalance.account.nameEn })
 
-        // Active + Hide 0 ON: must show Cash (2500), FD Vault (excluded, actual 10000), Adjusted Wallet (actual 4000),
+        // All scope + Hide 0 ON: must show Cash (2500), FD Vault (excluded, actual 10000), Adjusted Wallet (actual 4000),
         // and hide Empty Included (0) and Empty Excluded (0)
-        val activeGroupsHideZero = com.example.ui.screens.AccountsListFilterHelper.filterGroups(
+        val allGroupsHideZero = com.example.ui.screens.AccountsListFilterHelper.filterGroups(
             sourceGroups = groups,
-            scope = com.example.ui.screens.AccountsScopeFilter.ACTIVE,
+            scope = com.example.ui.screens.AccountsScopeFilter.ALL,
             selectedTypeFilter = null,
             excludeZeroBalance = true,
             searchQuery = "",
@@ -2117,7 +2130,7 @@ class SimpleScreensFilterSpecTest {
             languageMode = LanguageMode.ENGLISH,
             groupUsageCount = { 0 }
         )
-        assertEquals(listOf("Adjusted Wallet", "Cash", "FD Vault"), activeGroupsHideZero.map { it.account.nameEn })
+        assertEquals(listOf("Adjusted Wallet", "Cash", "FD Vault"), allGroupsHideZero.map { it.account.nameEn })
 
         // Included + Hide 0 ON: only included with non-zero effective balance -> Cash (2500)
         val includedGroupsHideZero = com.example.ui.screens.AccountsListFilterHelper.filterGroups(
